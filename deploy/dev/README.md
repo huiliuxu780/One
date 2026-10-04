@@ -24,3 +24,43 @@
 | Nginx | 128 MB |
 
 容器上限合计约 6GB，给宿主机、页缓存和突发构建留出余量。上线后仍需以真实负载测量为准。
+
+## 启动
+
+编排只消费预先构建的产物：
+
+```bash
+mvn -B -DskipTests package
+pnpm --dir ui-react install --frozen-lockfile
+pnpm --dir ui-react build
+```
+
+复制 `.env.example` 为 `.env`，用随机值替换所有 `replace-me`，并将文件权限设为 `0600`。不要提交 `.env`。MySQL 首次初始化脚本会给业务账号补充 Flyway 所需的单表只读权限，不使用 root 账号运行 Java 服务。
+
+```bash
+cd deploy/dev
+docker compose --env-file .env build --pull=false
+docker compose --env-file .env up -d
+docker compose --env-file .env ps
+```
+
+## 访问
+
+默认只监听 ECS 回环地址，避免在没有 TLS 时通过公网明文发送登录口令。在本机建立 SSH 隧道：
+
+```bash
+ssh -N -L 18080:127.0.0.1:80 -i /path/to/ecs.pem root@ECS_PUBLIC_IP
+```
+
+随后访问 `http://127.0.0.1:18080/react/`。配置域名、TLS 和公网反向代理后，再按需调整 `PUBLIC_BIND_ADDRESS`；不要把 MySQL、Redis 或 Java 内部端口映射到公网。
+
+## 回滚
+
+新 React 前端与旧 Vue 源码并存。停止新入口不会影响数据卷：
+
+```bash
+cd deploy/dev
+docker compose --env-file .env stop frontend
+```
+
+如需回退镜像，先切回已验证的 Git 提交并重新构建应用镜像，再执行 `docker compose up -d`。不要删除 `mysql_data`、`redis_data` 或 `app_data` 数据卷。

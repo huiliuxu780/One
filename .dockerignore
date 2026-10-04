@@ -17,6 +17,19 @@
 **/dist-doc
 **/target
 
+# Development deployment images consume prebuilt artifacts. Keep every other
+# build directory excluded while allowing only the files copied by deploy/dev.
+!ui-react/dist/
+!ui-react/dist/**
+!runner-console/target/
+!runner-console/target/runner-console-*.jar
+!runner-runtime/target/
+!runner-runtime/target/runner-runtime-*.jar
+!runner-proxy/target/
+!runner-proxy/target/runner-proxy-*.jar
+!runner-websocket/target/
+!runner-websocket/target/runner-websocket-*.jar
+
 image
 logs
 docker/data

@@ -91,3 +91,15 @@
 - 聊天验收必须覆盖 SSE、WebSocket、刷新恢复、主动停止和断流重连。
 - 工作流保存前后 JSON 需做结构对比，不允许前端私自更改持久化协议。
 - ECS 验收需记录空闲与典型执行时 CPU、内存、磁盘数据。
+
+## 2026-10-05 开发环境实测
+
+- Maven 38 个模块在 ECS 以 Java 21 完成 `-DskipTests package`，耗时 4 分 22 秒；该结果证明可编译，不代表测试通过。
+- React 生产构建已经由 Nginx 提供，页面通过 SSH 隧道实测返回 HTTP 200，并完成浏览器渲染检查。
+- MySQL 与 Redis 健康；Console、Runtime、Proxy、WebSocket 均持续运行且重启计数为 0。Flyway 已成功迁移到 V6。
+- 真实登录返回 `code=200`、默认租户 `tenantId=1`；携带登录 token 的 Agent 分页请求返回 `code=200`、当前记录数 0。
+- MySQL、Redis 和四个 Java 服务没有宿主机端口映射。开发网页入口默认仅监听 `127.0.0.1:80`，通过 SSH 隧道访问。
+- 空闲采样时主机已用内存 2201 MiB、可用 5012 MiB、无 Swap；容器内存约为 Nginx 14 MiB、MySQL 384 MiB、Redis 10 MiB、Runtime 428 MiB、Proxy 295 MiB、Console 448 MiB、WebSocket 182 MiB。
+- 构建后根盘使用 11 GiB/40 GiB，剩余 27 GiB；Docker 镜像 4.1 GB，构建缓存 2.6 GB。缓存暂时保留以加速下一阶段构建。
+- 典型 Agent 执行资源数据尚未采集：当前数据库没有 Agent/模型配置，也没有提供云模型 API 凭据。不能用登录或列表请求冒充 Agent 执行负载。
+- 公网 80 探测的 TCP 连接被云侧接收，但 ECS 网卡没有收到对应入站包；没有阿里云控制台权限，无法核对安全组/云防火墙规则。鉴于当前也没有域名和 TLS，本阶段不开放明文公网登录。
