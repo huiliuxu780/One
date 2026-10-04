@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --shadow-card: 0 1px 2px rgb(25 35 55 / 0.035), 0 5px 18px rgb(25 35 55 / 0.025);
+  --shadow-card-hover: 0 12px 35px rgb(25 35 55 / 0.08);
+  --shadow-dialog: 0 24px 70px rgb(15 23 42 / 0.2);
+}
+
+:root {
+  font-family: "SF Pro Display", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color-scheme: light;
+  --background: #fbfcfd;
+  --foreground: #182033;
+  --card: #ffffff;
+  --card-foreground: #182033;
+  --popover: #ffffff;
+  --popover-foreground: #182033;
+  --primary: #1769e0;
+  --primary-foreground: #f8fbff;
+  --secondary: #eef2f7;
+  --secondary-foreground: #29334a;
+  --muted: #f0f3f7;
+  --muted-foreground: #687287;
+  --destructive: #c63c47;
+  --border: #e2e7ee;
+  --input: #d9e0e9;
+  --ring: #1769e0;
+  --sidebar: #f7f8fa;
+  --sidebar-foreground: #263047;
+  --sidebar-border: #e3e7ed;
+  --sidebar-accent: #e9eef5;
+  --sidebar-muted: #7c8596;
+}
+
+* { border-color: var(--border); }
+html { background: var(--background); }
+body { margin: 0; min-width: 320px; min-height: 100dvh; background: var(--background); color: var(--foreground); text-rendering: optimizeLegibility; }
+button, input, select { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+.bg-app { background: radial-gradient(circle at 90% 0%, rgb(23 105 224 / 0.045), transparent 25rem), var(--background); }
+.bg-auth { background: radial-gradient(circle at 80% 15%, rgb(23 105 224 / 0.07), transparent 26rem), var(--background); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}
