@@ -1,0 +1,23 @@
+FROM eclipse-temurin:21-jre
+
+WORKDIR /app
+RUN groupadd -r shellproxy -g 1002 \
+    && useradd -r -g shellproxy -u 1002 -m -s /sbin/nologin -d /app shellproxy \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends python3 python3-pip python3-venv gosu curl ca-certificates \
+    && ln -sf /usr/bin/python3 /usr/bin/python \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /app/logs \
+    && chown -R shellproxy:shellproxy /app
+
+COPY runner-proxy/target/runner-proxy-*.jar /app/app.jar
+COPY docker/proxy/entrypoint.sh /app/entrypoint.sh
+RUN chmod 0755 /app/entrypoint.sh \
+    && chown shellproxy:shellproxy /app/app.jar /app/entrypoint.sh
+
+EXPOSE 3062
+ENV TZ=Asia/Shanghai
+ENV PATH="/opt/tools/npm-global/bin:${PATH}"
+ENTRYPOINT ["/app/entrypoint.sh"]

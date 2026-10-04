@@ -1,0 +1,15 @@
+FROM eclipse-temurin:21-jre
+
+WORKDIR /app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /app/data /app/logs /app/.apboa
+
+COPY runner-console/target/runner-console-*.jar /app/app.jar
+COPY docker/console/entrypoint.sh /app/entrypoint.sh
+RUN chmod 0755 /app/entrypoint.sh
+
+EXPOSE 3060
+ENV TZ=Asia/Shanghai
+ENTRYPOINT ["/app/entrypoint.sh"]

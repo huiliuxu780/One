@@ -1,0 +1,8 @@
+FROM eclipse-temurin:21-jre
+
+WORKDIR /app
+COPY runner-websocket/target/runner-websocket-*.jar /app/app.jar
+
+EXPOSE 3064
+ENV TZ=Asia/Shanghai
+ENTRYPOINT ["sh", "-c", "exec java -XX:MaxRAMPercentage=${WEBSOCKET_JAVA_HEAP_PERCENTAGE:-50.0} -XX:InitialRAMPercentage=20.0 -XX:+UseG1GC -XX:+UseContainerSupport -jar /app/app.jar"]
