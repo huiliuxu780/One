@@ -141,4 +141,14 @@
 
 随后补完剩余页面：对话广场（Vue 原版为骨架屏占位，按其声明的"聚合展示可用智能体"意图落地）、会话历史（分页消息链 + 分支切换 + 当前消息编辑）、Communication（ChatKey 免登录分享入口，key 换取令牌后进入对话）、工作台 Dashboard（看板 CRUD/默认项/启停 + 数据集 CRUD 与真实执行，错误原文直接展示）、API 服务（应用/API CRUD、上下线、访问日志详情）、审查页（后端无审查 API 且旧版为静态假数据，按 Spec 2.2 做诚实空态，不做伪装）。
 
-开发侧剩余：聊天流式真实验收需云模型凭据；API 服务真实调用验收需 runner-gateway 启用（Spec 阻塞项 3）；RM-09 切换/回滚演练与容量报告属 G8 上线阶段。
+
+
+## 2026-10-05 云模型接入与流式对话验收
+
+阻塞项 1（云模型凭据）已由用户提供：阿里云 DashScope `qwen3.8-flash` / `qwen3.8-max`。
+
+- 凭据经 ECS `0600` 文件注入配置过程，未进入源码、bundle 或提交；存储采用产品自身的供应商配置（`authType=CONFIG`，列表接口对 value 脱敏）。
+- 供应商与模型配置：DashScope 原生端点对 qwen3.8 返回 400（url error），改用 **OpenAI 兼容模式**（`type=OPEN_AI`，baseUrl `https://dashscope.aliyuncs.com/compatible-mode/v1`）后连通性检查两个模型均"连接成功"。
+- 真实 AG-UI 流式对话验收：创建会话（threadId=sessionId）→ `runtime/agui/run/{agentCode}` SSE。事件序列完整：`REPLAY_CAUGHT_UP → RUN_STARTED → REASONING_MESSAGE_START/CONTENT/END（7 个思考增量）→ TEXT_MESSAGE_START/CONTENT(5)/END → RUN_FINISHED`；SSE data 为双层 JSON 编码，与 Vue 版解析器（字符串再解一层）一致。助手最终回复："我是一个简洁友好的中文助手，随时为你解答问题、处理任务！"
+- 已创建可直接对话的测试 Agent：`chat_flash_test`（对话测试（qwen3.8-flash））；qwen3.8-max 配置就绪，可在 Agent 编辑器中切换。
+- 剩余验收项：停止/重连/HITL/子 Agent 场景、qwen3.8-max 实测；API 服务真实调用待 runner-gateway。
