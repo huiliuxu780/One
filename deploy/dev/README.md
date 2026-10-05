@@ -64,3 +64,26 @@ docker compose --env-file .env stop frontend
 ```
 
 如需回退镜像，先切回已验证的 Git 提交并重新构建应用镜像，再执行 `docker compose up -d`。不要删除 `mysql_data`、`redis_data` 或 `app_data` 数据卷。
+
+## React 开发态服务
+
+宿主机无需安装 Node。以下服务加入 `backend` 网络，在容器内安装依赖并启动 Vite，代理目标指向 compose 服务名，可直接对真实后端联调：
+
+```bash
+cd deploy/dev
+docker compose --env-file .env -f docker-compose.yml -f docker-compose.ui-react-dev.yml up -d ui-react-dev
+```
+
+首次启动会在容器内执行 `pnpm install`（源码目录即挂载目录，依赖写入 `ui-react/node_modules`）。访问方式同上，通过 SSH 隧道转发 `127.0.0.1:3031` 后打开 `http://127.0.0.1:3031/`。停止服务：
+
+```bash
+docker compose --env-file .env -f docker-compose.yml -f docker-compose.ui-react-dev.yml stop ui-react-dev
+```
+
+端到端测试（Playwright）针对该开发服务执行，凭据只经环境变量注入：
+
+```bash
+cd ui-react
+pnpm exec playwright install chromium
+APBOA_E2E_BASE_URL=http://127.0.0.1:3031 APBOA_E2E_USERNAME=... APBOA_E2E_PASSWORD=... pnpm test:e2e
+```

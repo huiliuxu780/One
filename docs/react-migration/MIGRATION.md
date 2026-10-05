@@ -105,3 +105,22 @@
 - 构建后根盘使用 11 GiB/40 GiB，剩余 27 GiB；Docker 镜像 4.1 GB，构建缓存 2.6 GB。缓存暂时保留以加速下一阶段构建。
 - 典型 Agent 执行资源数据尚未采集：当前数据库没有 Agent/模型配置，也没有提供云模型 API 凭据。不能用登录或列表请求冒充 Agent 执行负载。
 - 公网 80 探测的 TCP 连接被云侧接收，但 ECS 网卡没有收到对应入站包；没有阿里云控制台权限，无法核对安全组/云防火墙规则。鉴于当前也没有域名和 TLS，本阶段不开放明文公网登录。
+
+## 2026-10-05 RM-01 平台基础完成
+
+依据 REMAINING_SPEC.md 的 RM-01 工作包实施，全部验证在本机 Docker 内的 node:22-alpine 工具链完成（宿主机无 Node）。
+
+已完成：
+
+- 统一数据层：`@tanstack/react-query` 接入（重试策略区分 4xx/5xx/网络）、`usePagedList`（分页+筛选+keepPreviousData）、`useBatchSelection`、按资源失效助手。
+- 请求层增强：每个请求注入 `X-Request-Id`（优先采用后端回显），错误统一为携带 `status/code/requestId` 的 `ApiClientError`；401 单飞刷新保持原语义并由 MSW 单测覆盖（并发 401 仅一次刷新、刷新失败清理会话并跳转登录）。
+- shadcn/ui 补齐：Form、Select、Tabs、Table、Pagination、Toaster(sonner)、Tooltip、Popover、Sheet、DropdownMenu、Checkbox、Switch、Textarea、Command(cmdk)、AlertDialog、Label、ScrollArea。
+- 全局：ErrorBoundary、sonner Toaster、TooltipProvider、403/404/500 页面（500 展示请求关联 ID）、路由级 loading/空态/错误态组件；`*` 路由改为 404，未迁移入口仍以"迁移中"禁用态呈现。
+- 权限：`Capability → TenantRole` 映射与 `roleSatisfies`；`ProtectedRoute` 支持 capability 守卫（403），导航项按能力隐藏；后端权限检查仍为最终边界。
+- 会话功能：个人资料页（updateProfile）、修改密码页（md5 后提交，与 Vue 行为一致）、用户菜单接线、`updateUser` 状态同步。
+- 测试与构建：Vitest(jsdom)+RTL+MSW 基础设施、Playwright 配置与真实后端冒烟用例（凭据经环境变量注入，不入库）、`pnpm size:check` 体积阈值脚本、生产默认无 source map（`VITE_SOURCEMAP=hidden` 可发布符号）。
+- 开发环境：vite 代理目标环境变量化（`VITE_DEV_CONSOLE/RUNTIME/WS_TARGET`），新增 `deploy/dev/docker-compose.ui-react-dev.yml` 开发态服务，宿主机零 Node 依赖。
+
+验证结果：`tsc -b` 通过；Vitest 11/11 通过；生产构建通过且路由分包生效；`size:check` 全部在阈值内（entry 183KB / react vendor 350KB）。真实后端冒烟：dev 容器经 backend 网络代理 `/api`，静态页 HTTP 200，`/api/auth/login` 抵达真实 Console 并返回业务码。
+
+阻塞：部署实例的 admin 密码已与 `db_init.sql`/README 默认值不一致（无修改记录）。需要用户提供开发环境测试账号，或确认重置为文档默认值后，才能完成"会话恢复、token 刷新"的真实验收。

@@ -1,0 +1,40 @@
+# React 前端开发态服务（与 docker-compose.yml 合并使用）。
+# 宿主机无需安装 Node：服务在容器内安装依赖并启动 Vite，代理目标指向 compose 服务名。
+#
+# 用法（在仓库根目录执行）：
+#   docker compose -f deploy/dev/docker-compose.yml -f deploy/dev/docker-compose.ui-react-dev.yml up -d ui-react-dev
+#
+# 访问：SSH 隧道到 127.0.0.1:3031（无 TLS 时不对公网暴露，与 Spec 第 8 节一致）：
+#   ssh -L 3031:127.0.0.1:3031 <user>@<ecs>
+#
+# 停止：
+#   docker compose -f deploy/dev/docker-compose.yml -f deploy/dev/docker-compose.ui-react-dev.yml stop ui-react-dev
+services:
+  ui-react-dev:
+    image: ${UI_REACT_NODE_IMAGE:-docker.m.daocloud.io/library/node:22-alpine}
+    working_dir: /work
+    command:
+      - sh
+      - -c
+      - npm i -g pnpm@9.4.0 --registry=https://registry.npmmirror.com && pnpm install && pnpm dev --host 0.0.0.0
+    environment:
+      VITE_DEV_CONSOLE_TARGET: http://console:3060
+      VITE_DEV_RUNTIME_TARGET: http://runtime:3061
+      VITE_DEV_WS_TARGET: http://websocket:3064
+      VITE_DEFAULT_TENANT_ID: "1"
+      TZ: Asia/Shanghai
+    volumes:
+      - ../../ui-react:/work
+    ports:
+      - "${PUBLIC_BIND_ADDRESS:-127.0.0.1}:${UI_REACT_DEV_PORT:-3031}:3031"
+    depends_on:
+      console: { condition: service_started }
+      runtime: { condition: service_started }
+      websocket: { condition: service_started }
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.0
+    networks: [backend]
+
+networks:
+  backend: {}
