@@ -29,6 +29,8 @@
 !runner-proxy/target/runner-proxy-*.jar
 !runner-websocket/target/
 !runner-websocket/target/runner-websocket-*.jar
+!runner-gateway/target/
+!runner-gateway/target/runner-gateway-*.jar
 
 image
 logs
