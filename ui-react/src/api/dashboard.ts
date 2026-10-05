@@ -23,6 +23,10 @@ export const dashboards = {
   setDefault: (id: string) => apiClient.put<ApiResponse<boolean>>(`/api/dashboard/${id}/default`),
   enable: (id: string, enable: number) => apiClient.put<ApiResponse<boolean>>(`/api/dashboard/${id}/enable/${enable}`),
   historyList: (id: string) => apiClient.get<ApiResponse<DashboardHistoryEntity[]>>(`/api/dashboard/${id}/history`),
+  personal: (id: string) => apiClient.get<ApiResponse<{ dashboardId: string; config: DashboardDsl; basedVersion?: string }>>(`/api/dashboard/${id}/personal`),
+  savePersonal: (id: string, config: DashboardDsl) => apiClient.put<ApiResponse<boolean>>(`/api/dashboard/${id}/personal`, config),
+  saveVersion: (id: string, config: DashboardDsl, note?: string) => apiClient.post<ApiResponse<boolean>>(`/api/dashboard/${id}/history`, { config, note }),
+  rollback: (id: string, historyId: string, snapshotCurrent = true, note?: string) => apiClient.post<ApiResponse<DashboardDsl>>(`/api/dashboard/${id}/history/${historyId}/rollback`, { snapshotCurrent, note }),
   removeHistory: (id: string, historyId: string) => apiClient.delete<ApiResponse<boolean>>(`/api/dashboard/${id}/history/${historyId}`),
   portal: () => apiClient.get<ApiResponse<{ dashboardId: string; config: DashboardDsl; source: string; stale: boolean }>>('/api/dashboard/portal'),
 }
