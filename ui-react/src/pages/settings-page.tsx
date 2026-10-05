@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { MagnifyingGlass, Plus, Trash } from '@phosphor-icons/react'
+import { md5 } from 'js-md5'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -14,29 +17,35 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from '@/components/ui/sonner'
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/states'
 import { readableError } from '@/lib/utils'
-import { accounts, secretKeys, storageProtocols, systemParams } from '@/api/settings'
-import type { AccountVO, Params, SecretKeyVO, StorageProtocol } from '@/types'
+import { accounts, secretKeys, systemParams } from '@/api/settings'
+import type { AccountVO, Params, SecretKeyVO } from '@/types'
+import { useAuthStore } from '@/features/auth/auth-store'
 
 export function SettingsPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab = ['accounts', 'apikeys', 'params', 'intro'].includes(searchParams.get('tab') || '') ? searchParams.get('tab')! : 'accounts'
   return (
     <div className="px-6 py-6">
       <h1 className="text-xl font-semibold tracking-tight">设置</h1>
       <p className="mb-4 mt-1 text-sm text-muted-foreground">账号管理、API Key、系统参数与系统介绍。</p>
-      <Tabs defaultValue="accounts">
+      <Tabs value={tab} onValueChange={(value) => setSearchParams(value === 'accounts' ? {} : { tab: value }, { replace: true })}>
         <TabsList>
           <TabsTrigger value="accounts">账号管理</TabsTrigger>
           <TabsTrigger value="apikeys">API Key</TabsTrigger>
           <TabsTrigger value="params">系统参数</TabsTrigger>
+          <TabsTrigger value="intro">系统介绍</TabsTrigger>
         </TabsList>
         <TabsContent value="accounts"><AccountsTab /></TabsContent>
         <TabsContent value="apikeys"><ApiKeysTab /></TabsContent>
         <TabsContent value="params"><ParamsTab /></TabsContent>
+        <TabsContent value="intro"><SystemIntroTab /></TabsContent>
       </Tabs>
     </div>
   )
 }
 
 function AccountsTab() {
+  const currentUser = useAuthStore((state) => state.user)
   const [keyword, setKeyword] = useState('')
   const listQuery = useQuery({
     queryKey: ['list', 'account', keyword],
@@ -45,6 +54,9 @@ function AccountsTab() {
   const [resetTarget, setResetTarget] = useState<AccountVO | null>(null)
   const [newPassword, setNewPassword] = useState('')
   const [busy, setBusy] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [createValues, setCreateValues] = useState({ nickname: '', username: '', email: '', password: '' })
+  const [removeTarget, setRemoveTarget] = useState<AccountVO | null>(null)
 
   const rows: AccountVO[] = listQuery.data ?? []
 
@@ -62,7 +74,7 @@ function AccountsTab() {
     if (!resetTarget) return
     setBusy(true)
     try {
-      await accounts.changePassword(String(resetTarget.id), newPassword)
+      await accounts.changePassword(String(resetTarget.id), md5(newPassword))
       toast.success('密码已重置')
       setResetTarget(null)
       setNewPassword('')
@@ -73,14 +85,45 @@ function AccountsTab() {
     }
   }
 
+  async function createAccount() {
+    setBusy(true)
+    try {
+      await accounts.create({ ...createValues, password: md5(createValues.password) })
+      toast.success('账号已创建')
+      setCreating(false)
+      setCreateValues({ nickname: '', username: '', email: '', password: '' })
+      void listQuery.refetch()
+    } catch (cause) {
+      toast.error(readableError(cause, '创建失败'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function removeAccount() {
+    if (!removeTarget) return
+    setBusy(true)
+    try {
+      await accounts.remove([String(removeTarget.id)])
+      toast.success('账号已删除')
+      setRemoveTarget(null)
+      void listQuery.refetch()
+    } catch (cause) {
+      toast.error(readableError(cause, '删除失败'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <Card>
       <CardContent className="pt-5">
-        <div className="mb-3 w-64">
-          <div className="relative">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="relative w-64">
             <MagnifyingGlass size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input className="pl-8" placeholder="搜索账号" value={keyword} onChange={(event) => setKeyword(event.target.value)} />
           </div>
+          <Button onClick={() => setCreating(true)}><Plus size={14} /> 新建账号</Button>
         </div>
         {listQuery.isLoading ? (
           <TableSkeleton rows={4} />
@@ -109,7 +152,10 @@ function AccountsTab() {
                   <TableCell>{row.tenantRole ? <Badge variant="outline">{row.tenantRole}</Badge> : '—'}</TableCell>
                   <TableCell><Switch checked={Boolean(row.enabled)} onCheckedChange={(checked) => void toggle(row, checked)} aria-label={`启用 ${row.username}`} /></TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" onClick={() => setResetTarget(row)}>重置密码</Button>
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => setResetTarget(row)}>重置密码</Button>
+                      <Button variant="ghost" size="sm" className="text-destructive" disabled={String(row.id) === String(currentUser?.id)} onClick={() => setRemoveTarget(row)}><Trash size={13} /> 删除</Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -133,6 +179,43 @@ function AccountsTab() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <Dialog open={creating} onOpenChange={setCreating}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>新建账号</DialogTitle>
+              <DialogDescription>账号直接加入当前默认组织；不开放组织创建或申请入口。</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-3">
+              <div><Label htmlFor="account-nickname">昵称</Label><Input id="account-nickname" value={createValues.nickname} onChange={(event) => setCreateValues((value) => ({ ...value, nickname: event.target.value }))} /></div>
+              <div><Label htmlFor="account-username">账号</Label><Input id="account-username" autoComplete="off" value={createValues.username} onChange={(event) => setCreateValues((value) => ({ ...value, username: event.target.value }))} /></div>
+              <div><Label htmlFor="account-email">邮箱</Label><Input id="account-email" type="email" value={createValues.email} onChange={(event) => setCreateValues((value) => ({ ...value, email: event.target.value }))} /></div>
+              <div><Label htmlFor="account-password">初始密码</Label><Input id="account-password" type="password" autoComplete="new-password" value={createValues.password} onChange={(event) => setCreateValues((value) => ({ ...value, password: event.target.value }))} /></div>
+            </div>
+            <DialogFooter><Button variant="outline" onClick={() => setCreating(false)}>取消</Button><Button disabled={busy || !createValues.nickname.trim() || createValues.username.trim().length < 4 || !createValues.email.includes('@') || createValues.password.length < 6} onClick={() => void createAccount()}>{busy ? '创建中…' : '创建'}</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog open={Boolean(removeTarget)} onOpenChange={(open) => !open && setRemoveTarget(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader><AlertDialogTitle>删除账号</AlertDialogTitle><AlertDialogDescription>将永久删除“{removeTarget?.nickname || removeTarget?.username}”。管理员账号和当前登录账号受后端及前端双重保护。</AlertDialogDescription></AlertDialogHeader>
+            <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={busy} onClick={() => void removeAccount()}>确认删除</AlertDialogAction></AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </CardContent>
+    </Card>
+  )
+}
+
+function SystemIntroTab() {
+  return (
+    <Card>
+      <CardContent className="space-y-5 pt-6">
+        <div><h2 className="text-lg font-semibold">Apboa Next</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">面向智能体创建、对话、资源管理、自动化、API 服务与工作流编排的开发平台。当前控制台采用 React、TypeScript、Vite、shadcn/ui 与 React Flow，后端继续复用 Java、Spring Boot 和 AgentScope。</p></div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {[['智能体与对话', '支持子 Agent、Agent-as-Tool、A2A、流式消息、工具确认与文件交互。'], ['资源管理', '统一管理模型、技能、工具、MCP、Hook、提示词、敏感词和记忆配置。'], ['编排与运行', '提供自动化任务、API 服务、看板和工作流设计、发布、运行及调试。']].map(([title, description]) => <div key={title} className="rounded-xl border border-border p-4"><div className="font-medium">{title}</div><p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p></div>)}
+        </div>
+        <div className="rounded-lg bg-muted/50 p-4 text-sm leading-6 text-muted-foreground">当前部署固定使用默认组织，组织切换、申请、审批和组织管理入口已隐藏；知识库与本地 RAG 不在本版本范围内。后端租户上下文、权限检查和登录鉴权仍保留。</div>
       </CardContent>
     </Card>
   )

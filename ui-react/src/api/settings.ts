@@ -1,4 +1,4 @@
-import type { ApiResponse, AccountVO, NodeStatusVO, Params, SecretKeyVO, StorageProtocol, WebSocketNodeVO } from '@/types'
+import type { ApiResponse, AccountVO, NodeStatusVO, Params, RegisterRequest, SecretKeyVO, StorageProtocol, WebSocketNodeVO } from '@/types'
 import { apiClient } from './client'
 
 export const accounts = {
@@ -10,6 +10,7 @@ export const accounts = {
     apiClient.put<ApiResponse<boolean>>(`/api/account/${id}/toggle-enabled`, null, { params: { enabled } }),
   changePassword: (id: string, newPassword: string) =>
     apiClient.put<ApiResponse<boolean>>(`/api/account/${id}/change-password`, null, { params: { newPassword } }),
+  create: (entity: RegisterRequest) => apiClient.post<ApiResponse<boolean>>('/api/auth/admin/create-account', entity),
 }
 
 export const secretKeys = {
@@ -37,6 +38,9 @@ export const storageProtocols = {
   save: (entity: Partial<StorageProtocol>) => apiClient.post<ApiResponse<boolean>>('/api/storage/add', entity),
   update: (entity: Partial<StorageProtocol>) => apiClient.post<ApiResponse<boolean>>('/api/storage/update', entity),
   remove: (ids: string[]) => apiClient.post<ApiResponse<boolean>>('/api/storage/delete', ids),
-  /** 连通性验证：调用真实后端。 */
-  validate: (query: Record<string, unknown>) => apiClient.get<ApiResponse<boolean>>('/api/storage/validSuccess', { params: query }),
+  detail: (id: string) => apiClient.get<ApiResponse<StorageProtocol>>('/api/storage/selectOne', { params: { id } }),
+  /** 后端接口名虽为 validSuccess，实际语义是将该配置设为唯一启用项。 */
+  enable: (id: string) => apiClient.get<ApiResponse<boolean>>('/api/storage/validSuccess', { params: { id } }),
+  updateProtocol: (entity: Pick<StorageProtocol, 'id' | 'protocolConfig'>) =>
+    apiClient.post<ApiResponse<boolean>>('/api/storage/updateProtocol', entity),
 }
