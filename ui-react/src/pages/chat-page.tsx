@@ -27,8 +27,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { toast } from '@/components/ui/sonner'
 import { MarkdownLite, type MarkdownInteractionPayload } from '@/components/markdown-lite'
 import { EmptyState, ErrorState, PageLoading } from '@/components/states'
-import { getAgentAllowedFileTypes, pageAgents } from '@/api/agents'
+import { enabledSkillsOfAgent, enabledToolsOfAgent, getAgentAllowedFileTypes, pageAgents } from '@/api/agents'
+import { listFiles } from '@/api/workspace'
 import { deleteAttachments, parseAttachmentText, uploadAttachment } from '@/api/attach'
+import { MentionDropdown, type MentionDropdownHandle } from '@/features/chat/mention-dropdown'
+import { BUILTIN_AGENT_SKILLS, buildTag, findMentionQuery, matchTagBeforeCursor, type MentionResourceItem } from '@/features/chat/mention'
+import { TaggedText } from '@/features/chat/tagged-text'
 import { updateCurrentMessageContent } from '@/api/chatSession'
 import type { ChatMessageVO, ChatSessionVO, Message, PlanInfo, SubAgentRunVO, UploadedFileItem } from '@/types'
 import type { ToolCallView } from '@/features/chat/chat-runtime'
@@ -97,6 +101,13 @@ function injectInteractionSubmission(raw: string, payload: MarkdownInteractionPa
   return raw.replace(payload.code, updatedCode)
 }
 
+function flattenFileNodes(nodes: { name: string; path: string; directory: boolean; fullName?: string; children?: unknown[] }[]): MentionResourceItem[] {
+  return nodes.flatMap((node) => {
+    if (node.directory) return flattenFileNodes((node.children ?? []) as typeof nodes)
+    return [{ kind: 'workspace-file' as const, content: node.path, name: node.fullName || node.name, description: node.path }]
+  })
+}
+
 export function ChatPage() {
   const store = useChatStore()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -109,6 +120,80 @@ export function ChatPage() {
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const seededAgentRef = useRef<string | null>(null)
+  const inputRef = useRef<HTMLTextAreaElement | null>(null)
+  const mentionRef = useRef<MentionDropdownHandle | null>(null)
+
+  // @mention：工作空间文件、Agent 工具、Agent 技能三类真实数据源（与 Vue ChatInputEditor 一致）。
+  const mentionFilesQuery = useQuery({
+    queryKey: ['workspace-files', 'mention', store.activeSessionId],
+    queryFn: async () => (await listFiles(store.activeSessionId!)).data.data ?? [],
+    enabled: Boolean(store.activeSessionId),
+  })
+  const mentionToolsQuery = useQuery({
+    queryKey: ['agent', store.activeAgentId, 'enabled-tools'],
+    queryFn: async () => (await enabledToolsOfAgent(store.activeAgentId!)).data.data ?? [],
+    enabled: Boolean(store.activeAgentId),
+  })
+  const mentionSkillsQuery = useQuery({
+    queryKey: ['agent', store.activeAgentId, 'enabled-skills'],
+    queryFn: async () => (await enabledSkillsOfAgent(store.activeAgentId!)).data.data ?? [],
+    enabled: Boolean(store.activeAgentId),
+  })
+  const mentionItems = useMemo<MentionResourceItem[]>(() => [
+    ...flattenFileNodes(mentionFilesQuery.data ?? []),
+    ...(mentionToolsQuery.data ?? []).map((tool) => ({ kind: 'agent-tool' as const, content: tool.toolId, name: tool.name, description: tool.description })),
+    ...(mentionSkillsQuery.data && mentionSkillsQuery.data.length
+      ? mentionSkillsQuery.data.map((skill) => ({ kind: 'agent-skill' as const, content: skill.name, name: skill.alias || skill.name, description: skill.description }))
+      : BUILTIN_AGENT_SKILLS),
+  ], [mentionFilesQuery.data, mentionToolsQuery.data, mentionSkillsQuery.data])
+  const [mention, setMention] = useState<{ query: string; from: number } | null>(null)
+
+  function handleInputChange(value: string, composing: boolean) {
+    setInput(value)
+    if (composing) { setMention(null); return }
+    const cursor = inputRef.current?.selectionStart ?? value.length
+    const query = findMentionQuery(value.slice(0, cursor))
+    if (query === null) { setMention(null); return }
+    setMention({ query, from: cursor - 1 - query.length })
+  }
+
+  function insertMention(item: MentionResourceItem) {
+    if (!mention) return
+    const tag = buildTag(item.kind, item.content)
+    const cursor = inputRef.current?.selectionStart ?? input.length
+    // @ 连同查询词整体替换为协议标签文本（与 Vue insertResourceTag 的截断范围一致）。
+    const next = `${input.slice(0, mention.from)}${tag}${input.slice(cursor)}`
+    const position = mention.from + tag.length
+    setInput(next)
+    setMention(null)
+    requestAnimationFrame(() => {
+      inputRef.current?.focus()
+      inputRef.current?.setSelectionRange(position, position)
+    })
+  }
+
+  function handleInputKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (mention && mentionRef.current?.handleKeydown(event)) {
+      event.preventDefault()
+      return
+    }
+    const { selectionStart, selectionEnd } = event.currentTarget
+    if (event.key === 'Backspace' && selectionStart === selectionEnd) {
+      // 标签整块删除：光标前是完整提及标签时一次移除，避免拆坏协议文本。
+      const tag = matchTagBeforeCursor(input.slice(0, selectionStart))
+      if (tag) {
+        event.preventDefault()
+        const position = selectionStart - tag.length
+        setInput(input.slice(0, position) + input.slice(selectionEnd))
+        requestAnimationFrame(() => inputRef.current?.setSelectionRange(position, position))
+      }
+      return
+    }
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      void handleSend()
+    }
+  }
 
   const agentsQuery = useQuery({
     queryKey: ['list', 'agent', 'chat-select'],
@@ -216,6 +301,7 @@ export function ChatPage() {
     })
     if (sent) {
       setInput('')
+      setMention(null)
       setAttachments([])
     }
   }
@@ -291,7 +377,18 @@ export function ChatPage() {
           <div className="flex items-end gap-2">
             <input ref={fileInputRef} type="file" multiple className="hidden" accept={allowedTypes.length ? allowedTypes.map((item) => `.${item}`).join(',') : undefined} onChange={(event) => void handleFiles(event.target.files)} />
             <Button variant="outline" size="icon" title="上传附件（单文件不超过 30MB）" disabled={!activeSession || store.running} onClick={() => fileInputRef.current?.click()}><Paperclip size={16} /></Button>
-            <Textarea className="min-h-11 flex-1" placeholder={activeSession ? '输入消息，Enter 发送，Shift+Enter 换行' : '先创建会话'} value={input} disabled={!activeSession || store.running} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void handleSend() } }} />
+          <div className="relative flex-1">
+            {mention && activeSession && !store.running ? <MentionDropdown ref={mentionRef} items={mentionItems} query={mention.query} onSelect={insertMention} onClose={() => setMention(null)} /> : null}
+            <Textarea
+              ref={inputRef}
+              className="min-h-11"
+              placeholder={activeSession ? '输入消息，Enter 发送，Shift+Enter 换行，@ 提及文件/工具/技能' : '先创建会话'}
+              value={input}
+              disabled={!activeSession || store.running}
+              onChange={(event) => handleInputChange(event.target.value, event.nativeEvent instanceof InputEvent && event.nativeEvent.isComposing)}
+              onKeyDown={handleInputKeyDown}
+            />
+          </div>
             {store.running ? <Button variant="destructive" onClick={() => void store.stop()} disabled={store.runState === 'STOPPING'}><Square size={14} /> {store.runState === 'STOPPING' ? '停止中…' : '停止'}</Button> : <Button onClick={() => void handleSend()} disabled={!canSend}><ArrowUp size={14} /> 发送</Button>}
           </div>
         </div>
@@ -368,7 +465,7 @@ function AgentPicker({ agents, loading, onClose, onPick }: { agents: Array<{ id:
 function MessageBubble({ role, content, interactionDisabled = true, onInteraction }: { role: string; content: string | unknown; interactionDisabled?: boolean; onInteraction?: (payload: MarkdownInteractionPayload) => void }) {
   const parsed = parseMessage(content)
   if (role === 'thinking') return <ReasoningCard content={parsed.text} complete />
-  if (role === 'user') return <div className="flex justify-end"><div className="max-w-[80%] rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-primary-foreground">{parsed.files.length ? <div className="mb-2 flex flex-wrap gap-1">{parsed.files.map((file) => <span key={file.id} className="rounded bg-primary-foreground/15 px-2 py-1 text-xs">{file.name}</span>)}</div> : null}{parsed.text ? <MarkdownLite content={parsed.text} /> : null}</div></div>
+  if (role === 'user') return <div className="flex justify-end"><div className="max-w-[80%] rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-primary-foreground">{parsed.files.length ? <div className="mb-2 flex flex-wrap gap-1">{parsed.files.map((file) => <span key={file.id} className="rounded bg-primary-foreground/15 px-2 py-1 text-xs">{file.name}</span>)}</div> : null}{parsed.text ? <TaggedText content={parsed.text} /> : null}</div></div>
   if (role === 'tool') return <details className="max-w-[85%] rounded-xl border border-border bg-card px-3 py-2 text-sm"><summary className="cursor-pointer text-xs font-medium text-muted-foreground">工具结果</summary><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs">{parsed.text}</pre></details>
   if (role === 'activity') return <details className="max-w-[85%] rounded-xl border border-dashed border-border bg-muted/40 px-3 py-2 text-sm"><summary className="cursor-pointer text-xs font-medium text-muted-foreground">活动卡片</summary><pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-xs">{parsed.text}</pre></details>
   if (role === 'system') return null

@@ -1,4 +1,4 @@
-import type { AgentA2A, AgentDefinitionDTO, AgentDefinitionVO, AgentStatisticsVO, ApiResponse, JobInfo, PageResult } from '@/types'
+import type { AgentA2A, AgentDefinitionDTO, AgentDefinitionVO, AgentStatisticsVO, ApiResponse, JobInfo, PageResult, SkillPackage, ToolConfig } from '@/types'
 import { apiClient } from './client'
 
 export function pageAgents(query: AgentDefinitionDTO) {
@@ -17,6 +17,16 @@ export function getAgent(id: string) {
 
 export function getAgentAllowedFileTypes(id: string) {
   return apiClient.get<ApiResponse<string[]>>(`/api/agent/definition/${id}/allow/file-type`)
+}
+
+/** Agent 已启用工具（@mention 数据源）；id 用 toolId。 */
+export function enabledToolsOfAgent(id: string) {
+  return apiClient.get<ApiResponse<ToolConfig[]>>(`/api/agent/definition/${id}/enabled/tools`)
+}
+
+/** Agent 已启用技能（@mention 数据源）；id 用技能包 name。 */
+export function enabledSkillsOfAgent(id: string) {
+  return apiClient.get<ApiResponse<SkillPackage[]>>(`/api/agent/definition/${id}/enabled/skills`)
 }
 
 export function createAgent(vo: Partial<AgentDefinitionVO>) {
