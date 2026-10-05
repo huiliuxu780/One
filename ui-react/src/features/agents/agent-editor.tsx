@@ -257,10 +257,14 @@ export function AgentEditor({ open, onOpenChange, agentId, cloneFrom, onSaved }:
     setBusy(true)
     try {
       const payload = buildPayload(form, original)
+      let savedAgentId = agentId
       if (agentId && original) await updateAgent(payload)
-      else await createAgent(payload)
+      else {
+        const response = await createAgent(payload)
+        savedAgentId = String(response.data.data.id)
+      }
       if (form.agentType === 'A2A' && a2a) {
-        await saveA2aConfig({ ...a2a, agentDefinitionId: agentId ?? undefined, a2aType: a2a.a2aType ?? A2aType.WELLKNOWN })
+        await saveA2aConfig({ ...a2a, agentDefinitionId: savedAgentId ?? undefined, a2aType: a2a.a2aType ?? A2aType.WELLKNOWN })
       }
       toast.success('已保存')
       onOpenChange(false)

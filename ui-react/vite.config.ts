@@ -3,7 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, loadEnv, type ProxyOptions } from 'vite'
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url))
 
@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => {
   // 生产默认不出 source map；需要发布符号时设 VITE_SOURCEMAP=hidden。
   const sourcemap = env.VITE_SOURCEMAP === 'hidden' ? ('hidden' as const) : env.VITE_SOURCEMAP === 'true'
 
-  const proxy =
+  const proxy: Record<string, string | ProxyOptions> =
     proxyMode === 'nginx'
       ? {
           // 保留原路径：ECS Nginx 已按最长前缀匹配 /api/runtime、/api/ws、/api
@@ -37,20 +37,20 @@ export default defineConfig(({ mode }) => {
             target: runtimeTarget,
             changeOrigin: true,
             timeout: 0,
-            rewrite: (value) => value.replace(/^\/api/, ''),
+            rewrite: (value: string) => value.replace(/^\/api/, ''),
           },
           '/api/ws/': {
             target: wsTarget,
             changeOrigin: true,
             ws: true,
             timeout: 0,
-            rewrite: (value) => value.replace(/^\/api/, ''),
+            rewrite: (value: string) => value.replace(/^\/api/, ''),
           },
           '/api': {
             target: consoleTarget,
             changeOrigin: true,
             timeout: 0,
-            rewrite: (value) => value.replace(/^\/api/, ''),
+            rewrite: (value: string) => value.replace(/^\/api/, ''),
           },
         }
 

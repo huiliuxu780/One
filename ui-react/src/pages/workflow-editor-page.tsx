@@ -65,6 +65,7 @@ export function WorkflowEditorPage() {
   })
   const metadataQuery = useQuery({ queryKey: ['list', 'workflow-node-metadata'], queryFn: async () => (await nodeMetadata()).data.data })
   const metadata: NodeMetadata[] = metadataQuery.data ?? []
+  const supportedMetadata = metadata.filter((item) => !item.type.toUpperCase().includes('KNOWLEDGE'))
 
   useEffect(() => {
     const detail = detailQuery.data
@@ -80,10 +81,17 @@ export function WorkflowEditorPage() {
   }, [detailQuery.data])
 
   const selectedNode = useMemo(() => nodes.find((node) => node.id === selectedId) ?? null, [nodes, selectedId])
+  const legacyReadOnly = useMemo(
+    () => nodes.some((node) => String(node.data.type ?? '').toUpperCase().includes('KNOWLEDGE')),
+    [nodes],
+  )
 
   const onConnect = useCallback(
-    (connection: Connection) => setEdges((existing) => addEdge({ ...connection, id: `e_${connection.source}_${connection.target}_${Date.now()}` }, existing)),
-    [setEdges],
+    (connection: Connection) => {
+      if (legacyReadOnly) return
+      setEdges((existing) => addEdge({ ...connection, id: `e_${connection.source}_${connection.target}_${Date.now()}` }, existing))
+    },
+    [legacyReadOnly, setEdges],
   )
 
   const onNodeClick: NodeMouseHandler = useCallback((_event, node) => {
@@ -93,7 +101,7 @@ export function WorkflowEditorPage() {
   }, [])
 
   function applyConfig() {
-    if (!selectedNode) return
+    if (!selectedNode || legacyReadOnly) return
     try {
       const parsed = JSON.parse(configText) as Record<string, unknown>
       setNodes((existing) => existing.map((node) => (node.id === selectedNode.id ? { ...node, data: { ...node.data, config: parsed } } : node)))
@@ -105,7 +113,8 @@ export function WorkflowEditorPage() {
   }
 
   function addNode(type: string) {
-    const meta = metadata.find((item) => item.type === type)
+    if (legacyReadOnly || type.toUpperCase().includes('KNOWLEDGE')) return
+    const meta = supportedMetadata.find((item) => item.type === type)
     const newNode: Node = {
       id: `node_${type.toLowerCase()}_${Date.now()}`,
       type: 'workflow',
@@ -177,19 +186,19 @@ export function WorkflowEditorPage() {
         <Badge variant="secondary" className="ml-1">{detailQuery.data?.workflow.version ?? '草稿'}</Badge>
         <div className="ml-auto flex items-center gap-1">
           <Button variant="outline" size="sm" onClick={() => setVersionsOpen(true)}>版本</Button>
-          <Button variant="outline" size="sm" onClick={() => validateMutation.mutate()} disabled={validateMutation.isPending}>
+          <Button variant="outline" size="sm" onClick={() => validateMutation.mutate()} disabled={legacyReadOnly || validateMutation.isPending}>
             <ShieldCheck size={14} /> 校验
           </Button>
-          <Button variant="outline" size="sm" onClick={() => publishMutation.mutate()} disabled={publishMutation.isPending}>
+          <Button variant="outline" size="sm" onClick={() => publishMutation.mutate()} disabled={legacyReadOnly || publishMutation.isPending}>
             发布
           </Button>
-          <Button variant="outline" size="sm" onClick={() => runMutation.mutate('debug')} disabled={runMutation.isPending}>
+          <Button variant="outline" size="sm" onClick={() => runMutation.mutate('debug')} disabled={legacyReadOnly || runMutation.isPending}>
             <Bug size={14} /> 调试运行
           </Button>
-          <Button variant="outline" size="sm" onClick={() => runMutation.mutate('run')} disabled={runMutation.isPending}>
+          <Button variant="outline" size="sm" onClick={() => runMutation.mutate('run')} disabled={legacyReadOnly || runMutation.isPending}>
             <Play size={14} /> 正式运行
           </Button>
-          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={legacyReadOnly || saveMutation.isPending}>
             <FloppyDisk size={14} /> {saveMutation.isPending ? '保存中…' : '保存'}
           </Button>
         </div>
@@ -199,8 +208,8 @@ export function WorkflowEditorPage() {
         {/* 节点库 */}
         <aside className="w-48 shrink-0 overflow-auto border-r border-border p-2">
           <div className="mb-1 px-1 text-[11px] font-medium text-muted-foreground">节点库（后端 metadata）</div>
-          {(metadata.length
-            ? metadata.map((item) => ({ type: item.type, label: item.title }))
+          {(supportedMetadata.length
+            ? supportedMetadata.map((item) => ({ type: item.type, label: item.title }))
             : NODE_PALETTE.map((type) => ({ type, label: type }))
           ).map((item) => (
             <button
@@ -224,6 +233,9 @@ export function WorkflowEditorPage() {
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onNodeClick={onNodeClick}
+            nodesDraggable={!legacyReadOnly}
+            nodesConnectable={!legacyReadOnly}
+            edgesReconnectable={!legacyReadOnly}
             fitView
           >
             <Background />
@@ -241,6 +253,7 @@ export function WorkflowEditorPage() {
                 {configDirty ? <Badge variant="outline">未应用</Badge> : null}
               </div>
               <Input
+                disabled={legacyReadOnly}
                 className="mb-2"
                 value={String(selectedNode.data.name ?? '')}
                 placeholder="节点名称"
@@ -249,8 +262,8 @@ export function WorkflowEditorPage() {
                   setNodes((existing) => existing.map((node) => (node.id === selectedNode.id ? { ...node, data: { ...node.data, name } } : node)))
                 }}
               />
-              <Textarea className="min-h-64 font-mono text-xs" value={configText} onChange={(event) => { setConfigText(event.target.value); setConfigDirty(true) }} />
-              <Button className="mt-2 w-full" size="sm" onClick={applyConfig} disabled={!configDirty}>
+              <Textarea disabled={legacyReadOnly} className="min-h-64 font-mono text-xs" value={configText} onChange={(event) => { setConfigText(event.target.value); setConfigDirty(true) }} />
+              <Button className="mt-2 w-full" size="sm" onClick={applyConfig} disabled={legacyReadOnly || !configDirty}>
                 应用配置
               </Button>
             </>

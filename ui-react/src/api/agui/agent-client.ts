@@ -141,7 +141,11 @@ export class AgentClient {
       try {
         const input: RunAgentInput = this.buildInput(overrides)
         this.activeThreadId = input.threadId
-        const response = await fetch(this.url + "/" + input.forwardedProps?.agentCode, {
+        const agentCode = input.forwardedProps?.agentCode
+        if (typeof agentCode !== 'string' || !agentCode.trim()) {
+          throw new Error('运行请求缺少 agentCode')
+        }
+        const response = await fetch(`${this.url}/${encodeURIComponent(agentCode)}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

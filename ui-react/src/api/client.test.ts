@@ -96,6 +96,27 @@ describe('apiClient 单飞刷新', () => {
     sessionStorageAdapter.clear()
   })
 
+  it('并发刷新失败时所有等待请求都会结束，不会永久挂起', async () => {
+    seedSession('expired-token', 'refresh-invalid')
+
+    const requests = Promise.allSettled([
+      apiClient.get('/api/agent/definition/page?page=1'),
+      apiClient.get('/api/agent/definition/page?page=2'),
+    ])
+    const result = await Promise.race([
+      requests,
+      new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 1000)),
+    ])
+
+    expect(result).not.toBe('timeout')
+    expect(result).toHaveLength(2)
+    expect((result as PromiseSettledResult<unknown>[]).every((item) => item.status === 'rejected')).toBe(true)
+    expect(refreshCalls.filter((token) => token === 'refresh-invalid')).toHaveLength(1)
+    expect(redirectToLogin).toHaveBeenCalled()
+
+    sessionStorageAdapter.clear()
+  })
+
   it('非 401 错误抛出带状态码与关联 ID 的 ApiClientError', async () => {
     seedSession('never-authorized', 'refresh-valid')
 

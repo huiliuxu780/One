@@ -12,6 +12,7 @@ interface AuthState {
   authenticated: boolean
   busy: boolean
   login: (username: string, password: string) => Promise<void>
+  acceptLogin: (data: LoginResponse) => void
   logout: () => Promise<void>
   updateUser: (patch: Partial<AccountVO>) => void
 }
@@ -37,19 +38,22 @@ export const useAuthStore = create<AuthState>((set) => ({
     sessionStorageAdapter.saveUser(next)
     set({ user: next })
   },
+  acceptLogin(data) {
+    validateSingleTenant(data)
+    sessionStorageAdapter.saveLogin(data)
+    set({
+      user: sessionStorageAdapter.getUser(),
+      tenant: sessionStorageAdapter.getTenant(),
+      authenticated: true,
+    })
+  },
   async login(username, password) {
     set({ busy: true })
     try {
       const request: LoginRequest = { username, password: md5(password), tenantId: DEFAULT_TENANT_ID }
       const response = await authApi.login(request)
       const data = response.data.data
-      validateSingleTenant(data)
-      sessionStorageAdapter.saveLogin(data)
-      set({
-        user: sessionStorageAdapter.getUser(),
-        tenant: sessionStorageAdapter.getTenant(),
-        authenticated: true,
-      })
+      useAuthStore.getState().acceptLogin(data)
     } finally {
       set({ busy: false })
     }

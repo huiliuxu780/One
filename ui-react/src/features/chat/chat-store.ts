@@ -59,8 +59,7 @@ export const useChatStore = create<ChatState>((set, get) => {
 
   function buildClient(sessionId: string, agentCode: string): AgentClient {
     const client = createAgentClient({
-      // run 端点按 agentCode 分段：/api/runtime/agui/run/{agentCode}
-      url: `${getAgentRunURL()}/${agentCode}`,
+      url: getAgentRunURL(),
       handlers: {
         onEvent: () => snapshotLive(get().client as AgentClient),
         onRunFinished: () => {
@@ -196,7 +195,13 @@ export const useChatStore = create<ChatState>((set, get) => {
       client.addUserMessage(text)
       snapshotLive(client)
       try {
-        await client.run({ threadId: sessionId })
+        await client.run({
+          threadId: sessionId,
+          forwardedProps: {
+            agentId: state.activeAgentId,
+            agentCode,
+          },
+        })
       } catch (cause) {
         set({ running: false, runState: 'COMPLETED', error: readableError(cause, '连接中断') })
         await reloadHistory(sessionId)
@@ -208,6 +213,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       if (!sessionId) return
       try {
         await stopRun(sessionId)
+        get().client?.abort()
         set({ runState: 'STOPPING' })
         // 轮询直到终态，最多 30 秒
         for (let attempt = 0; attempt < 30; attempt++) {

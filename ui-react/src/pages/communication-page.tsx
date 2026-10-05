@@ -2,8 +2,9 @@ import { useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { PageLoading, ErrorState } from '@/components/states'
 import { chatKeyToken } from '@/api/auth'
-import { sessionStorageAdapter } from '@/lib/storage'
-import { readableError } from '@/lib/utils'
+import { apiClient } from '@/api/client'
+import type { ApiResponse } from '@/types'
+import { useAuthStore } from '@/features/auth/auth-store'
 import { useQuery } from '@tanstack/react-query'
 
 /**
@@ -13,6 +14,7 @@ import { useQuery } from '@tanstack/react-query'
 export function CommunicationPage() {
   const { chatKey } = useParams()
   const navigate = useNavigate()
+  const acceptLogin = useAuthStore((state) => state.acceptLogin)
 
   const exchangeQuery = useQuery({
     queryKey: ['chat-key', chatKey],
@@ -22,11 +24,21 @@ export function CommunicationPage() {
   })
 
   useEffect(() => {
-    if (exchangeQuery.data) {
-      sessionStorageAdapter.saveLogin(exchangeQuery.data)
-      navigate('/chat', { replace: true })
+    if (!exchangeQuery.data || !chatKey) return
+    let cancelled = false
+    acceptLogin(exchangeQuery.data)
+    void apiClient
+      .get<ApiResponse<string>>(`/api/agent/chat-key/${encodeURIComponent(chatKey)}/get-agent-id`)
+      .then((response) => {
+        if (!cancelled) navigate(`/chat?agentId=${encodeURIComponent(String(response.data.data))}&shared=1`, { replace: true })
+      })
+      .catch(() => {
+        if (!cancelled) navigate('/chat', { replace: true })
+      })
+    return () => {
+      cancelled = true
     }
-  }, [exchangeQuery.data, navigate])
+  }, [acceptLogin, chatKey, exchangeQuery.data, navigate])
 
   if (exchangeQuery.error) {
     return <ErrorState error={exchangeQuery.error} />

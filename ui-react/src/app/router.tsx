@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react'
 import { Navigate, createBrowserRouter } from 'react-router-dom'
 import { AppShell } from './app-shell'
 import { ProtectedRoute } from '@/features/auth/protected-route'
+import type { Capability } from '@/features/auth/permissions'
 import { PageLoading } from '@/components/states'
 import { ForbiddenPage, NotFoundPage, ServerErrorPage } from '@/pages/error-pages'
 
@@ -39,6 +40,10 @@ function withSuspense(element: React.ReactElement) {
   return <Suspense fallback={<PageLoading />}>{element}</Suspense>
 }
 
+function withCapability(element: React.ReactElement, capability: Capability) {
+  return <ProtectedRoute capability={capability}>{withSuspense(element)}</ProtectedRoute>
+}
+
 export const router = createBrowserRouter(
   [
     { path: '/login', element: withSuspense(<LoginPage />) },
@@ -53,28 +58,28 @@ export const router = createBrowserRouter(
           children: [
             { index: true, element: <Navigate to="/agent" replace /> },
             { path: '/agent', element: withSuspense(<AgentsPage />) },
-            { path: '/chat', element: withSuspense(<ChatPage />) },
-            { path: '/chat-cluster', element: withSuspense(<ChatClusterPage />) },
-            { path: '/chat-history', element: withSuspense(<ChatHistoryPage />) },
-            { path: '/dashboard', element: withSuspense(<DashboardPage />) },
-            { path: '/api-service', element: withSuspense(<ApiServicePage />) },
+            { path: '/chat', element: withCapability(<ChatPage />, 'chat:use') },
+            { path: '/chat-cluster', element: withCapability(<ChatClusterPage />, 'chat:use') },
+            { path: '/chat-history', element: withCapability(<ChatHistoryPage />, 'chat:use') },
+            { path: '/dashboard', element: withCapability(<DashboardPage />, 'dashboard:manage') },
+            { path: '/api-service', element: withCapability(<ApiServicePage />, 'api-service:manage') },
             { path: '/review', element: withSuspense(<ReviewPage />) },
-            { path: '/workspace', element: withSuspense(<WorkspacePage />) },
-            { path: '/automation', element: withSuspense(<AutomationPage />) },
-            { path: '/workflow', element: withSuspense(<WorkflowPage />) },
-            { path: '/workflow/:id/edit', element: withSuspense(<WorkflowEditorPage />) },
-            { path: '/model', element: withSuspense(<ModelPage />) },
-            { path: '/skill', element: withSuspense(<SkillPage />) },
-            { path: '/tool', element: withSuspense(<ToolPage />) },
-            { path: '/mcp', element: withSuspense(<McpPage />) },
-            { path: '/hook', element: withSuspense(<HookPage />) },
-            { path: '/prompt', element: withSuspense(<PromptPage />) },
-            { path: '/sensitive', element: withSuspense(<SensitivePage />) },
-            { path: '/memory', element: withSuspense(<MemoryPage />) },
-            { path: '/code-execution', element: withSuspense(<CodeExecutionPage />) },
-            { path: '/studio', element: withSuspense(<StudioPage />) },
-            { path: '/settings', element: withSuspense(<SettingsPage />) },
-            { path: '/ops', element: withSuspense(<OpsPage />) },
+            { path: '/workspace', element: withCapability(<WorkspacePage />, 'chat:use') },
+            { path: '/automation', element: withCapability(<AutomationPage />, 'automation:manage') },
+            { path: '/workflow', element: withCapability(<WorkflowPage />, 'workflow:manage') },
+            { path: '/workflow/:id/edit', element: withCapability(<WorkflowEditorPage />, 'workflow:manage') },
+            { path: '/model', element: withCapability(<ModelPage />, 'resource:manage') },
+            { path: '/skill', element: withCapability(<SkillPage />, 'resource:manage') },
+            { path: '/tool', element: withCapability(<ToolPage />, 'resource:manage') },
+            { path: '/mcp', element: withCapability(<McpPage />, 'resource:manage') },
+            { path: '/hook', element: withCapability(<HookPage />, 'resource:manage') },
+            { path: '/prompt', element: withCapability(<PromptPage />, 'resource:manage') },
+            { path: '/sensitive', element: withCapability(<SensitivePage />, 'resource:manage') },
+            { path: '/memory', element: withCapability(<MemoryPage />, 'resource:manage') },
+            { path: '/code-execution', element: withCapability(<CodeExecutionPage />, 'resource:manage') },
+            { path: '/studio', element: withCapability(<StudioPage />, 'resource:manage') },
+            { path: '/settings', element: withCapability(<SettingsPage />, 'settings:manage') },
+            { path: '/ops', element: withCapability(<OpsPage />, 'ops:manage') },
             { path: '/settings/profile', element: withSuspense(<ProfilePage />) },
             { path: '/settings/password', element: withSuspense(<ChangePasswordPage />) },
             { path: '/403', element: <ForbiddenPage /> },

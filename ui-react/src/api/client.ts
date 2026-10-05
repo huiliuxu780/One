@@ -9,7 +9,7 @@ const REFRESH_HEADER = 'Is_Refresh_Token_Request'
 const REQUEST_ID_HEADER = 'X-Request-Id'
 
 type RetryConfig = InternalAxiosRequestConfig & { _retry?: boolean }
-type RefreshWaiter = (token: string) => void
+type RefreshWaiter = (token: string | null) => void
 
 /** 携带后端状态码与请求关联 ID 的统一错误；页面层据此展示可操作错误。 */
 export class ApiClientError extends Error {
@@ -108,12 +108,12 @@ apiClient.interceptors.response.use(
     }
     request._retry = true
     if (refreshing) {
-      return new Promise((resolve) => {
+      return new Promise((resolve, reject) => {
         refreshWaiters.push((token) => {
           if (!token) {
-            // 刷新失败：后续请求按未登录处理
             sessionStorageAdapter.clear()
             redirectToLogin()
+            reject(new ApiClientError('登录状态已失效，请重新登录', { status: 401 }))
             return
           }
           request.headers[TOKEN_HEADER] = `Bearer ${token}`
@@ -156,6 +156,7 @@ export async function refreshSessionTokens(): Promise<string | null> {
     refreshWaiters = []
     return data.accessToken
   } catch {
+    refreshWaiters.forEach((waiter) => waiter(null))
     refreshWaiters = []
     sessionStorageAdapter.clear()
     redirectToLogin()
