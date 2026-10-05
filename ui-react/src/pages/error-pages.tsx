@@ -33,7 +33,7 @@ export function ForbiddenPage() {
 }
 
 export function NotFoundPage() {
-  return shell('404 · 页面不存在', <p>链接可能已失效，或功能尚未迁移至新前端。</p>)
+  return shell('404 · 页面不存在', <p>请检查地址是否正确，或从导航重新进入对应功能。</p>)
 }
 
 export function ServerErrorPage() {

@@ -40,7 +40,7 @@ export function LoginPage() {
         </div>
         <div className="max-w-md space-y-4">
           <p className="text-4xl font-semibold leading-tight tracking-[-0.035em]">构建、调试并运行你的智能体。</p>
-          <p className="max-w-sm text-sm leading-6 text-slate-400">保留现有后端协议，前端正在迁移至 React。</p>
+          <p className="max-w-sm text-sm leading-6 text-slate-400">React 控制台，复用现有 Java、Spring Boot 与 AgentScope 后端。</p>
         </div>
         <p className="text-xs text-slate-500">默认组织模式</p>
       </section>
