@@ -31,6 +31,9 @@ export const sessionStorageAdapter = {
   getRefreshToken: () => readToken(REFRESH_KEY),
   getUser: () => readJson<AccountVO>(USER_KEY),
   getTenant: () => readJson<TenantInfo>(TENANT_KEY),
+  saveUser(user: AccountVO) {
+    localStorage.setItem(USER_KEY, JSON.stringify(user))
+  },
   saveLogin(data: LoginResponse) {
     localStorage.setItem(ACCESS_KEY, JSON.stringify({ value: data.accessToken, ttl: data.accessTokenTTL }))
     localStorage.setItem(REFRESH_KEY, JSON.stringify({ value: data.refreshToken, ttl: data.refreshTokenTTL }))

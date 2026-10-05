@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import {
   Pulse,
   CaretDown,
@@ -7,26 +7,39 @@ import {
   Gear,
   Hexagon,
   House,
+  LockKey,
   PlugsConnected,
   Robot,
   SignOut,
   Toolbox,
+  UserCircle,
   Wrench,
 } from '@phosphor-icons/react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
+import { PageLoading } from '@/components/states'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/features/auth/auth-store'
+import { usePermissions, type Capability } from '@/features/auth/permissions'
 
-const primaryNavigation = [
+interface NavigationItem {
+  label: string
+  icon: React.ComponentType<{ size?: number; weight?: 'duotone' | 'fill' | 'regular' }>
+  to?: string
+  enabled?: boolean
+  /** 能力要求；声明后不满足的角色直接隐藏入口（路由仍有 capability 守卫）。 */
+  capability?: Capability
+}
+
+const primaryNavigation: NavigationItem[] = [
   { label: '智能体', to: '/agent', icon: Robot, enabled: true },
   { label: '对话广场', to: '/chat-cluster', icon: Hexagon, enabled: false },
   { label: '工作流', to: '/workflow', icon: FlowArrow, enabled: false },
   { label: '自动化', to: '/automation', icon: ClockCounterClockwise, enabled: false },
 ]
 
-const resourceNavigation = [
+const resourceNavigation: NavigationItem[] = [
   { label: '模型', icon: PlugsConnected },
   { label: '技能', icon: Toolbox },
   { label: '工具', icon: Wrench },
@@ -36,11 +49,48 @@ const resourceNavigation = [
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false)
   const { user, tenant, logout } = useAuthStore()
+  const { can } = usePermissions()
   const navigate = useNavigate()
 
   async function handleLogout() {
     await logout()
     navigate('/login', { replace: true })
+  }
+
+  function renderNavigation(items: NavigationItem[], ariaLabel: string, groupLabel: string) {
+    return (
+      <nav className="mt-5 space-y-1" aria-label={ariaLabel}>
+        {!collapsed ? <div className="mb-2 px-3 text-[11px] font-medium text-sidebar-muted">{groupLabel}</div> : null}
+        {items.map((item) => {
+          const Icon = item.icon
+          if (item.capability && !can(item.capability)) return null
+          if (!item.enabled) {
+            return (
+              <div key={item.label} className="flex h-10 cursor-not-allowed items-center gap-3 rounded-lg px-3 text-sm text-sidebar-muted" title="迁移中">
+                <Icon size={18} />
+                <span className={cn(collapsed && 'sr-only')}>{item.label}</span>
+                {!collapsed ? <span className="ml-auto text-[10px]">迁移中</span> : null}
+              </div>
+            )
+          }
+          return (
+            <NavLink
+              key={item.label}
+              to={item.to!}
+              className={({ isActive }) =>
+                cn(
+                  'flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition-colors hover:bg-sidebar-accent',
+                  isActive && 'bg-sidebar-accent font-medium text-primary',
+                )
+              }
+            >
+              <Icon size={18} weight="duotone" />
+              <span className={cn(collapsed && 'sr-only')}>{item.label}</span>
+            </NavLink>
+          )
+        })}
+      </nav>
+    )
   }
 
   return (
@@ -51,21 +101,7 @@ export function AppShell() {
           {!collapsed ? <div className="min-w-0"><div className="truncate text-sm font-semibold">Apboa Next</div><div className="truncate text-[11px] text-sidebar-muted">React workspace</div></div> : null}
         </button>
 
-        <nav className="mt-5 space-y-1" aria-label="主导航">
-          {!collapsed ? <div className="mb-2 px-3 text-[11px] font-medium text-sidebar-muted">工作空间</div> : null}
-          {primaryNavigation.map((item) => {
-            const Icon = item.icon
-            if (!item.enabled) {
-              return <div key={item.label} className="flex h-10 cursor-not-allowed items-center gap-3 rounded-lg px-3 text-sm text-sidebar-muted" title="迁移中"><Icon size={18} /><span className={cn(collapsed && 'sr-only')}>{item.label}</span>{!collapsed ? <span className="ml-auto text-[10px]">迁移中</span> : null}</div>
-            }
-            return <NavLink key={item.label} to={item.to} className={({ isActive }) => cn('flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition-colors hover:bg-sidebar-accent', isActive && 'bg-sidebar-accent font-medium text-primary')}><Icon size={18} weight="duotone" /><span className={cn(collapsed && 'sr-only')}>{item.label}</span></NavLink>
-          })}
-        </nav>
-
-        <nav className="mt-7 space-y-1" aria-label="资源管理">
-          {!collapsed ? <div className="mb-2 px-3 text-[11px] font-medium text-sidebar-muted">资源管理</div> : null}
-          {resourceNavigation.map((item) => <div key={item.label} className="flex h-10 cursor-not-allowed items-center gap-3 rounded-lg px-3 text-sm text-sidebar-muted" title="迁移中"><item.icon size={18} /><span className={cn(collapsed && 'sr-only')}>{item.label}</span></div>)}
-        </nav>
+        {renderNavigation(primaryNavigation, '主导航', '工作空间')}
 
         <div className="mt-auto">
           <DropdownMenu.Root>
@@ -77,6 +113,8 @@ export function AppShell() {
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>
               <DropdownMenu.Content side="right" align="end" sideOffset={8} className="z-50 min-w-48 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-dialog">
+                <DropdownMenu.Item onSelect={() => navigate('/settings/profile')} className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm outline-none hover:bg-muted focus:bg-muted"><UserCircle size={16} />个人资料</DropdownMenu.Item>
+                <DropdownMenu.Item onSelect={() => navigate('/settings/password')} className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm outline-none hover:bg-muted focus:bg-muted"><LockKey size={16} />修改密码</DropdownMenu.Item>
                 <DropdownMenu.Item disabled className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground outline-none"><Gear size={16} />账号设置</DropdownMenu.Item>
                 <DropdownMenu.Separator className="my-1 h-px bg-border" />
                 <DropdownMenu.Item onSelect={handleLogout} className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive outline-none hover:bg-muted focus:bg-muted"><SignOut size={16} />退出登录</DropdownMenu.Item>
@@ -85,7 +123,11 @@ export function AppShell() {
           </DropdownMenu.Root>
         </div>
       </aside>
-      <div className="min-w-0"><Outlet /></div>
+      <div className="min-w-0">
+        <Suspense fallback={<PageLoading />}>
+          <Outlet />
+        </Suspense>
+      </div>
     </div>
   )
 }

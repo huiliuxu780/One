@@ -13,6 +13,7 @@ interface AuthState {
   busy: boolean
   login: (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  updateUser: (patch: Partial<AccountVO>) => void
 }
 
 function validateSingleTenant(data: LoginResponse) {
@@ -29,6 +30,13 @@ export const useAuthStore = create<AuthState>((set) => ({
   tenant: sessionStorageAdapter.getTenant(),
   authenticated: Boolean(sessionStorageAdapter.getAccessToken()),
   busy: false,
+  updateUser(patch) {
+    const current = sessionStorageAdapter.getUser()
+    if (!current) return
+    const next = { ...current, ...patch }
+    sessionStorageAdapter.saveUser(next)
+    set({ user: next })
+  },
   async login(username, password) {
     set({ busy: true })
     try {
