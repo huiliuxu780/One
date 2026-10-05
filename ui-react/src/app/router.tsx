@@ -27,6 +27,7 @@ const WorkspacePage = lazy(() => import('@/pages/workspace-page').then(({ Worksp
 const AutomationPage = lazy(() => import('@/pages/automation-page').then(({ AutomationPage }) => ({ default: AutomationPage })))
 const WorkflowPage = lazy(() => import('@/pages/workflow-page').then(({ WorkflowPage }) => ({ default: WorkflowPage })))
 const WorkflowEditorPage = lazy(() => import('@/pages/workflow-editor-page').then(({ WorkflowEditorPage }) => ({ default: WorkflowEditorPage })))
+const WorkflowResourcesPage = lazy(() => import('@/pages/workflow-resources-page').then(({ WorkflowResourcesPage }) => ({ default: WorkflowResourcesPage })))
 const SettingsPage = lazy(() => import('@/pages/settings-page').then(({ SettingsPage }) => ({ default: SettingsPage })))
 const OpsPage = lazy(() => import('@/pages/ops-page').then(({ OpsPage }) => ({ default: OpsPage })))
 const ChatClusterPage = lazy(() => import('@/pages/chat-cluster-page').then(({ ChatClusterPage }) => ({ default: ChatClusterPage })))
@@ -68,6 +69,7 @@ export const router = createBrowserRouter(
             { path: '/automation', element: withCapability(<AutomationPage />, 'automation:manage') },
             { path: '/workflow', element: withCapability(<WorkflowPage />, 'workflow:manage') },
             { path: '/workflow/:id/edit', element: withCapability(<WorkflowEditorPage />, 'workflow:manage') },
+            { path: '/workflow-resources', element: withCapability(<WorkflowResourcesPage />, 'workflow:manage') },
             { path: '/model', element: withCapability(<ModelPage />, 'resource:manage') },
             { path: '/skill', element: withCapability(<SkillPage />, 'resource:manage') },
             { path: '/tool', element: withCapability(<ToolPage />, 'resource:manage') },

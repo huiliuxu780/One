@@ -5,7 +5,9 @@ import {
   addEdge,
   Background,
   Controls,
+  Handle,
   MiniMap,
+  Position,
   ReactFlow,
   useEdgesState,
   useNodesState,
@@ -15,20 +17,23 @@ import {
   type NodeMouseHandler,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { ArrowLeft, Bug, FloppyDisk, Play, ShieldCheck } from '@phosphor-icons/react'
+import { ArrowLeft, Bug, ClockCounterClockwise, FloppyDisk, Play, ShieldCheck, Trash } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { toast } from '@/components/ui/sonner'
 import { ErrorState, PageLoading } from '@/components/states'
 import { readableError } from '@/lib/utils'
 import * as workflowApi from '@/api/workflows'
 import { nodeMetadata } from '@/api/workflows'
-import type { NodeMetadata, WorkflowRunResult, WorkflowVersion, WorkflowValidationResult } from '@/types'
-import { fromBackendDefinition, toBackendDefinition } from '@/features/workflow/protocol'
+import { pageWorkflowResources } from '@/api/workflowResources'
+import type { NodeMetadata, WorkflowManagedResource, WorkflowNodeExecution, WorkflowNodeRunResult, WorkflowRun, WorkflowRunResult, WorkflowVersion, WorkflowValidationResult } from '@/types'
+import { fromBackendDefinition, toBackendDefinition, toBackendNode } from '@/features/workflow/protocol'
 
 const NODE_PALETTE = ['START', 'END', 'AGENT', 'TOOL', 'MCP', 'CODE', 'HTTP', 'IF_ELSE', 'INTENT', 'LOOP', 'ITERATE', 'DB', 'CACHE', 'MQ', 'CHANNEL', 'CONSTANT', 'VARIABLE_AGG', 'SERIALIZE']
 // 知识库节点不在节点库中（明确排除）；旧含 KNOWLEDGE 节点的流程加载后只读提示。
@@ -36,10 +41,12 @@ const NODE_PALETTE = ['START', 'END', 'AGENT', 'TOOL', 'MCP', 'CODE', 'HTTP', 'I
 function WorkflowCanvasNode({ data, selected }: { data: Record<string, unknown>; selected?: boolean }) {
   return (
     <div className={`w-44 rounded-lg border bg-card px-3 py-2 shadow-card ${selected ? 'border-primary ring-2 ring-ring' : 'border-border'}`}>
+      <Handle type="target" position={Position.Left} className="!size-2.5 !border-background !bg-primary" />
       <div className="flex items-center justify-between gap-2">
         <span className="truncate text-sm font-medium">{String(data.name ?? '节点')}</span>
         <Badge variant="outline" className="shrink-0 text-[10px]">{String(data.type ?? '')}</Badge>
       </div>
+      <Handle type="source" position={Position.Right} className="!size-2.5 !border-background !bg-primary" />
     </div>
   )
 }
@@ -55,8 +62,11 @@ export function WorkflowEditorPage() {
   const [configText, setConfigText] = useState('{}')
   const [configDirty, setConfigDirty] = useState(false)
   const [versionsOpen, setVersionsOpen] = useState(false)
+  const [runsOpen, setRunsOpen] = useState(false)
   const [runResult, setRunResult] = useState<WorkflowRunResult | null>(null)
   const [runInputs, setRunInputs] = useState('{}')
+  const [nodeRunInputs, setNodeRunInputs] = useState('{}')
+  const [nodeRunResult, setNodeRunResult] = useState<WorkflowNodeRunResult | null>(null)
 
   const detailQuery = useQuery({
     queryKey: ['detail', 'workflow', String(id)],
@@ -66,6 +76,12 @@ export function WorkflowEditorPage() {
   const metadataQuery = useQuery({ queryKey: ['list', 'workflow-node-metadata'], queryFn: async () => (await nodeMetadata()).data.data })
   const metadata: NodeMetadata[] = metadataQuery.data ?? []
   const supportedMetadata = metadata.filter((item) => !item.type.toUpperCase().includes('KNOWLEDGE'))
+  const resourceQueries = {
+    datasource: useQuery({ queryKey: ['list', 'workflow-resource-options', 'datasource'], queryFn: async () => (await pageWorkflowResources('datasource', { page: 1, size: 100, enabled: true })).data.data.records }),
+    cache: useQuery({ queryKey: ['list', 'workflow-resource-options', 'cache'], queryFn: async () => (await pageWorkflowResources('cache', { page: 1, size: 100, enabled: true })).data.data.records }),
+    mq: useQuery({ queryKey: ['list', 'workflow-resource-options', 'mq'], queryFn: async () => (await pageWorkflowResources('mq', { page: 1, size: 100, enabled: true })).data.data.records }),
+    channel: useQuery({ queryKey: ['list', 'workflow-resource-options', 'channel'], queryFn: async () => (await pageWorkflowResources('channel', { page: 1, size: 100, enabled: true })).data.data.records }),
+  }
 
   useEffect(() => {
     const detail = detailQuery.data
@@ -112,6 +128,22 @@ export function WorkflowEditorPage() {
     }
   }
 
+  function updateConfigField(key: string, value: unknown) {
+    if (!selectedNode || legacyReadOnly) return
+    const next = { ...((selectedNode.data.config as Record<string, unknown>) ?? {}), [key]: value }
+    setNodes((existing) => existing.map((node) => (node.id === selectedNode.id ? { ...node, data: { ...node.data, config: next } } : node)))
+    setConfigText(JSON.stringify(next, null, 2))
+    setConfigDirty(false)
+  }
+
+  function removeSelectedNode() {
+    if (!selectedNode || legacyReadOnly) return
+    setNodes((existing) => existing.filter((node) => node.id !== selectedNode.id))
+    setEdges((existing) => existing.filter((edge) => edge.source !== selectedNode.id && edge.target !== selectedNode.id))
+    setSelectedId(null)
+    setConfigText('{}')
+  }
+
   function addNode(type: string) {
     if (legacyReadOnly || type.toUpperCase().includes('KNOWLEDGE')) return
     const meta = supportedMetadata.find((item) => item.type === type)
@@ -119,11 +151,11 @@ export function WorkflowEditorPage() {
       id: `node_${type.toLowerCase()}_${Date.now()}`,
       type: 'workflow',
       position: { x: 120 + Math.random() * 300, y: 120 + Math.random() * 200 },
-      data: { type, name: meta?.title ?? type, config: {} },
+      data: { type, name: meta?.title ?? type, config: { ...(meta?.defaultConfig ?? {}) } },
     }
     setNodes((existing) => [...existing, newNode])
     setSelectedId(newNode.id)
-    setConfigText('{}')
+    setConfigText(JSON.stringify(meta?.defaultConfig ?? {}, null, 2))
   }
 
   const saveMutation = useMutation({
@@ -173,6 +205,22 @@ export function WorkflowEditorPage() {
     },
   })
 
+  const nodeRunMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedNode) throw new Error('请先选择节点')
+      const inputs = JSON.parse(nodeRunInputs) as Record<string, unknown>
+      return (await workflowApi.debugNode({
+        node: toBackendNode(selectedNode) as unknown as Record<string, unknown>,
+        inputs,
+      })).data.data
+    },
+    onSuccess: (result) => {
+      setNodeRunResult(result)
+      toast.success(result.status === 'SUCCESS' ? '节点调试成功' : '节点调试已返回')
+    },
+    onError: (cause) => toast.error(readableError(cause, '节点调试失败')),
+  })
+
   if (detailQuery.isLoading) return <PageLoading label="工作流加载中…" />
   if (detailQuery.error) return <ErrorState error={detailQuery.error} onRetry={() => void detailQuery.refetch()} />
 
@@ -186,6 +234,7 @@ export function WorkflowEditorPage() {
         <Badge variant="secondary" className="ml-1">{detailQuery.data?.workflow.version ?? '草稿'}</Badge>
         <div className="ml-auto flex items-center gap-1">
           <Button variant="outline" size="sm" onClick={() => setVersionsOpen(true)}>版本</Button>
+          <Button variant="outline" size="sm" onClick={() => setRunsOpen(true)}><ClockCounterClockwise size={14} /> 运行记录</Button>
           <Button variant="outline" size="sm" onClick={() => validateMutation.mutate()} disabled={legacyReadOnly || validateMutation.isPending}>
             <ShieldCheck size={14} /> 校验
           </Button>
@@ -262,10 +311,29 @@ export function WorkflowEditorPage() {
                   setNodes((existing) => existing.map((node) => (node.id === selectedNode.id ? { ...node, data: { ...node.data, name } } : node)))
                 }}
               />
-              <Textarea disabled={legacyReadOnly} className="min-h-64 font-mono text-xs" value={configText} onChange={(event) => { setConfigText(event.target.value); setConfigDirty(true) }} />
-              <Button className="mt-2 w-full" size="sm" onClick={applyConfig} disabled={legacyReadOnly || !configDirty}>
-                应用配置
-              </Button>
+              <StructuredConfigEditor
+                config={(selectedNode.data.config as Record<string, unknown>) ?? {}}
+                defaults={supportedMetadata.find((item) => item.type === selectedNode.data.type)?.defaultConfig ?? {}}
+                disabled={legacyReadOnly}
+                resources={{
+                  datasource: resourceQueries.datasource.data ?? [],
+                  cache: resourceQueries.cache.data ?? [],
+                  mq: resourceQueries.mq.data ?? [],
+                  channel: resourceQueries.channel.data ?? [],
+                }}
+                onChange={updateConfigField}
+              />
+              <details className="mt-3 rounded-lg border border-border p-2">
+                <summary className="cursor-pointer text-xs font-medium text-muted-foreground">高级 JSON 配置</summary>
+                <Textarea disabled={legacyReadOnly} className="mt-2 min-h-48 font-mono text-xs" value={configText} onChange={(event) => { setConfigText(event.target.value); setConfigDirty(true) }} />
+                <Button className="mt-2 w-full" size="sm" onClick={applyConfig} disabled={legacyReadOnly || !configDirty}>应用 JSON</Button>
+              </details>
+              <div className="mt-4 rounded-lg border border-border p-3">
+                <Label className="text-xs">单节点调试输入（JSON）</Label>
+                <Textarea className="mt-2 min-h-24 font-mono text-xs" value={nodeRunInputs} onChange={(event) => setNodeRunInputs(event.target.value)} />
+                <Button className="mt-2 w-full" variant="outline" size="sm" onClick={() => nodeRunMutation.mutate()} disabled={legacyReadOnly || nodeRunMutation.isPending}><Bug size={14} /> {nodeRunMutation.isPending ? '调试中…' : '调试当前节点'}</Button>
+              </div>
+              <Button className="mt-3 w-full text-destructive" variant="ghost" size="sm" onClick={removeSelectedNode} disabled={legacyReadOnly}><Trash size={14} /> 删除节点</Button>
             </>
           ) : (
             <p className="text-sm text-muted-foreground">点击画布中的节点编辑配置；从节点库添加新节点。</p>
@@ -283,6 +351,16 @@ export function WorkflowEditorPage() {
         </SheetContent>
       </Sheet>
 
+      <Sheet open={runsOpen} onOpenChange={setRunsOpen}>
+        <SheetContent side="right" className="w-full overflow-auto sm:max-w-2xl">
+          <SheetHeader>
+            <SheetTitle>运行记录</SheetTitle>
+            <SheetDescription>来自后端的真实工作流运行及节点执行日志。</SheetDescription>
+          </SheetHeader>
+          <RunHistory workflowId={String(id)} />
+        </SheetContent>
+      </Sheet>
+
       {runResult ? (
         <Sheet open onOpenChange={() => setRunResult(null)}>
           <SheetContent side="bottom" className="h-[60dvh] overflow-auto">
@@ -291,6 +369,14 @@ export function WorkflowEditorPage() {
               <SheetDescription>包含节点执行日志与最终输出。</SheetDescription>
             </SheetHeader>
             <pre className="max-h-[40dvh] overflow-auto rounded-lg bg-muted p-3 font-mono text-xs">{JSON.stringify(runResult, null, 2)}</pre>
+          </SheetContent>
+        </Sheet>
+      ) : null}
+      {nodeRunResult ? (
+        <Sheet open onOpenChange={() => setNodeRunResult(null)}>
+          <SheetContent side="bottom" className="h-[55dvh] overflow-auto">
+            <SheetHeader><SheetTitle>节点调试结果</SheetTitle><SheetDescription>状态：{nodeRunResult.status} · 耗时：{nodeRunResult.duration ?? '-'} ms</SheetDescription></SheetHeader>
+            <pre className="max-h-[38dvh] overflow-auto rounded-lg bg-muted p-3 font-mono text-xs">{JSON.stringify(nodeRunResult, null, 2)}</pre>
           </SheetContent>
         </Sheet>
       ) : null}
@@ -332,4 +418,129 @@ function VersionList({ workflowId }: { workflowId: string }) {
       ))}
     </div>
   )
+}
+
+type ResourceOptions = Record<'datasource' | 'cache' | 'mq' | 'channel', WorkflowManagedResource[]>
+
+const resourceFieldKinds: Record<string, keyof ResourceOptions> = {
+  datasourceId: 'datasource',
+  cacheId: 'cache',
+  mqId: 'mq',
+  channelId: 'channel',
+}
+
+const multilineFieldPattern = /(prompt|template|code|script|sql|expression|body|content|schema|headers|mapping|condition)/i
+
+function StructuredConfigEditor({ config, defaults, disabled, resources, onChange }: {
+  config: Record<string, unknown>
+  defaults: Record<string, unknown>
+  disabled: boolean
+  resources: ResourceOptions
+  onChange: (key: string, value: unknown) => void
+}) {
+  const keys = Array.from(new Set([...Object.keys(defaults), ...Object.keys(config)]))
+  if (!keys.length) return <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">此节点没有可配置参数。</p>
+  return (
+    <div className="space-y-3">
+      {keys.map((key) => {
+        const value = config[key] ?? defaults[key]
+        const resourceKind = resourceFieldKinds[key]
+        return (
+          <div key={key}>
+            <Label className="mb-1.5 block text-xs">{key}</Label>
+            {resourceKind ? (
+              <Select value={value === undefined || value === null || value === '' ? undefined : String(value)} onValueChange={(next) => onChange(key, next)} disabled={disabled}>
+                <SelectTrigger><SelectValue placeholder={`选择${resourceKind}`} /></SelectTrigger>
+                <SelectContent>
+                  {resources[resourceKind].map((resource) => resource.id ? <SelectItem key={resource.id} value={resource.id}>{resource.name || resource.id}</SelectItem> : null)}
+                </SelectContent>
+              </Select>
+            ) : typeof value === 'boolean' ? (
+              <label className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs"><Switch checked={value} disabled={disabled} onCheckedChange={(next) => onChange(key, next)} /> {value ? '开启' : '关闭'}</label>
+            ) : typeof value === 'number' ? (
+              <Input type="number" value={value} disabled={disabled} onChange={(event) => onChange(key, Number(event.target.value))} />
+            ) : value !== null && typeof value === 'object' ? (
+              <JsonValueField value={value} disabled={disabled} onChange={(next) => onChange(key, next)} />
+            ) : multilineFieldPattern.test(key) ? (
+              <Textarea className="min-h-24 font-mono text-xs" value={value == null ? '' : String(value)} disabled={disabled} onChange={(event) => onChange(key, event.target.value)} />
+            ) : (
+              <Input value={value == null ? '' : String(value)} disabled={disabled} onChange={(event) => onChange(key, event.target.value)} />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function JsonValueField({ value, disabled, onChange }: { value: unknown; disabled: boolean; onChange: (value: unknown) => void }) {
+  const serialized = JSON.stringify(value, null, 2)
+  const [text, setText] = useState(serialized)
+  useEffect(() => setText(serialized), [serialized])
+  return (
+    <Textarea
+      className="min-h-24 font-mono text-xs"
+      value={text}
+      disabled={disabled}
+      onChange={(event) => setText(event.target.value)}
+      onBlur={() => {
+        try {
+          onChange(JSON.parse(text))
+        } catch {
+          toast.error('字段 JSON 格式不正确')
+          setText(serialized)
+        }
+      }}
+    />
+  )
+}
+
+function RunHistory({ workflowId }: { workflowId: string }) {
+  const [selectedRun, setSelectedRun] = useState<WorkflowRun | null>(null)
+  const runsQuery = useQuery({
+    queryKey: ['list', 'workflow-runs', workflowId],
+    queryFn: async () => (await workflowApi.pageRuns({ page: 1, size: 30, workflowId })).data.data,
+  })
+  const nodesQuery = useQuery({
+    queryKey: ['list', 'workflow-run-nodes', selectedRun?.id],
+    queryFn: async () => (await workflowApi.runNodes(String(selectedRun?.id))).data.data,
+    enabled: Boolean(selectedRun?.id),
+  })
+  const runs: WorkflowRun[] = runsQuery.data?.records ?? []
+  const executions: WorkflowNodeExecution[] = nodesQuery.data ?? []
+
+  if (runsQuery.isLoading) return <PageLoading />
+  if (runsQuery.error) return <ErrorState error={runsQuery.error} onRetry={() => void runsQuery.refetch()} />
+  if (!runs.length) return <p className="p-4 text-sm text-muted-foreground">暂无运行记录。</p>
+  return (
+    <div className="grid gap-3 p-4 md:grid-cols-[220px_minmax(0,1fr)]">
+      <div className="space-y-2">
+        {runs.map((run) => (
+          <button key={run.id} className={`w-full rounded-lg border p-3 text-left text-xs ${selectedRun?.id === run.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted'}`} onClick={() => setSelectedRun(run)}>
+            <div className="flex items-center justify-between gap-2"><span className="font-mono">{run.version || String(run.id).slice(-8)}</span><Badge className={run.status === 'FAIL' ? 'bg-destructive/10 text-destructive' : undefined} variant={run.status === 'SUCCESS' ? 'success' : 'secondary'}>{run.status}</Badge></div>
+            <div className="mt-1 text-muted-foreground">{formatRunTime(run.createdAt, run.startTime)}</div>
+          </button>
+        ))}
+      </div>
+      <div className="min-w-0">
+        {!selectedRun ? <p className="text-sm text-muted-foreground">选择一条记录查看节点执行日志。</p> : nodesQuery.isLoading ? <PageLoading /> : nodesQuery.error ? <ErrorState error={nodesQuery.error} onRetry={() => void nodesQuery.refetch()} /> : (
+          <div className="space-y-2">
+            <div className="rounded-lg bg-muted p-3 text-xs"><div className="font-medium">运行 {selectedRun.id}</div>{selectedRun.error ? <p className="mt-1 text-destructive">{selectedRun.error}</p> : null}<pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono">输出：{JSON.stringify(selectedRun.outputs ?? null, null, 2)}</pre></div>
+            {executions.length ? executions.map((execution) => <details key={execution.id} className="rounded-lg border border-border p-3 text-xs"><summary className="flex cursor-pointer items-center gap-2"><span className="font-medium">{execution.nodeTitle || execution.nodeId}</span><Badge className={`ml-auto ${execution.status === 'FAIL' ? 'bg-destructive/10 text-destructive' : ''}`} variant={execution.status === 'SUCCESS' ? 'success' : 'secondary'}>{execution.status}</Badge></summary><pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap font-mono">{JSON.stringify({ inputs: safeJson(execution.inputs), processData: safeJson(execution.processData), outputs: safeJson(execution.outputs), error: execution.error }, null, 2)}</pre></details>) : <p className="text-sm text-muted-foreground">该运行没有节点日志。</p>}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function safeJson(value?: string) {
+  if (!value) return value
+  try { return JSON.parse(value) as unknown } catch { return value }
+}
+
+function formatRunTime(createdAt?: string, startTime?: number) {
+  if (createdAt) return createdAt
+  if (startTime) return new Date(startTime).toLocaleString()
+  return '-'
 }

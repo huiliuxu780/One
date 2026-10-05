@@ -43,6 +43,7 @@ const primaryNavigation: NavigationItem[] = [
   { label: '对话广场', to: '/chat-cluster', icon: House, enabled: true },
   { label: '会话历史', to: '/chat-history', icon: ClockCounterClockwise, enabled: true },
   { label: '工作流', to: '/workflow', icon: FlowArrow, enabled: true },
+  { label: '工作流资源', to: '/workflow-resources', icon: Database, enabled: true, capability: 'workflow:manage' },
   { label: '自动化', to: '/automation', icon: ClockCounterClockwise, enabled: true },
 ]
 

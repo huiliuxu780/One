@@ -1,4 +1,4 @@
-import type { ApiResponse, NodeMetadata, PageResult, Workflow, WorkflowDetail, WorkflowNodeExecution, WorkflowRun, WorkflowRunRequest, WorkflowRunResult, WorkflowValidationResult, WorkflowVersion } from '@/types'
+import type { ApiResponse, NodeMetadata, PageResult, Workflow, WorkflowDetail, WorkflowNodeExecution, WorkflowNodeRunRequest, WorkflowNodeRunResult, WorkflowRun, WorkflowRunRequest, WorkflowRunResult, WorkflowValidationResult, WorkflowVersion } from '@/types'
 import { apiClient } from './client'
 
 export function pageWorkflows(query: Record<string, unknown>) {
@@ -68,6 +68,10 @@ export function debugRun(id: string, payload: WorkflowRunRequest) {
 
 export function formalRun(id: string, payload: WorkflowRunRequest) {
   return apiClient.post<ApiResponse<WorkflowRunResult>>(`/api/runtime/workflow/${id}/run`, payload)
+}
+
+export function debugNode(payload: WorkflowNodeRunRequest) {
+  return apiClient.post<ApiResponse<WorkflowNodeRunResult>>('/api/runtime/workflow/debug-node-run', payload)
 }
 
 export function nodeMetadata() {
