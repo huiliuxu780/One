@@ -60,6 +60,8 @@ const assetNavigation: NavigationItem[] = [
   { label: '长期记忆', to: '/memory', icon: Database, enabled: true, capability: 'resource:manage' },
   { label: '代码执行', to: '/code-execution', icon: Monitor, enabled: true, capability: 'resource:manage' },
   { label: 'Studio', to: '/studio', icon: Gear, enabled: true, capability: 'resource:manage' },
+  { label: '设置', to: '/settings', icon: UserCircle, enabled: true },
+  { label: '运维', to: '/ops', icon: Monitor, enabled: true, capability: 'ops:manage' },
 ]
 
 export function AppShell() {

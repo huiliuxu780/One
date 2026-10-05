@@ -26,6 +26,8 @@ const WorkspacePage = lazy(() => import('@/pages/workspace-page').then(({ Worksp
 const AutomationPage = lazy(() => import('@/pages/automation-page').then(({ AutomationPage }) => ({ default: AutomationPage })))
 const WorkflowPage = lazy(() => import('@/pages/workflow-page').then(({ WorkflowPage }) => ({ default: WorkflowPage })))
 const WorkflowEditorPage = lazy(() => import('@/pages/workflow-editor-page').then(({ WorkflowEditorPage }) => ({ default: WorkflowEditorPage })))
+const SettingsPage = lazy(() => import('@/pages/settings-page').then(({ SettingsPage }) => ({ default: SettingsPage })))
+const OpsPage = lazy(() => import('@/pages/ops-page').then(({ OpsPage }) => ({ default: OpsPage })))
 
 function withSuspense(element: React.ReactElement) {
   return <Suspense fallback={<PageLoading />}>{element}</Suspense>
@@ -58,6 +60,8 @@ export const router = createBrowserRouter(
             { path: '/memory', element: withSuspense(<MemoryPage />) },
             { path: '/code-execution', element: withSuspense(<CodeExecutionPage />) },
             { path: '/studio', element: withSuspense(<StudioPage />) },
+            { path: '/settings', element: withSuspense(<SettingsPage />) },
+            { path: '/ops', element: withSuspense(<OpsPage />) },
             { path: '/settings/profile', element: withSuspense(<ProfilePage />) },
             { path: '/settings/password', element: withSuspense(<ChangePasswordPage />) },
             { path: '/403', element: <ForbiddenPage /> },
