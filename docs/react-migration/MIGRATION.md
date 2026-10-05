@@ -2,6 +2,8 @@
 
 更新日期：2026-10-05
 
+剩余工作包、协议约束、真实后端验收矩阵和上线门槛见 [REMAINING_SPEC.md](./REMAINING_SPEC.md)。
+
 ## 已核实事实
 
 - Fork `https://github.com/huiliuxu780/One.git` 在开始工作时为空，没有分支或提交。
