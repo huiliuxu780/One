@@ -5,7 +5,8 @@
 更新日期：2026-10-06
 
 目标分支：`codex/react-migration`
-基线提交：`9aac54d`
+上游基线：`9c3dba4ae980bf26123dae891f8e66f8ca886ce7`
+主体实现截至：`e81ea49`（后续文档提交不改变该实现基线）
 
 ## 1. 文档目的
 
@@ -337,6 +338,7 @@ Vue 参考：`views/Workflow/`、`components/workflow/`、`config/workflow/`。
 4. 第三方 MCP、邮件、飞书、钉钉、企微等功能若要求全量验收，需要相应开发测试凭据；没有凭据时只能完成接口与失败路径验收，不能宣称集成成功。
 5. 协议层已有三份 fixture 完成 round-trip 单测；分支、循环、数据库、MQ 和第三方 Channel 等高级节点仍缺真实成功运行矩阵，不能因单测而判定 G6 全量通过。
 6. 待确认：旧 Vue 构建包含文档子应用（`VITE_APP_TARGET=doc`，部署于 `/web/doc`），本文当前未覆盖；需决定纳入迁移或明确排除。
+7. Agent 与 Workflow 自动化成功路径、详情读取及 Quartz 启停持久化已经真实通过；失败路径仍缺可审计记录，因为现有 `job_record` 只保存 `jobId`、`recordId`、`createTime`，且调度器仅在业务成功后写入关联。补齐失败审计需要后端 schema/migration 和调度执行模型扩展，不能由前端伪造状态或错误字段。
 
 ## 9. 完成定义
 
@@ -350,4 +352,4 @@ Vue 参考：`views/Workflow/`、`components/workflow/`、`config/workflow/`。
 - ECS 容量报告来自实际负载；公网入口具备 TLS；内部端口未暴露。
 - 已完成可执行回滚演练并记录恢复步骤和数据完整性结果。
 
-当前不能宣布“全量迁移完成”：可执行回滚和内部 Gateway 已通过，但停止/断流重连/HITL/子 Agent、自动化成功与失败矩阵、高级工作流节点、第三方集成以及域名/TLS 仍未满足定义。
+当前不能宣布“全量迁移完成”：可执行回滚、内部 Gateway、两类自动化成功路径和启停持久化已通过，但停止/断流重连/HITL/子 Agent、自动化失败审计、高级工作流节点、第三方集成以及域名/TLS 仍未满足定义。
