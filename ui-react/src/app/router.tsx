@@ -36,6 +36,7 @@ const CommunicationPage = lazy(() => import('@/pages/communication-page').then((
 const DashboardPage = lazy(() => import('@/pages/dashboard-page').then(({ DashboardPage }) => ({ default: DashboardPage })))
 const ApiServicePage = lazy(() => import('@/pages/api-service-page').then(({ ApiServicePage }) => ({ default: ApiServicePage })))
 const ReviewPage = lazy(() => import('@/pages/review-page').then(({ ReviewPage }) => ({ default: ReviewPage })))
+const DocsPage = lazy(() => import('@/pages/docs-page').then(({ DocsPage }) => ({ default: DocsPage })))
 
 function withSuspense(element: React.ReactElement) {
   return <Suspense fallback={<PageLoading />}>{element}</Suspense>
@@ -50,6 +51,8 @@ export const router = createBrowserRouter(
     { path: '/login', element: withSuspense(<LoginPage />) },
     // ChatKey 对外分享入口：免登录，凭据由 key 换取
     { path: '/communication/:chatKey', element: withSuspense(<CommunicationPage />) },
+    // 旧 /web/doc 使用手册的 React 迁移版保持免登录访问。
+    { path: '/docs/:slug?', element: withSuspense(<DocsPage />) },
     {
       element: <ProtectedRoute />,
       errorElement: <ServerErrorPage />,

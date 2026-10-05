@@ -3,6 +3,7 @@ import {
   Pulse,
   CaretDown,
   ClockCounterClockwise,
+  BookOpen,
   FlowArrow,
   Gear,
   Hexagon,
@@ -70,6 +71,7 @@ const integrationNavigation: NavigationItem[] = [
   { label: '工作台', to: '/dashboard', icon: House, enabled: true },
   { label: 'API 服务', to: '/api-service', icon: PlugsConnected, enabled: true },
   { label: '审查', to: '/review', icon: ShieldCheck, enabled: true },
+  { label: '使用手册', to: '/docs', icon: BookOpen, enabled: true },
 ]
 
 export function AppShell() {

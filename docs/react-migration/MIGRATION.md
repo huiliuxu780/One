@@ -37,10 +37,10 @@
 | 应用外壳 | `layout/`、`components/layout/` | 侧栏、路由、用户菜单、状态页 | 无 | 第一版已完成 |
 | 登录与权限 | `pages/Login.vue`、account store | 固定租户登录、Token 刷新、路由守卫、角色权限 | `/api/auth/*`、`/api/account/*` | 第一版已完成 |
 | Agent 列表 | `views/Agent/index.vue` | 查询、类型/标签过滤、详情、分页 | `/api/agent/definition/*` | 首屏真实接口已完成 |
-| Agent 配置 | `components/agent/` | 自定义 Agent 与 A2A 创建编辑、模型、工具、技能、MCP、Hook、子 Agent、工作流、记忆、调度、统计、版本 | Agent、A2A、job、statistics API | 已实现；子 Agent/A2A 真实成功用例待验收 |
+| Agent 配置 | `components/agent/` | 自定义 Agent 与 A2A 创建编辑、模型、工具、技能、MCP、Hook、子 Agent、工作流、记忆、调度、统计、版本 | Agent、A2A、job、statistics API | 已实现；子 Agent 真实委派成功，外部 A2A 端点待凭据验收 |
 | 聊天会话 | `views/Chat/`、`components/chat/` | 会话 CRUD、消息树、刷新恢复 | chatSession API | 已实现；真实会话与历史已验证 |
-| AG-UI 流 | `api/agui/agent-client.ts` | 文本、推理、工具、状态补丁、停止、重连 | Runtime AG-UI、SSE | 协议层已实现；文本/推理已实测，停止/断流重连待真实浏览器验收 |
-| 交互消息 | markdown VEP/APIP、Plan、SubAgent | 图表、表单、确认、任务计划、子 Agent 事件 | AG-UI 事件 | 已实现与单测；HITL/子 Agent 真实成功用例待验收 |
+| AG-UI 流 | `api/agui/agent-client.ts` | 文本、推理、工具、状态补丁、停止、重连 | Runtime AG-UI、SSE | 已实现；真实流式、主动停止、刷新恢复与 reconnect 回放已通过，强制传输层断网未单独压测 |
+| 交互消息 | markdown VEP/APIP、Plan、SubAgent | 图表、表单、确认、任务计划、子 Agent 事件 | AG-UI 事件 | 已实现与单测；HITL 允许/拒绝/刷新恢复及子 Agent 真实委派已通过 |
 | 工作空间 | `components/workspace/` | 上传、下载、批量下载、预览、树操作 | workspace、attach API | 已实现；单文件上传/列表/下载校验/删除已实测，多类型预览矩阵待验收 |
 | Models | `views/Model/` | 供应商、模型配置、扩展参数 | model API | 已实现，DashScope 两模型连通性已验证 |
 | Skills | `views/Skill/` | 列表、导入、编辑器、文件树、关联工具、SkillHub | skill、skillHub API | 已实现 |
@@ -55,6 +55,7 @@
 | API 服务 | `views/ApiService/` | API、应用、日志 | apiService API、runner-gateway | 已实现；真实上线/调用/日志/下线已验证 |
 | 运维与设置 | `views/Ops/`、`views/Settings/` | 账号、系统参数、API Key、节点监控、存储 | account、params、sk、heartbeat、storage API | 已实现，租户操作页已排除 |
 | 审查 | `views/Review/` | Agent 与工作流审查 | 对应业务 API | 诚实空态：后端无审查 API，旧 Vue 为静态假数据 |
+| 使用手册 | `src/doc/`、`doc.html` | React Markdown 帮助中心、目录、表格与代码块 | 静态 Markdown | 已迁移；旧 `/web/doc` 重定向到 `/react/docs`，知识库章节按排除范围删除 |
 
 ## 协议与复用规则
 
@@ -151,7 +152,7 @@
 - 供应商与模型配置：DashScope 原生端点对 qwen3.8 返回 400（url error），改用 **OpenAI 兼容模式**（`type=OPEN_AI`，baseUrl `https://dashscope.aliyuncs.com/compatible-mode/v1`）后连通性检查两个模型均"连接成功"。
 - 真实 AG-UI 流式对话验收：创建会话（threadId=sessionId）→ `runtime/agui/run/{agentCode}` SSE。事件序列完整：`REPLAY_CAUGHT_UP → RUN_STARTED → REASONING_MESSAGE_START/CONTENT/END（7 个思考增量）→ TEXT_MESSAGE_START/CONTENT(5)/END → RUN_FINISHED`；SSE data 为双层 JSON 编码，与 Vue 版解析器（字符串再解一层）一致。助手最终回复："我是一个简洁友好的中文助手，随时为你解答问题、处理任务！"
 - 已创建可直接对话的测试 Agent：`chat_flash_test`（对话测试（qwen3.8-flash））；qwen3.8-max 配置就绪，可在 Agent 编辑器中切换。
-- 剩余验收项：停止/重连/HITL/子 Agent 场景。qwen3.8-max 与 API 服务真实调用已于 2026-10-06 通过。
+- qwen3.8-max、API 服务、停止、刷新重连、HITL 双分支和子 Agent 真实调用均已于 2026-10-06 通过；强制传输层断网仍未单独做故障注入。
 
 
 ## 2026-10-05 全量部署与演示数据
@@ -159,7 +160,7 @@
 - 最新 React 构建已部署至 dev 前端容器（`/react/`，包含全部已完成页面），SSH 隧道 80 端口即可访问。
 - 通过真实 API 造演示数据：Agent×2（qwen3.8-flash/max）、自定义工具（JAVASCRIPT）、提示词模板、敏感词配置、Hook、长期记忆/代码执行/Studio 各一条、看板 + HTTP 数据集、网关应用 + API（绑定工作流、未上线）、自动化任务（禁用态，避免计划外模型调用）。
 - 工作流"演示工作流（回声）"（START→AGENT→END，AGENT 绑定 qwen3.8-flash）已发布至 v4：校验通过、debug-run 三节点全部 SUCCESS，END 通过 inputConfigs 绑定 AGENT 的 `output` 变量。排障记录：END 的 JACKSON 格式化器要求模板为合法 JSON；模板变量需通过节点 inputConfigs 以 `NODE_OUTPUT` 方式绑定，仅写字面 `${var}` 不会被替换。
-- 已知待办：审查页为诚实空态（后端无审查 API）；停止/断流重连/HITL/子 Agent 还缺真实浏览器级证据。Communication 的 ChatKey 换令牌、Agent 解析与深链页面已通过。
+- 已知待办：审查页为诚实空态（后端无审查 API）；Communication 的 ChatKey 换令牌、Agent 解析与深链页面已通过。
 
 ## 2026-10-06 网关、容量与回滚实测
 
@@ -178,3 +179,7 @@
 - React 自动化页已用生产构建复验：两类真实任务列表、Agent 消息详情、Workflow 节点详情和真实 Agent 目标下拉均可用。当前浏览器控制台只有部署切换瞬间旧页面请求已删除 chunk 的两条历史错误；服务器已将上一版哈希资源合并进当前镜像并验证旧 chunk 返回 200，部署文档同步加入保留上一版资源的步骤。
 - 部署后容器重启计数均为 0；主机内存 7522 MiB，已用 3391 MiB、可用 3822 MiB，无 Swap；根盘已用 19 GiB/40 GiB。磁盘相较前一次增加主要来自首次 Maven 依赖缓存与新镜像，未执行全局 Docker prune，避免删除同机其他资源。
 - 本机 Vite `127.0.0.1:3031` 与 ECS 隧道 `127.0.0.1:18080` 均返回 HTTP 200：当前开发模式确实是 React/Vite 在 Mac 本地运行、请求经 SSH 隧道到 ECS 后端；生产构建同时运行在 ECS Nginx 中供对照。
+- 真实浏览器在模型推理中执行“停止”，后端进入终态；刷新后不再显示运行中。另一次运行中刷新页面后显示“重连回放中”，历史推理与后续增量恢复，未出现重复消息。
+- HITL 使用内置时间工具验证：刷新后 pending 确认仍存在；“允许”后工具真实执行并返回时间，“拒绝”后工具不执行且模型明确报告未获授权。`chat_flash_test` 委派 `chat_max_test` 时渲染 `SUCCESS` 子 Agent 事件，并返回约定文本。
+- 修复 Agent 工具绑定误提交运行时代码而非数据库长整型 ID 的契约错误，并修复工具编辑时后端 `language=null` 被提交为空字符串的问题。新建工具只提供后端已注册的 Java 动态加载器；无法执行的 JavaScript 演示工具已停用。
+- 旧 Vue 的独立使用手册子应用已迁移为 React `/react/docs`；13 个非知识库章节、GFM 表格与代码块可访问，知识库章节与向量数据库部署说明按明确排除范围删除，旧 `/web/doc` 入口保留重定向。
