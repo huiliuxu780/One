@@ -65,6 +65,7 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks(id) {
             if (id.includes('/node_modules/@xyflow/')) return 'xyflow'
+            if (id.includes('/node_modules/@codemirror/') || id.includes('/node_modules/codemirror/')) return 'codemirror'
             if (id.includes('/node_modules/react') || id.includes('/node_modules/react-router')) {
               return 'react'
             }

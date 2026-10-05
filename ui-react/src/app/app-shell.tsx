@@ -7,9 +7,14 @@ import {
   Gear,
   Hexagon,
   House,
+  Lightning,
+  ListChecks,
   LockKey,
+  Monitor,
+  Database,
   PlugsConnected,
   Robot,
+  ShieldCheck,
   SignOut,
   Toolbox,
   UserCircle,
@@ -34,16 +39,26 @@ interface NavigationItem {
 
 const primaryNavigation: NavigationItem[] = [
   { label: '智能体', to: '/agent', icon: Robot, enabled: true },
-  { label: '对话广场', to: '/chat-cluster', icon: Hexagon, enabled: false },
+  { label: '对话', to: '/chat', icon: Hexagon, enabled: false },
+  { label: '对话广场', to: '/chat-cluster', icon: House, enabled: false },
   { label: '工作流', to: '/workflow', icon: FlowArrow, enabled: false },
   { label: '自动化', to: '/automation', icon: ClockCounterClockwise, enabled: false },
 ]
 
 const resourceNavigation: NavigationItem[] = [
-  { label: '模型', icon: PlugsConnected },
-  { label: '技能', icon: Toolbox },
-  { label: '工具', icon: Wrench },
-  { label: 'MCP', icon: Pulse },
+  { label: '模型', to: '/model', icon: PlugsConnected, enabled: true, capability: 'resource:manage' },
+  { label: '技能', to: '/skill', icon: Toolbox, enabled: true, capability: 'resource:manage' },
+  { label: '工具', to: '/tool', icon: Wrench, enabled: true, capability: 'resource:manage' },
+  { label: 'MCP', to: '/mcp', icon: Pulse, enabled: true, capability: 'resource:manage' },
+  { label: 'Hook', to: '/hook', icon: Lightning, enabled: true, capability: 'resource:manage' },
+]
+
+const assetNavigation: NavigationItem[] = [
+  { label: '提示词', to: '/prompt', icon: ListChecks, enabled: true, capability: 'resource:manage' },
+  { label: '敏感词', to: '/sensitive', icon: ShieldCheck, enabled: true, capability: 'resource:manage' },
+  { label: '长期记忆', to: '/memory', icon: Database, enabled: true, capability: 'resource:manage' },
+  { label: '代码执行', to: '/code-execution', icon: Monitor, enabled: true, capability: 'resource:manage' },
+  { label: 'Studio', to: '/studio', icon: Gear, enabled: true, capability: 'resource:manage' },
 ]
 
 export function AppShell() {
@@ -102,6 +117,8 @@ export function AppShell() {
         </button>
 
         {renderNavigation(primaryNavigation, '主导航', '工作空间')}
+        {renderNavigation(resourceNavigation, '资源管理', '资源管理')}
+        {renderNavigation(assetNavigation, '资产配置', '资产配置')}
 
         <div className="mt-auto">
           <DropdownMenu.Root>

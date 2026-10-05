@@ -10,6 +10,7 @@ const DEFAULT_LIMITS = {
   entry: 400 * KB,
   vendor: 500 * KB,
   xyflow: 1500 * KB,
+  codemirror: 900 * KB,
   page: 600 * KB,
   css: 300 * KB,
 }
@@ -33,6 +34,7 @@ function classify(filename) {
   if (filename.startsWith('index-')) return 'entry'
   if (filename.startsWith('react-')) return 'vendor'
   if (filename.startsWith('xyflow-')) return 'xyflow'
+  if (filename.startsWith('codemirror-')) return 'codemirror'
   return 'page'
 }
 
