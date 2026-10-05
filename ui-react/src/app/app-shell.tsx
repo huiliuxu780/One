@@ -39,10 +39,10 @@ interface NavigationItem {
 
 const primaryNavigation: NavigationItem[] = [
   { label: '智能体', to: '/agent', icon: Robot, enabled: true },
-  { label: '对话', to: '/chat', icon: Hexagon, enabled: false },
+  { label: '对话', to: '/chat', icon: Hexagon, enabled: true, capability: 'chat:use' },
   { label: '对话广场', to: '/chat-cluster', icon: House, enabled: false },
-  { label: '工作流', to: '/workflow', icon: FlowArrow, enabled: false },
-  { label: '自动化', to: '/automation', icon: ClockCounterClockwise, enabled: false },
+  { label: '工作流', to: '/workflow', icon: FlowArrow, enabled: true },
+  { label: '自动化', to: '/automation', icon: ClockCounterClockwise, enabled: true },
 ]
 
 const resourceNavigation: NavigationItem[] = [
@@ -54,6 +54,7 @@ const resourceNavigation: NavigationItem[] = [
 ]
 
 const assetNavigation: NavigationItem[] = [
+  { label: '工作空间', to: '/workspace', icon: Database, enabled: true },
   { label: '提示词', to: '/prompt', icon: ListChecks, enabled: true, capability: 'resource:manage' },
   { label: '敏感词', to: '/sensitive', icon: ShieldCheck, enabled: true, capability: 'resource:manage' },
   { label: '长期记忆', to: '/memory', icon: Database, enabled: true, capability: 'resource:manage' },

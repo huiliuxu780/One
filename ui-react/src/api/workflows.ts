@@ -1,4 +1,4 @@
-import type { ApiResponse, PageResult, Workflow, WorkflowDetail, WorkflowRun, WorkflowVersion, WorkflowValidationResult } from '@/types'
+import type { ApiResponse, NodeMetadata, PageResult, Workflow, WorkflowDetail, WorkflowNodeExecution, WorkflowRun, WorkflowRunRequest, WorkflowRunResult, WorkflowValidationResult, WorkflowVersion } from '@/types'
 import { apiClient } from './client'
 
 export function pageWorkflows(query: Record<string, unknown>) {
@@ -51,5 +51,25 @@ export function removeVersion(id: string, version: string) {
 }
 
 export function pageRuns(query: Record<string, unknown>) {
-  return apiClient.get<ApiResponse<PageResult<WorkflowRun>>>('/api/workflow/run/page', { params: query })
+  return apiClient.get<ApiResponse<PageResult<WorkflowRun>>>('/api/workflow/runs/page', { params: query })
+}
+
+export function runDetail(runId: string) {
+  return apiClient.get<ApiResponse<WorkflowRun>>(`/api/workflow/runs/${runId}`)
+}
+
+export function runNodes(runId: string) {
+  return apiClient.get<ApiResponse<WorkflowNodeExecution[]>>(`/api/workflow/runs/${runId}/nodes`)
+}
+
+export function debugRun(id: string, payload: WorkflowRunRequest) {
+  return apiClient.post<ApiResponse<WorkflowRunResult>>(`/api/runtime/workflow/${id}/debug-run`, payload)
+}
+
+export function formalRun(id: string, payload: WorkflowRunRequest) {
+  return apiClient.post<ApiResponse<WorkflowRunResult>>(`/api/runtime/workflow/${id}/run`, payload)
+}
+
+export function nodeMetadata() {
+  return apiClient.get<ApiResponse<NodeMetadata[]>>('/api/workflow/node-metadata')
 }

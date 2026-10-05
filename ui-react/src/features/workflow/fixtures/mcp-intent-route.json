@@ -1,0 +1,56 @@
+{
+  "metadata": { "schemaVersion": "1.0", "updatedAt": "2026-06-01T08:00:00" },
+  "nodes": [
+    {
+      "id": "s",
+      "type": "START",
+      "name": "开始",
+      "position": { "x": 40, "y": 200 },
+      "config": {}
+    },
+    {
+      "id": "mcp1",
+      "type": "MCP",
+      "name": "检索 MCP",
+      "position": { "x": 280, "y": 200 },
+      "config": { "serverId": "2001", "toolName": "knowledge_search", "exposureMode": "AUTO" },
+      "inputConfigs": [{ "name": "keyword", "sourceType": "EXPRESSION", "expression": "${query}" }]
+    },
+    {
+      "id": "intent1",
+      "type": "INTENT",
+      "name": "意图识别",
+      "position": { "x": 520, "y": 200 },
+      "config": { "intents": [{ "name": "售前", "samples": ["价格", "购买"] }, { "name": "售后", "samples": ["报修", "退款"] }] }
+    },
+    {
+      "id": "db1",
+      "type": "DB",
+      "name": "读取订单",
+      "position": { "x": 780, "y": 120 },
+      "config": { "datasource": "main", "sql": "SELECT * FROM orders WHERE user_id = ${userId} LIMIT 10", "operation": "QUERY" }
+    },
+    {
+      "id": "mq1",
+      "type": "MQ",
+      "name": "通知下游",
+      "position": { "x": 780, "y": 300 },
+      "config": { "topic": "order-events", "operation": "PUBLISH", "payload": "{\"type\":\"aftersale\"}" }
+    },
+    {
+      "id": "e",
+      "type": "END",
+      "name": "结束",
+      "position": { "x": 1040, "y": 200 },
+      "config": {}
+    }
+  ],
+  "edges": [
+    { "id": "se", "source": "s", "target": "mcp1" },
+    { "id": "m2i", "source": "mcp1", "target": "intent1" },
+    { "id": "i2d", "source": "intent1", "target": "db1", "sourceHandle": "intent-0" },
+    { "id": "i2m", "source": "intent1", "target": "mq1", "sourceHandle": "intent-1" },
+    { "id": "d2e", "source": "db1", "target": "e" },
+    { "id": "m2e", "source": "mq1", "target": "e" }
+  ]
+}

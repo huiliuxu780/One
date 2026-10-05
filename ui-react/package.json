@@ -44,6 +44,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "codemirror": "^6.0.0",
+    "fast-json-patch": "^3.1.1",
     "js-md5": "^0.9.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

@@ -1,0 +1,55 @@
+{
+  "metadata": { "schemaVersion": "1.0" },
+  "nodes": [
+    {
+      "id": "n_start",
+      "type": "START",
+      "name": "开始",
+      "position": { "x": 0, "y": 0 },
+      "config": {}
+    },
+    {
+      "id": "n_loop",
+      "type": "LOOP",
+      "name": "逐条处理",
+      "position": { "x": 240, "y": 0 },
+      "config": { "loopType": "ITERATE", "iterateOver": "${items}", "maxIterations": 50 }
+    },
+    {
+      "id": "n_tool",
+      "type": "TOOL",
+      "name": "摘要工具",
+      "position": { "x": 480, "y": 0 },
+      "config": { "toolId": "text_summary", "needConfirm": false },
+      "inputConfigs": [{ "name": "text", "sourceType": "VARIABLE", "variableName": "item" }]
+    },
+    {
+      "id": "n_code",
+      "type": "CODE",
+      "name": "结果聚合",
+      "position": { "x": 720, "y": 0 },
+      "config": { "language": "python", "code": "def main(inputs):\n    return {'summary': '\\n'.join(inputs)}" }
+    },
+    {
+      "id": "n_cache",
+      "type": "CACHE",
+      "name": "缓存结果",
+      "position": { "x": 960, "y": 0 },
+      "config": { "cacheKey": "summary:${item.id}", "ttlSeconds": 600, "operation": "SET" }
+    },
+    {
+      "id": "n_end",
+      "type": "END",
+      "name": "结束",
+      "position": { "x": 1200, "y": 0 },
+      "config": {}
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "n_start", "target": "n_loop" },
+    { "id": "e2", "source": "n_loop", "target": "n_tool" },
+    { "id": "e3", "source": "n_tool", "target": "n_code" },
+    { "id": "e4", "source": "n_code", "target": "n_cache" },
+    { "id": "e5", "source": "n_cache", "target": "n_end" }
+  ]
+}

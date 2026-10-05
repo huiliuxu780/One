@@ -110,38 +110,57 @@ apiClient.interceptors.response.use(
     if (refreshing) {
       return new Promise((resolve) => {
         refreshWaiters.push((token) => {
+          if (!token) {
+            // 刷新失败：后续请求按未登录处理
+            sessionStorageAdapter.clear()
+            redirectToLogin()
+            return
+          }
           request.headers[TOKEN_HEADER] = `Bearer ${token}`
           resolve(apiClient(request))
         })
       })
     }
-    const refreshToken = sessionStorageAdapter.getRefreshToken()
-    if (!refreshToken) {
-      sessionStorageAdapter.clear()
-      redirectToLogin()
-      throw new ApiClientError('缺少刷新凭据', { status: 401 })
-    }
-    refreshing = true
-    try {
-      const response = await axios.post<ApiResponse<LoginResponse>>(
-        `${baseURL}/api/auth/refresh-token`,
-        { refreshToken },
-        { headers: { [REFRESH_HEADER]: true } },
-      )
-      const data = response.data.data
-      sessionStorageAdapter.saveLogin(data)
-      refreshWaiters.forEach((waiter) => waiter(data.accessToken))
-      refreshWaiters = []
-      request.headers[TOKEN_HEADER] = `Bearer ${data.accessToken}`
-      return apiClient(request)
-    } catch (refreshError) {
-      refreshWaiters = []
-      sessionStorageAdapter.clear()
-      redirectToLogin()
-      if (refreshError instanceof ApiClientError) throw refreshError
+    const newToken = await refreshSessionTokens()
+    if (!newToken) {
       throw new ApiClientError('登录状态已失效，请重新登录', { status: 401 })
-    } finally {
-      refreshing = false
     }
+    request.headers[TOKEN_HEADER] = `Bearer ${newToken}`
+    return apiClient(request)
   },
 )
+
+/** 供 SSE 等非 axios 通道复用的单飞刷新：成功返回新 accessToken，失败返回 null。 */
+export async function refreshSessionTokens(): Promise<string | null> {
+  const refreshToken = sessionStorageAdapter.getRefreshToken()
+  if (!refreshToken) {
+    sessionStorageAdapter.clear()
+    redirectToLogin()
+    return null
+  }
+  if (refreshing) {
+    return new Promise((resolve) => {
+      refreshWaiters.push((token) => resolve(token || null))
+    })
+  }
+  refreshing = true
+  try {
+    const response = await axios.post<ApiResponse<LoginResponse>>(
+      `${baseURL}/api/auth/refresh-token`,
+      { refreshToken },
+      { headers: { [REFRESH_HEADER]: true } },
+    )
+    const data = response.data.data
+    sessionStorageAdapter.saveLogin(data)
+    refreshWaiters.forEach((waiter) => waiter(data.accessToken))
+    refreshWaiters = []
+    return data.accessToken
+  } catch {
+    refreshWaiters = []
+    sessionStorageAdapter.clear()
+    redirectToLogin()
+    return null
+  } finally {
+    refreshing = false
+  }
+}

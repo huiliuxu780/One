@@ -1,0 +1,55 @@
+{
+  "metadata": { "schemaVersion": "1.0", "nodeVersion": "8" },
+  "nodes": [
+    {
+      "id": "node_start_1",
+      "type": "START",
+      "name": "开始",
+      "position": { "x": 80, "y": 160 },
+      "config": { "inputs": [{ "name": "question", "sourceType": "CONSTANT", "type": "STRING", "value": "" }] }
+    },
+    {
+      "id": "node_agent_1",
+      "type": "AGENT",
+      "name": "客服坐席",
+      "position": { "x": 360, "y": 150 },
+      "config": { "agentId": "10001", "prompt": "你是客服助手", "streaming": true },
+      "inputConfigs": [{ "name": "query", "sourceType": "VARIABLE", "variableName": "question" }],
+      "outputConfigs": [{ "name": "answer", "fromNodeId": "node_agent_1" }],
+      "ui": { "color": "#2563eb", "collapsed": false }
+    },
+    {
+      "id": "node_if_1",
+      "type": "IF_ELSE",
+      "name": "满意度判断",
+      "position": { "x": 660, "y": 150 },
+      "config": { "branches": [{ "expression": "${answer}.contains('投诉')", "label": "升级人工" }, { "label": "默认" }] }
+    },
+    {
+      "id": "node_http_1",
+      "type": "HTTP",
+      "name": "创建工单",
+      "position": { "x": 940, "y": 90 },
+      "config": { "method": "POST", "url": "https://api.example.com/ticket", "headers": { "X-Source": "workflow" }, "body": "{\"text\":\"${answer}\"}" }
+    },
+    {
+      "id": "node_end_1",
+      "type": "END",
+      "name": "结束",
+      "position": { "x": 1220, "y": 170 },
+      "config": { "outputs": [{ "name": "reply", "fromNodeId": "node_agent_1" }] }
+    }
+  ],
+  "edges": [
+    { "id": "edge_s_a", "source": "node_start_1", "target": "node_agent_1", "sourceHandle": "out", "targetHandle": "in" },
+    { "id": "edge_a_if", "source": "node_agent_1", "target": "node_if_1" },
+    { "id": "edge_if_http", "source": "node_if_1", "target": "node_http_1", "sourceHandle": "branch-0", "label": "升级人工" },
+    { "id": "edge_if_end", "source": "node_if_1", "target": "node_end_1", "sourceHandle": "branch-1", "label": "默认" },
+    { "id": "edge_http_end", "source": "node_http_1", "target": "node_end_1" }
+  ],
+  "variables": [
+    { "name": "question", "type": "STRING", "value": "您好" },
+    { "name": "answer", "type": "STRING" }
+  ],
+  "viewport": { "x": 12, "y": -40, "zoom": 0.85 }
+}

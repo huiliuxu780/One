@@ -21,6 +21,11 @@ const SensitivePage = lazy(() => import('@/pages/resource-pages').then(({ Sensit
 const MemoryPage = lazy(() => import('@/pages/resource-pages').then(({ MemoryPage }) => ({ default: MemoryPage })))
 const CodeExecutionPage = lazy(() => import('@/pages/resource-pages').then(({ CodeExecutionPage }) => ({ default: CodeExecutionPage })))
 const StudioPage = lazy(() => import('@/pages/resource-pages').then(({ StudioPage }) => ({ default: StudioPage })))
+const ChatPage = lazy(() => import('@/pages/chat-page').then(({ ChatPage }) => ({ default: ChatPage })))
+const WorkspacePage = lazy(() => import('@/pages/workspace-page').then(({ WorkspacePage }) => ({ default: WorkspacePage })))
+const AutomationPage = lazy(() => import('@/pages/automation-page').then(({ AutomationPage }) => ({ default: AutomationPage })))
+const WorkflowPage = lazy(() => import('@/pages/workflow-page').then(({ WorkflowPage }) => ({ default: WorkflowPage })))
+const WorkflowEditorPage = lazy(() => import('@/pages/workflow-editor-page').then(({ WorkflowEditorPage }) => ({ default: WorkflowEditorPage })))
 
 function withSuspense(element: React.ReactElement) {
   return <Suspense fallback={<PageLoading />}>{element}</Suspense>
@@ -38,6 +43,11 @@ export const router = createBrowserRouter(
           children: [
             { index: true, element: <Navigate to="/agent" replace /> },
             { path: '/agent', element: withSuspense(<AgentsPage />) },
+            { path: '/chat', element: withSuspense(<ChatPage />) },
+            { path: '/workspace', element: withSuspense(<WorkspacePage />) },
+            { path: '/automation', element: withSuspense(<AutomationPage />) },
+            { path: '/workflow', element: withSuspense(<WorkflowPage />) },
+            { path: '/workflow/:id/edit', element: withSuspense(<WorkflowEditorPage />) },
             { path: '/model', element: withSuspense(<ModelPage />) },
             { path: '/skill', element: withSuspense(<SkillPage />) },
             { path: '/tool', element: withSuspense(<ToolPage />) },
