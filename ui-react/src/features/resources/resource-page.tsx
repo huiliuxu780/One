@@ -41,6 +41,12 @@ function enumOptions(field: FieldDef) {
   return field.options ?? []
 }
 
+export function resourceEditFieldValue(field: FieldDef, raw: unknown): unknown {
+  if (field.secret) return ''
+  if (field.type === 'json' && raw != null && typeof raw !== 'string') return JSON.stringify(raw, null, 2)
+  return raw ?? field.defaultValue ?? (field.type === 'switch' ? false : '')
+}
+
 export function FormFieldRenderer({
   field,
   value,
@@ -145,7 +151,7 @@ function useResourceForm<T extends { id?: string | number }>(def: ResourceDef<T>
     for (const field of def.form) {
       const raw = (row as Record<string, unknown>)[field.name]
       // 密钥字段不回显；留空表示不修改
-      values[field.name] = field.secret ? '' : field.type === 'json' && raw != null && typeof raw !== 'string' ? JSON.stringify(raw, null, 2) : (raw ?? (field.type === 'switch' ? false : ''))
+      values[field.name] = resourceEditFieldValue(field, raw)
     }
     setEditing(row)
     form.reset(values)

@@ -14,7 +14,7 @@ import {
   tools,
 } from '@/api/resources'
 import type { CodeExecutionConfig, HookConfigVO, LongTermMemoryConfig, ModelConfigVO, ModelProviderVO, SensitiveWordConfigVO, StudioConfig, SystemPromptTemplateVO, ToolVO } from '@/types'
-import { AuthType, HookType, ModelType, SensitiveWordAction, ToolType } from '@/types'
+import { AuthType, CodeLanguage, HookType, ModelType, SensitiveWordAction, ToolType } from '@/types'
 import type { ColumnDef, FieldDef, ResourceDef } from './types'
 
 function enabledColumn<T extends { enabled?: boolean }>(onChange?: (row: T, enabled: boolean) => void): ColumnDef<T> {
@@ -62,7 +62,14 @@ export const toolDef: ResourceDef<ToolVO> = {
     { name: 'description', label: '描述', type: 'textarea', wide: true },
     { name: 'category', label: '分类', type: 'text' },
     { name: 'toolType', label: '工具类型', type: 'select', enumFrom: Object.values(ToolType), defaultValue: ToolType.CUSTOM },
-    { name: 'language', label: '语言', type: 'text', defaultValue: 'python' },
+    {
+      name: 'language',
+      label: '语言',
+      type: 'select',
+      enumFrom: [CodeLanguage.JAVA],
+      defaultValue: CodeLanguage.JAVA,
+      description: '当前后端只注册了 JAVA/Groovy 动态工具加载器。',
+    },
     { name: 'needConfirm', label: '调用前需人工确认', type: 'switch' },
     { name: 'inputSchema', label: '输入参数 Schema (JSON)', type: 'json', wide: true, placeholder: '[{"name":"arg","type":"string"}]' },
     { name: 'classPath', label: '类路径（内置工具）', type: 'text' },
