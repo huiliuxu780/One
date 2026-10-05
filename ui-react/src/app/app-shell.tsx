@@ -40,7 +40,8 @@ interface NavigationItem {
 const primaryNavigation: NavigationItem[] = [
   { label: '智能体', to: '/agent', icon: Robot, enabled: true },
   { label: '对话', to: '/chat', icon: Hexagon, enabled: true, capability: 'chat:use' },
-  { label: '对话广场', to: '/chat-cluster', icon: House, enabled: false },
+  { label: '对话广场', to: '/chat-cluster', icon: House, enabled: true },
+  { label: '会话历史', to: '/chat-history', icon: ClockCounterClockwise, enabled: true },
   { label: '工作流', to: '/workflow', icon: FlowArrow, enabled: true },
   { label: '自动化', to: '/automation', icon: ClockCounterClockwise, enabled: true },
 ]
@@ -65,9 +66,9 @@ const assetNavigation: NavigationItem[] = [
 ]
 
 const pendingNavigation: NavigationItem[] = [
-  { label: '工作台', to: '/dashboard', icon: House, enabled: false },
-  { label: 'API 服务', to: '/api-service', icon: PlugsConnected, enabled: false },
-  { label: '审查', to: '/review', icon: ShieldCheck, enabled: false },
+  { label: '工作台', to: '/dashboard', icon: House, enabled: true },
+  { label: 'API 服务', to: '/api-service', icon: PlugsConnected, enabled: true },
+  { label: '审查', to: '/review', icon: ShieldCheck, enabled: true },
 ]
 
 export function AppShell() {

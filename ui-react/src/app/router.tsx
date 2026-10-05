@@ -28,6 +28,12 @@ const WorkflowPage = lazy(() => import('@/pages/workflow-page').then(({ Workflow
 const WorkflowEditorPage = lazy(() => import('@/pages/workflow-editor-page').then(({ WorkflowEditorPage }) => ({ default: WorkflowEditorPage })))
 const SettingsPage = lazy(() => import('@/pages/settings-page').then(({ SettingsPage }) => ({ default: SettingsPage })))
 const OpsPage = lazy(() => import('@/pages/ops-page').then(({ OpsPage }) => ({ default: OpsPage })))
+const ChatClusterPage = lazy(() => import('@/pages/chat-cluster-page').then(({ ChatClusterPage }) => ({ default: ChatClusterPage })))
+const ChatHistoryPage = lazy(() => import('@/pages/chat-history-page').then(({ ChatHistoryPage }) => ({ default: ChatHistoryPage })))
+const CommunicationPage = lazy(() => import('@/pages/communication-page').then(({ CommunicationPage }) => ({ default: CommunicationPage })))
+const DashboardPage = lazy(() => import('@/pages/dashboard-page').then(({ DashboardPage }) => ({ default: DashboardPage })))
+const ApiServicePage = lazy(() => import('@/pages/api-service-page').then(({ ApiServicePage }) => ({ default: ApiServicePage })))
+const ReviewPage = lazy(() => import('@/pages/review-page').then(({ ReviewPage }) => ({ default: ReviewPage })))
 
 function withSuspense(element: React.ReactElement) {
   return <Suspense fallback={<PageLoading />}>{element}</Suspense>
@@ -36,6 +42,8 @@ function withSuspense(element: React.ReactElement) {
 export const router = createBrowserRouter(
   [
     { path: '/login', element: withSuspense(<LoginPage />) },
+    // ChatKey 对外分享入口：免登录，凭据由 key 换取
+    { path: '/communication/:chatKey', element: withSuspense(<CommunicationPage />) },
     {
       element: <ProtectedRoute />,
       errorElement: <ServerErrorPage />,
@@ -46,6 +54,11 @@ export const router = createBrowserRouter(
             { index: true, element: <Navigate to="/agent" replace /> },
             { path: '/agent', element: withSuspense(<AgentsPage />) },
             { path: '/chat', element: withSuspense(<ChatPage />) },
+            { path: '/chat-cluster', element: withSuspense(<ChatClusterPage />) },
+            { path: '/chat-history', element: withSuspense(<ChatHistoryPage />) },
+            { path: '/dashboard', element: withSuspense(<DashboardPage />) },
+            { path: '/api-service', element: withSuspense(<ApiServicePage />) },
+            { path: '/review', element: withSuspense(<ReviewPage />) },
             { path: '/workspace', element: withSuspense(<WorkspacePage />) },
             { path: '/automation', element: withSuspense(<AutomationPage />) },
             { path: '/workflow', element: withSuspense(<WorkflowPage />) },

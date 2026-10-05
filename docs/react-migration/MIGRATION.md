@@ -139,4 +139,6 @@
 
 真实后端契约冒烟（admin 会话）：agent/workflow/model/tool/skill/mcp/hook/prompt/sensitive/params/sk/heartbeat/account/chat-session 共 16 个模块端点全部返回 `code=200`，runtime 的 `workflow/node-metadata` 与 `agui/active-runs` 均为 HTTP 200。
 
-仍未完成（导航中保留"迁移中"占位）：对话广场（ChatCluster）、会话历史分支 UI、Dashboard 工作台、API 服务（阻塞于 runner-gateway 公网入口/鉴权/限流策略确认）、审查（Review）；聊天真实验收仍需云模型凭据。
+随后补完剩余页面：对话广场（Vue 原版为骨架屏占位，按其声明的"聚合展示可用智能体"意图落地）、会话历史（分页消息链 + 分支切换 + 当前消息编辑）、Communication（ChatKey 免登录分享入口，key 换取令牌后进入对话）、工作台 Dashboard（看板 CRUD/默认项/启停 + 数据集 CRUD 与真实执行，错误原文直接展示）、API 服务（应用/API CRUD、上下线、访问日志详情）、审查页（后端无审查 API 且旧版为静态假数据，按 Spec 2.2 做诚实空态，不做伪装）。
+
+开发侧剩余：聊天流式真实验收需云模型凭据；API 服务真实调用验收需 runner-gateway 启用（Spec 阻塞项 3）；RM-09 切换/回滚演练与容量报告属 G8 上线阶段。
