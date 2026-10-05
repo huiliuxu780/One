@@ -86,6 +86,8 @@
 
 范围：在迁移更多页面前补齐共用能力。
 
+接口参考：`auth.ts`、`account.ts`、`stores/modules/account.ts`。
+
 任务：
 
 - 建立统一 query/mutation、分页、筛选、批量选择和缓存失效封装。
@@ -95,6 +97,7 @@
 - 建立功能权限与角色权限映射；菜单隐藏不能替代路由和后端权限检查。
 - 完成个人资料、修改密码、退出登录、刷新令牌失败恢复。
 - 增加构建产物体积阈值和 source map 发布策略。
+- 提供 React 开发态接入 dev compose 真实后端的执行环境：代理目标环境变量化，并提供加入 backend 网络的独立开发服务编排；宿主机不依赖 Node。
 
 验收：
 
@@ -129,7 +132,7 @@ Vue 参考：`views/Agent/`、`components/agent/`。
 
 Vue 参考：`views/Chat/`、`views/ChatHistory/`、`views/ChatCluster/`、`views/Communication/`、`components/chat/`。
 
-接口参考：`chatSession.ts`、`api/agui/*`、`workspace.ts`、`attach.ts`、WebSocket 模块。
+接口参考：`chatSession.ts`、`api/agui/*`、`workspace.ts`、`attach.ts`、Vue `src/websocket/manager/` 与 `src/ws/WsService.ts`（WebSocket 封装）。
 
 任务：
 
@@ -155,6 +158,10 @@ Vue 参考：`views/Chat/`、`views/ChatHistory/`、`views/ChatCluster/`、`view
 - 所有失败场景显示可操作错误，不把空输出标记为成功。
 
 ### RM-04 文件、附件与工作空间
+
+Vue 参考：`components/workspace/`。
+
+接口参考：`workspace.ts`、`attach.ts`。
 
 任务：
 
@@ -237,6 +244,8 @@ Vue 参考：`views/Workflow/`、`components/workflow/`、`config/workflow/`。
 - 加载含知识库节点的旧流程不会崩溃，也不会在未确认时改写原数据。
 
 ### RM-08 Dashboard、API Service、Review 与保留设置
+
+接口参考：`apiService.ts`、`dashboard.ts`、`heartbeat.ts`、`params.ts`、`sk.ts`、`storageProtocol.ts`、`account.ts`。
 
 任务：
 
@@ -326,6 +335,8 @@ Vue 参考：`views/Workflow/`、`components/workflow/`、`config/workflow/`。
 2. 若需公网访问：域名、DNS 控制权和 TLS 方案。没有 TLS 时继续使用 SSH 隧道。
 3. API Service 阶段需要确认 runner-gateway 的公网入口、鉴权和限流策略。
 4. 第三方 MCP、邮件、飞书、钉钉、企微等功能若要求全量验收，需要相应开发测试凭据；没有凭据时只能完成接口与失败路径验收，不能宣称集成成功。
+5. G6 round-trip 验收需要至少三份从上游导出的真实 `WorkflowDefinition` JSON fixture；该输入缺失时只能完成协议层单元测试，不能判定 G6 通过。
+6. 待确认：旧 Vue 构建包含文档子应用（`VITE_APP_TARGET=doc`，部署于 `/web/doc`），本文当前未覆盖；需决定纳入迁移或明确排除。
 
 ## 9. 完成定义
 
