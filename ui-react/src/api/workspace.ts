@@ -3,12 +3,13 @@ import { apiClient } from './client'
 
 const BASE = '/api/runtime/workspace'
 
-export function upload(sessionId: string, file: File, onProgress?: (percent: number) => void) {
+export function upload(sessionId: string, file: File, onProgress?: (percent: number) => void, signal?: AbortSignal) {
   const formData = new FormData()
   formData.append('file', file)
   return apiClient.post<ApiResponse<string>>(`${BASE}/upload`, formData, {
     params: { sessionId },
     headers: { 'Content-Type': 'multipart/form-data' },
+    signal,
     onUploadProgress: (event) => {
       if (onProgress && event.total) onProgress(Math.round((event.loaded / event.total) * 100))
     },

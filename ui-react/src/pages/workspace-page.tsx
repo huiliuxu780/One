@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Download, FilePlus, Folder, MagnifyingGlass, Trash, Upload } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toast } from '@/components/ui/sonner'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/states'
 import { readableError } from '@/lib/utils'
 import * as workspaceApi from '@/api/workspace'
@@ -23,6 +24,9 @@ export function WorkspacePage() {
   const [search, setSearch] = useState('')
   const [sessionId, setSessionId] = useState<string>('')
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<Array<{ name: string; percent: number; state: 'pending' | 'uploading' | 'done' | 'error' }>>([])
+  const uploadAbortRef = useRef<AbortController | null>(null)
+  const [preview, setPreview] = useState<{ node: WorkspaceFileNode; url?: string; text?: string; unsupported?: boolean } | null>(null)
   const [confirmClear, setConfirmClear] = useState(false)
 
   const sessionsQuery = useQuery({
@@ -54,18 +58,79 @@ export function WorkspacePage() {
     void queryClient.invalidateQueries({ queryKey: ['detail', 'workspace-capacity', sessionId] })
   }
 
-  const uploadMutation = useMutation({
-    mutationFn: async (files: File[]) => {
-      if (files.length === 1) await workspaceApi.upload(sessionId, files[0])
-      else await workspaceApi.uploadBatch(sessionId, files)
-    },
-    onSuccess: (_data, files) => {
-      toast.success(`已上传 ${files.length} 个文件`)
-      refresh()
-    },
-    onError: (cause) => toast.error(readableError(cause, '上传失败')),
-    onSettled: () => setUploading(false),
-  })
+  useEffect(() => () => uploadAbortRef.current?.abort(), [])
+
+  useEffect(() => {
+    const previewUrl = preview?.url
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+    }
+  }, [preview?.url])
+
+  async function uploadFiles(files: File[]) {
+    const maxSingle = 30 * 1024 * 1024
+    const valid = files.filter((file) => {
+      if (!file.name.trim() || file.size === 0) {
+        toast.error(`${file.name || '未命名文件'}：不允许上传空文件`)
+        return false
+      }
+      if (file.size > maxSingle) {
+        toast.error(`${file.name}：超过后端单文件上限 30MB`)
+        return false
+      }
+      return true
+    })
+    if (!valid.length) return
+    const controller = new AbortController()
+    uploadAbortRef.current = controller
+    setUploading(true)
+    setUploadProgress(valid.map((file) => ({ name: file.name, percent: 0, state: 'pending' })))
+    let completed = 0
+    try {
+      // 单文件串行上传可提供每个文件的真实进度，也能在当前文件结束前取消。
+      for (const file of valid) {
+        if (controller.signal.aborted) break
+        setUploadProgress((items) => items.map((item) => item.name === file.name ? { ...item, state: 'uploading' } : item))
+        try {
+          await workspaceApi.upload(sessionId, file, (percent) => {
+            setUploadProgress((items) => items.map((item) => item.name === file.name ? { ...item, percent } : item))
+          }, controller.signal)
+          completed++
+          setUploadProgress((items) => items.map((item) => item.name === file.name ? { ...item, percent: 100, state: 'done' } : item))
+        } catch (cause) {
+          if (controller.signal.aborted) break
+          setUploadProgress((items) => items.map((item) => item.name === file.name ? { ...item, state: 'error' } : item))
+          toast.error(`${file.name}：${readableError(cause, '上传失败')}`)
+        }
+      }
+      if (completed) {
+        toast.success(`已上传 ${completed} 个文件`)
+        refresh()
+      }
+    } finally {
+      uploadAbortRef.current = null
+      setUploading(false)
+    }
+  }
+
+  async function previewFile(node: WorkspaceFileNode) {
+    try {
+      const response = await workspaceApi.downloadFile(sessionId, node.path)
+      const blob = response.data as Blob
+      const extension = (node.extension || node.name.split('.').pop() || '').toLowerCase()
+      if (['txt', 'md', 'json', 'yaml', 'yml', 'xml', 'csv', 'log', 'py', 'js', 'ts', 'tsx', 'java', 'sql'].includes(extension)) {
+        setPreview({ node, text: await blob.text() })
+        return
+      }
+      if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'pdf'].includes(extension)) {
+        setPreview({ node, url: URL.createObjectURL(blob) })
+        return
+      }
+      setPreview({ node, unsupported: true })
+    } catch (cause) {
+      toast.error(readableError(cause, '预览失败'))
+    }
+  }
 
   async function saveBlobDownload(blob: unknown, filename: string) {
     const url = URL.createObjectURL(blob as Blob)
@@ -137,8 +202,7 @@ export function WorkspacePage() {
               onChange={(event) => {
                 const files = Array.from(event.target.files ?? [])
                 if (files.length) {
-                  setUploading(true)
-                  uploadMutation.mutate(files)
+                  void uploadFiles(files)
                 }
                 event.target.value = ''
               }}
@@ -155,6 +219,13 @@ export function WorkspacePage() {
       {capacity ? (
         <div className="mb-4 text-sm text-muted-foreground">
           容量：{capacity.usedReadable ?? ''} / {capacity.maxReadable ?? ''}（以后端返回为准）
+        </div>
+      ) : null}
+
+      {uploadProgress.length ? (
+        <div className="mb-4 rounded-xl border border-border bg-card p-3">
+          <div className="mb-2 flex items-center justify-between text-sm font-medium"><span>上传队列</span>{uploading ? <Button size="sm" variant="outline" onClick={() => uploadAbortRef.current?.abort()}>取消上传</Button> : <Button size="sm" variant="ghost" onClick={() => setUploadProgress([])}>清除记录</Button>}</div>
+          <div className="space-y-2">{uploadProgress.map((item, index) => <div key={`${item.name}-${index}`} className="grid grid-cols-[minmax(0,1fr)_120px_52px] items-center gap-2 text-xs"><span className="truncate">{item.name}</span><div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className={`h-full ${item.state === 'error' ? 'bg-destructive' : 'bg-primary'}`} style={{ width: `${item.percent}%` }} /></div><span className="text-right text-muted-foreground">{item.state === 'error' ? '失败' : item.state === 'pending' ? '等待' : `${item.percent}%`}</span></div>)}</div>
         </div>
       ) : null}
 
@@ -223,7 +294,7 @@ export function WorkspacePage() {
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         {!node.directory ? (
-                          <Button variant="ghost" size="sm" onClick={() => void downloadOne(node)}>下载</Button>
+                          <><Button variant="ghost" size="sm" onClick={() => void previewFile(node)}>预览</Button><Button variant="ghost" size="sm" onClick={() => void downloadOne(node)}>下载</Button></>
                         ) : null}
                         <Button variant="ghost" size="sm" className="text-destructive" onClick={() => void removeOne(node)}>删除</Button>
                       </div>
@@ -260,6 +331,16 @@ export function WorkspacePage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={Boolean(preview)} onOpenChange={(open) => { if (!open) setPreview(null) }}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader><DialogTitle>{preview?.node.name}</DialogTitle><DialogDescription>{preview?.node.path}</DialogDescription></DialogHeader>
+          {preview?.text !== undefined ? <pre className="max-h-[70dvh] overflow-auto rounded-lg bg-muted p-4 whitespace-pre-wrap font-mono text-xs">{preview.text}</pre> : null}
+          {preview?.url && preview.node.extension?.toLowerCase() === 'pdf' ? <iframe title={preview.node.name} src={preview.url} className="h-[70dvh] w-full rounded-lg border" /> : null}
+          {preview?.url && preview.node.extension?.toLowerCase() !== 'pdf' ? <img src={preview.url} alt={preview.node.name} className="max-h-[70dvh] w-full object-contain" /> : null}
+          {preview?.unsupported ? <EmptyState title="此格式不支持内嵌预览" description="可使用下载按钮在本地应用中打开。" /> : null}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
