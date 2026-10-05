@@ -63,6 +63,9 @@ public interface ChatSessionService extends IService<ChatSession> {
      */
     List<ChatMessageVO> getCurrentMessages(Long sessionId);
 
+    /** 返回当前用户会话的完整消息树，用于浏览和切换历史分支。 */
+    List<ChatMessageVO> getMessageTree(Long sessionId);
+
     /**
      * 分页加载当前对话消息：首次加载最新 size 条，后续按 beforeDepth 向前加载
      *
@@ -134,4 +137,3 @@ public interface ChatSessionService extends IService<ChatSession> {
      */
     void deleteSession(Long id);
 }
-

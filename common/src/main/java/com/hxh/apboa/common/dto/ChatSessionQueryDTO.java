@@ -18,4 +18,5 @@ public class ChatSessionQueryDTO extends PageParams implements SerializableEnabl
     private Long userId;
     private Long agentId;
     private Boolean isPinned;
+    private String title;
 }

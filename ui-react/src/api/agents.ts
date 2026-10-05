@@ -15,6 +15,10 @@ export function getAgent(id: string) {
   return apiClient.get<ApiResponse<AgentDefinitionVO>>(`/api/agent/definition/${id}`)
 }
 
+export function getAgentAllowedFileTypes(id: string) {
+  return apiClient.get<ApiResponse<string[]>>(`/api/agent/definition/${id}/allow/file-type`)
+}
+
 export function createAgent(vo: Partial<AgentDefinitionVO>) {
   return apiClient.post<ApiResponse<AgentDefinitionVO>>('/api/agent/definition', vo)
 }

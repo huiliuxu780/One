@@ -350,8 +350,8 @@ export interface TenantMemberAddDTO {
  * 会话列表查询DTO
  */
 export interface ChatSessionQueryDTO {
-  userId?: string
   agentId?: string
+  title?: string
   isPinned?: boolean
   page?: number
   size?: number

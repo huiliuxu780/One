@@ -126,16 +126,14 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
     @Transactional(rollbackFor = Exception.class)
     public void switchCurrentMessage(Long sessionId, Integer messageId) {
         ChatSession session = getAndCheckSession(sessionId);
+        getMessageBy(messageId, sessionId);
         session.setCurrentMessageId(messageId);
         updateById(session);
     }
 
     @Override
     public List<ChatMessageVO> getCurrentMessages(Long sessionId) {
-        ChatSession session = getById(sessionId);
-        if (session == null) {
-            return new ArrayList<>();
-        }
+        ChatSession session = getAndCheckSession(sessionId);
         Integer curId = session.getCurrentMessageId();
         if (curId == null) {
             return new ArrayList<>();
@@ -168,12 +166,23 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         hydrateSubAgentRuns(sessionId, result);
         return result;
     }
+
+    @Override
+    public List<ChatMessageVO> getMessageTree(Long sessionId) {
+        ChatSession session = getAndCheckSession(sessionId);
+        List<ChatMessage> messages = chatMessageService.listBySessionId(
+                sessionId,
+                isArchived(session) ? session.getMessageTable() : null);
+        List<ChatMessageVO> result = BeanUtils.copyList(messages, ChatMessageVO.class);
+        hydrateSubAgentRuns(sessionId, result);
+        return result;
+    }
     @Override
     public ChatMessagePageVO getCurrentMessagesPaged(Long sessionId, Integer beforeDepth, int size) {
         // 1. 解析当前路径上的所有消息 ID
-        ChatSession session = getById(sessionId);
+        ChatSession session = getAndCheckSession(sessionId);
         ChatMessagePageVO result = new ChatMessagePageVO();
-        if (session == null || session.getCurrentMessageId() == null) {
+        if (session.getCurrentMessageId() == null) {
             result.setMessages(new ArrayList<>());
             result.setHasMore(false);
             return result;
@@ -266,10 +275,11 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
 
     @Override
     public List<ChatSessionVO> listSessions(ChatSessionQueryDTO query) {
-        Long userId = query.getUserId() != null ? query.getUserId() : UserUtils.getId();
+        Long userId = UserUtils.getId();
         return lambdaQuery()
-                .eq(userId != null, ChatSession::getUserId, userId)
+                .eq(ChatSession::getUserId, userId)
                 .eq(query.getAgentId() != null, ChatSession::getAgentId, query.getAgentId())
+                .like(query.getTitle() != null && !query.getTitle().isBlank(), ChatSession::getTitle, query.getTitle().trim())
                 .orderByDesc(ChatSession::getIsPinned)
                 .orderByDesc(ChatSession::getUpdatedAt)
                 .list()
@@ -280,10 +290,11 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
 
     @Override
     public IPage<ChatSessionVO> pageSessions(PageParams pageParams, ChatSessionQueryDTO query) {
-        Long userId = query.getUserId() != null ? query.getUserId() : UserUtils.getId();
+        Long userId = UserUtils.getId();
         LambdaQueryWrapper<ChatSession> wrapper = new LambdaQueryWrapper<ChatSession>()
-                .eq(userId != null, ChatSession::getUserId, userId)
+                .eq(ChatSession::getUserId, userId)
                 .eq(query.getAgentId() != null, ChatSession::getAgentId, query.getAgentId())
+                .like(query.getTitle() != null && !query.getTitle().isBlank(), ChatSession::getTitle, query.getTitle().trim())
                 .eq(query.getIsPinned() != null, ChatSession::getIsPinned, query.getIsPinned())
                 .orderByDesc(ChatSession::getUpdatedAt);
         IPage<ChatSession> page = page(MP.getPage(pageParams), wrapper);
@@ -292,10 +303,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
 
     @Override
     public ChatSessionVO getSessionDetail(Long id) {
-        ChatSession session = getById(id);
-        if (session == null) {
-            return null;
-        }
+        ChatSession session = getAndCheckSession(id);
         return toSessionVO(session);
     }
 
@@ -448,4 +456,3 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         return mt != null && !mt.isBlank() && mt.startsWith("chat_message_");
     }
 }
-

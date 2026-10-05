@@ -45,4 +45,19 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         // 已归档：走 MessageTableRouter 查询归档表
         return messageTableRouter.listByIdsOrderByDepth(ids, messageTable);
     }
+
+    @Override
+    public List<ChatMessage> listBySessionId(Long sessionId, String messageTable) {
+        if (sessionId == null) {
+            return Collections.emptyList();
+        }
+        if (messageTable == null || messageTable.isBlank()) {
+            return lambdaQuery()
+                    .eq(ChatMessage::getSessionId, sessionId)
+                    .orderByAsc(ChatMessage::getDepth)
+                    .orderByAsc(ChatMessage::getId)
+                    .list();
+        }
+        return messageTableRouter.listBySessionId(sessionId, messageTable);
+    }
 }

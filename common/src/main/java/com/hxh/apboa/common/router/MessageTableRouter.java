@@ -74,6 +74,20 @@ public class MessageTableRouter {
     }
 
     /**
+     * 从指定表读取一个会话的完整消息树。表名仍经白名单校验，sessionId 使用参数绑定。
+     */
+    public List<ChatMessage> listBySessionId(Long sessionId, String messageTable) {
+        String table = resolveTable(messageTable);
+        if (!tableExists(table)) {
+            log.warn("归档表 {} 不存在，无法查询 sessionId={} 的消息树", table, sessionId);
+            return Collections.emptyList();
+        }
+        String sql = "SELECT id, tenant_id, session_id, role, content, parent_id, path, depth, created_at FROM "
+                + table + " WHERE session_id = ? ORDER BY depth ASC, id ASC";
+        return jdbcTemplate.query(sql, this::mapRow, sessionId);
+    }
+
+    /**
      * 从指定表按 sessionId 删除所有消息
      */
     public int deleteBySessionId(Long sessionId, String messageTable) {

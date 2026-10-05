@@ -28,4 +28,7 @@ public interface ChatMessageService extends IService<ChatMessage> {
      * @return 按深度排序的消息列表
      */
     List<ChatMessage> listByIdsOrderByDepth(List<Integer> ids, String messageTable);
+
+    /** 读取会话完整消息树，支持主表与归档表。 */
+    List<ChatMessage> listBySessionId(Long sessionId, String messageTable);
 }

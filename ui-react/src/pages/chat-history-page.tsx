@@ -8,7 +8,7 @@ import { Pagination } from '@/components/ui/pagination'
 import { toast } from '@/components/ui/sonner'
 import { MarkdownLite } from '@/components/markdown-lite'
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/states'
-import { getCurrentMessagesPaged, pageSessions, switchCurrentMessage, updateCurrentMessageContent } from '@/api/chatSession'
+import { getMessageTree, pageSessions, switchCurrentMessage, updateCurrentMessageContent } from '@/api/chatSession'
 import type { ChatMessageVO, ChatSessionVO } from '@/types'
 import { readableError } from '@/lib/utils'
 
@@ -19,30 +19,29 @@ export function ChatHistoryPage() {
   const [keyword, setKeyword] = useState('')
   const [sessionPage, setSessionPage] = useState(1)
   const [activeSession, setActiveSession] = useState<ChatSessionVO | null>(null)
-  const [messagePage, setMessagePage] = useState(1)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
 
   const sessionsQuery = useQuery({
     queryKey: ['list', 'chat-session', 'history', sessionPage, keyword],
-    queryFn: async () => (await pageSessions({ page: sessionPage, size: 10, agentId: keyword || undefined })).data.data,
+    queryFn: async () => (await pageSessions({ page: sessionPage, size: 10, title: keyword || undefined })).data.data,
   })
 
   const messagesQuery = useQuery({
-    queryKey: ['list', 'chat-history-messages', activeSession?.id, messagePage],
-    queryFn: async () =>
-      (
-        await getCurrentMessagesPaged(String(activeSession!.id), { page: messagePage, size: 20 })
-      ).data.data,
+    queryKey: ['list', 'chat-history-tree', activeSession?.id],
+    queryFn: async () => (await getMessageTree(String(activeSession!.id))).data.data,
     enabled: Boolean(activeSession),
   })
 
-  const messages: ChatMessageVO[] = messagesQuery.data?.records ?? []
+  const messages: ChatMessageVO[] = messagesQuery.data ?? []
+  const currentLeaf = messages.find((message) => String(message.id) === String(activeSession?.currentMessageId))
+  const currentPath = new Set((currentLeaf?.path ?? '').split('/').filter(Boolean))
 
   async function switchBranch(message: ChatMessageVO) {
     if (!activeSession) return
     try {
       await switchCurrentMessage(String(activeSession.id), String(message.id))
+      setActiveSession({ ...activeSession, currentMessageId: String(message.id) })
       toast.success('已切换当前分支')
       void messagesQuery.refetch()
     } catch (cause) {
@@ -53,6 +52,10 @@ export function ChatHistoryPage() {
   async function saveContent(message: ChatMessageVO) {
     if (!activeSession) return
     try {
+      if (String(activeSession.currentMessageId) !== String(message.id)) {
+        await switchCurrentMessage(String(activeSession.id), String(message.id))
+        setActiveSession({ ...activeSession, currentMessageId: String(message.id) })
+      }
       await updateCurrentMessageContent(String(activeSession.id), editText)
       toast.success('当前消息内容已更新')
       setEditingId(null)
@@ -74,7 +77,7 @@ export function ChatHistoryPage() {
             <button
               key={String(session.id)}
               className={`w-full rounded-lg px-3 py-2 text-left text-sm ${activeSession?.id === session.id ? 'bg-sidebar-accent font-medium' : 'hover:bg-sidebar-accent/60'}`}
-              onClick={() => { setActiveSession(session); setMessagePage(1) }}
+              onClick={() => setActiveSession(session)}
             >
               <div className="truncate">{session.title || `会话 ${String(session.id).slice(-6)}`}</div>
               <div className="truncate text-xs text-muted-foreground">{session.updatedAt ?? ''}</div>
@@ -102,17 +105,17 @@ export function ChatHistoryPage() {
         ) : (
           <div className="mx-auto max-w-3xl space-y-3">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <GitBranch size={13} /> 当前分支消息（点击消息切换当前分支）
-              <Badge variant="outline" className="ml-auto">共 {messagesQuery.data?.total ?? 0} 条</Badge>
+              <GitBranch size={13} /> 完整消息树；蓝色节点属于当前分支
+              <Badge variant="outline" className="ml-auto">共 {messages.length} 条</Badge>
             </div>
             {messages.map((message) => (
-              <div key={String(message.id)} className="rounded-xl border border-border bg-card p-3" style={{ marginLeft: Math.min(message.depth ?? 0, 5) * 16 }}>
+              <div key={String(message.id)} className={`rounded-xl border bg-card p-3 ${currentPath.has(String(message.id)) ? 'border-primary/45' : 'border-border opacity-80'}`} style={{ marginLeft: Math.min(message.depth ?? 0, 8) * 16 }}>
                 <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
                   <Badge variant={message.role === 'user' ? 'default' : 'secondary'}>{message.role}</Badge>
                   <span className="font-mono">depth {message.depth}</span>
                   <span>{message.createdAt ?? ''}</span>
                   <div className="ml-auto flex gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => void switchBranch(message)}>设为当前</Button>
+                    <Button variant="ghost" size="sm" disabled={String(activeSession.currentMessageId) === String(message.id)} onClick={() => void switchBranch(message)}>{String(activeSession.currentMessageId) === String(message.id) ? '当前叶节点' : '从此继续'}</Button>
                     <Button variant="ghost" size="sm" onClick={() => { setEditingId(String(message.id)); setEditText(message.content ?? '') }}>编辑</Button>
                   </div>
                 </div>
@@ -133,13 +136,9 @@ export function ChatHistoryPage() {
                 )}
               </div>
             ))}
-            {messagesQuery.data && messagesQuery.data.total > messagesQuery.data.size ? (
-              <Pagination page={messagePage} size={messagesQuery.data.size} total={messagesQuery.data.total} onPageChange={setMessagePage} />
-            ) : null}
           </div>
         )}
       </main>
     </div>
   )
 }
-

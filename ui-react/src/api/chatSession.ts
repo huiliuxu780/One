@@ -31,11 +31,15 @@ export function getCurrentMessages(sessionId: string) {
   return apiClient.get<ApiResponse<ChatMessageVO[]>>(`${BASE}/${sessionId}/messages/current`)
 }
 
-export function getCurrentMessagesPaged(sessionId: string, query: { page?: number; size?: number }) {
-  return apiClient.get<ApiResponse<{ records: ChatMessageVO[]; total: number; current: number; size: number; pages: number }>>(
-    `${BASE}/${sessionId}/messages/current/page`,
+export function getCurrentMessagesPaged(sessionId: string, query: { beforeDepth?: number; size?: number }) {
+  return apiClient.get<ApiResponse<{ messages: ChatMessageVO[]; hasMore: boolean; nextBeforeDepth: number | null }>>(
+    `${BASE}/${sessionId}/messages/paged`,
     { params: query },
   )
+}
+
+export function getMessageTree(sessionId: string) {
+  return apiClient.get<ApiResponse<ChatMessageVO[]>>(`${BASE}/${sessionId}/messages/tree`)
 }
 
 export function listSessions(query?: ChatSessionQueryDTO) {

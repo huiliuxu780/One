@@ -93,6 +93,16 @@ public class ChatSessionController {
     }
 
     /**
+     * 完整消息树（包含非当前分支），供前端展示和选择历史分支。
+     */
+    @SkAccess
+    @ChatKeyAccess
+    @GetMapping("/{sessionId}/messages/tree")
+    public R<List<ChatMessageVO>> getMessageTree(@PathVariable("sessionId") Long sessionId) {
+        return R.data(chatSessionService.getMessageTree(sessionId));
+    }
+
+    /**
      * 分页加载当前对话消息（滚动加载历史）
      * 首次加载：不传 beforeDepth，返回最新 50 条
      * 加载更多：传入上一次返回的 nextBeforeDepth，返回更早的 50 条
@@ -198,4 +208,3 @@ public class ChatSessionController {
         return R.success("操作成功");
     }
 }
-
