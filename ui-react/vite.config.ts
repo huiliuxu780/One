@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, rootDir, '')
   const contextPath = env.VITE_APP_CONTEXT_PATH || ''
   // 代理模式：
-  //  - 'nginx'：本地 Vite 经 SSH 隧道连 ECS Nginx，/api、/api/runtime、/api/ws 保留原路径转发，由 Nginx 负责剥离与路由；
+  //  - 'nginx'：本地 Vite 经 SSH 隧道连 ECS Nginx，/api/、/api/runtime/、/api/ws/ 保留原路径转发，由 Nginx 负责剥离与路由；
   //  - 'services'（默认）：直连三个后端服务（宿主机端口或 compose 服务名），Vite 负责剥离 /api 前缀。
   const proxyMode = env.VITE_DEV_PROXY_MODE || 'services'
   const nginxTarget = env.VITE_DEV_NGINX_TARGET || 'http://127.0.0.1:18080'
@@ -25,7 +25,8 @@ export default defineConfig(({ mode }) => {
     proxyMode === 'nginx'
       ? {
           // 保留原路径：ECS Nginx 已按最长前缀匹配 /api/runtime、/api/ws、/api
-          '/api': {
+          // 结尾斜杠很重要：否则前端路由 /api-service 也会被误判为后端请求。
+          '/api/': {
             target: nginxTarget,
             changeOrigin: true,
             ws: true,
@@ -46,7 +47,7 @@ export default defineConfig(({ mode }) => {
             timeout: 0,
             rewrite: (value: string) => value.replace(/^\/api/, ''),
           },
-          '/api': {
+          '/api/': {
             target: consoleTarget,
             changeOrigin: true,
             timeout: 0,

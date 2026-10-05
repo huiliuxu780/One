@@ -163,6 +163,49 @@ services:
     cpus: 2.0
     networks: [backend]
 
+  # API 服务数据面。仅在明确验收 API 服务时通过 --profile gateway 启动。
+  # 与上游 host 网络部署不同，开发环境不发布动态应用端口到宿主机；
+  # 已上线 API 只在 backend 网络内可达，避免绕过 Nginx/TLS 暴露公网。
+  gateway:
+    profiles: [gateway]
+    build:
+      context: ../..
+      dockerfile: deploy/dev/Dockerfile.gateway
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DATABASE: ${REDIS_DATABASE}
+      JWT_SECRET: ${JWT_SECRET}
+      CONSOLE_HOST: console
+      SHELL_PROXY_ENABLED: "true"
+      PROXY_HOST: proxy
+      PROXY_PORT: "3062"
+      GATEWAY_JAVA_HEAP_PERCENTAGE: "55.0"
+      APBOA_NODE_ID: gateway-dev-1
+      APBOA_HOST_NAME: gateway
+      APBOA_HOST_IP: gateway
+      TZ: Asia/Shanghai
+    volumes:
+      - gateway_logs:/app/logs
+      - app_data:/app/.apboa
+      - runtime_tools:/opt/tools
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      console: { condition: service_started }
+      proxy: { condition: service_started }
+    mem_limit: 768m
+    cpus: 1.0
+    networks: [backend]
+
   websocket:
     build:
       context: ../..
@@ -211,3 +254,4 @@ volumes:
   runtime_logs:
   proxy_tools:
   runtime_tools:
+  gateway_logs:

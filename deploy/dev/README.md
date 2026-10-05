@@ -8,7 +8,7 @@
 - MySQL、Redis、Console、Runtime、Proxy 和 WebSocket 仅通过 Docker 网络访问。
 - `VECTOR_STORE_TYPE=none` 使用后端已有的 `NoOpVectorStore`，不启动 pgvector。
 - 单机不启动 runner-file。共享工作空间使用同一个 Docker volume。
-- runner-gateway 暂不启动，等 API 服务页面迁移时使用独立 profile 验收。
+- runner-gateway 使用独立 `gateway` profile；默认不启动。开发环境不映射其动态应用端口到宿主机，避免 API 绕过 Nginx/TLS 暴露公网。
 - Compose 依赖预先构建好的 Java JAR 与 `ui-react/dist`，避免每个镜像重复执行 Maven 和 Node 构建。
 
 ## 资源上限
@@ -21,6 +21,7 @@
 | Runtime | 2304 MB |
 | Proxy | 1024 MB |
 | WebSocket | 384 MB |
+| Gateway（可选） | 768 MB |
 | Nginx | 128 MB |
 
 容器上限合计约 6GB，给宿主机、页缓存和突发构建留出余量。上线后仍需以真实负载测量为准。
@@ -43,6 +44,16 @@ docker compose --env-file .env build --pull=false
 docker compose --env-file .env up -d
 docker compose --env-file .env ps
 ```
+
+API 服务验收时按需启动内部 Gateway：
+
+```bash
+docker compose --env-file .env --profile gateway build gateway
+docker compose --env-file .env --profile gateway up -d gateway
+```
+
+已上线应用的动态端口仅在 `backend` Docker 网络可达。可从 `frontend`
+容器或一次性加入该网络的 curl 容器发起真实调用；在配置域名、TLS、鉴权及明确的端口策略前，不发布到公网。
 
 ## 访问
 

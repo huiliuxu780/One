@@ -1,0 +1,12 @@
+FROM eclipse-temurin:21-jre
+
+WORKDIR /app
+RUN mkdir -p /app/logs /app/.apboa
+
+COPY runner-gateway/target/runner-gateway-*.jar /app/app.jar
+COPY docker/gateway/entrypoint.sh /app/entrypoint.sh
+RUN chmod 0755 /app/entrypoint.sh
+
+EXPOSE 3065
+ENV TZ=Asia/Shanghai
+ENTRYPOINT ["/app/entrypoint.sh"]
