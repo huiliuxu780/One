@@ -41,7 +41,7 @@
 | 聊天会话 | `views/Chat/`、`components/chat/` | 会话 CRUD、消息树、刷新恢复 | chatSession API | 已实现；真实会话与历史已验证 |
 | AG-UI 流 | `api/agui/agent-client.ts` | 文本、推理、工具、状态补丁、停止、重连 | Runtime AG-UI、SSE | 协议层已实现；文本/推理已实测，停止/断流重连待真实浏览器验收 |
 | 交互消息 | markdown VEP/APIP、Plan、SubAgent | 图表、表单、确认、任务计划、子 Agent 事件 | AG-UI 事件 | 已实现与单测；HITL/子 Agent 真实成功用例待验收 |
-| 工作空间 | `components/workspace/` | 上传、下载、批量下载、预览、树操作 | workspace、attach API | 已实现；多类型文件全矩阵待验收 |
+| 工作空间 | `components/workspace/` | 上传、下载、批量下载、预览、树操作 | workspace、attach API | 已实现；单文件上传/列表/下载校验/删除已实测，多类型预览矩阵待验收 |
 | Models | `views/Model/` | 供应商、模型配置、扩展参数 | model API | 已实现，DashScope 两模型连通性已验证 |
 | Skills | `views/Skill/` | 列表、导入、编辑器、文件树、关联工具、SkillHub | skill、skillHub API | 已实现 |
 | Tools | `views/Tool/` | CRUD、代码编辑、调试 | tool API | 已实现；外部依赖工具待凭据验收 |
@@ -49,7 +49,7 @@
 | Hook | `views/Hook/` | CRUD、优先级、代码编辑 | hook API | 已实现 |
 | Prompt | `views/Prompt/` | CRUD、模板编辑 | prompt API | 已实现 |
 | 敏感词 | `views/Sensitive/` | CRUD、词条编辑 | sensitive API | 已实现 |
-| 自动化 | `views/Automation/` | 列表、Cron 编辑、目标输入、手动运行、记录 | automation API | 已实现；Agent/Workflow 成功与失败调度矩阵待验收 |
+| 自动化 | `views/Automation/` | 列表、Cron 编辑、目标输入、手动运行、记录 | automation API | 已实现；Agent 与 Workflow 手动触发均已成功，失败记录受现有后端 schema 限制 |
 | 工作流 | `views/Workflow/` | React Flow 画布、节点面板、校验、保存、发布、运行调试、版本 | workflow、workflowResources API | 已实现；回声流程发布/运行通过，高级节点全矩阵待验收 |
 | 工作台 | `views/Dashboard/` | 面板运行、数据集、设计器、历史版本 | dashboard API | 已实现 |
 | API 服务 | `views/ApiService/` | API、应用、日志 | apiService API、runner-gateway | 已实现；真实上线/调用/日志/下线已验证 |
@@ -151,7 +151,7 @@
 - 供应商与模型配置：DashScope 原生端点对 qwen3.8 返回 400（url error），改用 **OpenAI 兼容模式**（`type=OPEN_AI`，baseUrl `https://dashscope.aliyuncs.com/compatible-mode/v1`）后连通性检查两个模型均"连接成功"。
 - 真实 AG-UI 流式对话验收：创建会话（threadId=sessionId）→ `runtime/agui/run/{agentCode}` SSE。事件序列完整：`REPLAY_CAUGHT_UP → RUN_STARTED → REASONING_MESSAGE_START/CONTENT/END（7 个思考增量）→ TEXT_MESSAGE_START/CONTENT(5)/END → RUN_FINISHED`；SSE data 为双层 JSON 编码，与 Vue 版解析器（字符串再解一层）一致。助手最终回复："我是一个简洁友好的中文助手，随时为你解答问题、处理任务！"
 - 已创建可直接对话的测试 Agent：`chat_flash_test`（对话测试（qwen3.8-flash））；qwen3.8-max 配置就绪，可在 Agent 编辑器中切换。
-- 剩余验收项：停止/重连/HITL/子 Agent 场景、qwen3.8-max 实测。API 服务真实调用已于 2026-10-06 通过。
+- 剩余验收项：停止/重连/HITL/子 Agent 场景。qwen3.8-max 与 API 服务真实调用已于 2026-10-06 通过。
 
 
 ## 2026-10-05 全量部署与演示数据
@@ -159,7 +159,7 @@
 - 最新 React 构建已部署至 dev 前端容器（`/react/`，包含全部已完成页面），SSH 隧道 80 端口即可访问。
 - 通过真实 API 造演示数据：Agent×2（qwen3.8-flash/max）、自定义工具（JAVASCRIPT）、提示词模板、敏感词配置、Hook、长期记忆/代码执行/Studio 各一条、看板 + HTTP 数据集、网关应用 + API（绑定工作流、未上线）、自动化任务（禁用态，避免计划外模型调用）。
 - 工作流"演示工作流（回声）"（START→AGENT→END，AGENT 绑定 qwen3.8-flash）已发布至 v4：校验通过、debug-run 三节点全部 SUCCESS，END 通过 inputConfigs 绑定 AGENT 的 `output` 变量。排障记录：END 的 JACKSON 格式化器要求模板为合法 JSON；模板变量需通过节点 inputConfigs 以 `NODE_OUTPUT` 方式绑定，仅写字面 `${var}` 不会被替换。
-- 已知待办：审查页为诚实空态（后端无审查 API）；Communication 需要有效 ChatKey 验证；停止/断流重连/HITL/子 Agent 还缺真实浏览器级证据。
+- 已知待办：审查页为诚实空态（后端无审查 API）；停止/断流重连/HITL/子 Agent 还缺真实浏览器级证据。Communication 的 ChatKey 换令牌、Agent 解析与深链页面已通过。
 
 ## 2026-10-06 网关、容量与回滚实测
 
@@ -169,3 +169,8 @@
 - 单次真实工作流调用后：主机内存 7522 MiB，已用 3451 MiB，可用 3761 MiB，无 Swap；Gateway 446.5 MiB，Runtime 545.2 MiB，Console 415.2 MiB，MySQL 419.6 MiB。根盘 40 GiB 已用 16 GiB，可用 22 GiB。这仅证明当前开发负载可运行，不是并发容量保证。
 - 宿主机仅公网监听 SSH 22；网页仅绑定 `127.0.0.1:80`，MySQL、Redis 和 Java 服务未发布宿主机端口。
 - 完成 React→Vue→React 实际切换：Vue `/web/` 与登录接口返回 200，恢复后 React `/react/` 返回 200。切换前后 Agent 2 条、Workflow 1 条、会话 4 条，共享应用数据卷未替换。
+- qwen3.8-max 完成真实 AG-UI SSE 调用，事件包含回放追平、运行、推理、文本和终态，最终文本与指令一致。
+- Communication 用真实 ChatKey 换取临时令牌，正确解析回 Agent，对外深链页返回 200；ChatKey 本身未写入日志或文档。
+- 工作空间使用仓库 `LICENSE` 完成真实上传、列表、下载 SHA-256 一致性、容量变化和删除回零验收。
+- Agent 自动化产生真实会话及预期助手文本；Workflow 自动化产生真实 run，Start/Agent/End 三节点均 `SUCCESS`。同时修复了 React 记录页调用不存在端点、错用返回字段、任务参数封装不符合 `AgentJobWrapper`，以及后端 Quartz 启停状态不一致的问题。
+- 工作流纯文本输出曾以非法 JSON 写入 `workflow_run.outputs`，导致运行详情 510。写入端已改为 `JsonNode`，类型处理器对历史纯文本增加兼容读取。
