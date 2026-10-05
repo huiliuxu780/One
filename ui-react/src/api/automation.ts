@@ -56,11 +56,3 @@ export function getRecords(jobId: string, page = 1, size = 50) {
 export function getJobById(id: string) {
   return apiClient.get<ApiResponse<JobInfo>>(`/api/runtime/job/${id}`)
 }
-
-export function getAgentDetail(recordId: string) {
-  return apiClient.get<ApiResponse<unknown[]>>('/api/runtime/job/agent-detail', { params: { recordId } })
-}
-
-export function getWorkflowDetail(recordId: string) {
-  return apiClient.get<ApiResponse<unknown>>('/api/runtime/job/workflow-detail', { params: { recordId } })
-}
