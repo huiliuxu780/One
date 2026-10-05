@@ -12,7 +12,7 @@ import { toast } from '@/components/ui/sonner'
 import { readableError } from '@/lib/utils'
 import { createAgent, getAgent, getA2aConfig, pageAgents, saveA2aConfig, updateAgent } from '@/api/agents'
 import { hooks, modelConfigs, mcpServers, prompts, sensitiveWords, skills, tools } from '@/api/resources'
-import type { AgentA2A, AgentDefinitionVO, KvMap, WellKnownAgentConfig, NacosAgentConfig } from '@/types'
+import type { AgentA2A, AgentDefinitionVO, KvMap, WellKnownAgentConfig, NacosAgentConfig, ToolVO } from '@/types'
 import { A2aType, ToolChoiceStrategy } from '@/types'
 import { MultiSelectField, type SelectOption } from './multi-select-field'
 
@@ -111,6 +111,10 @@ function buildPayload(form: FormState, original: AgentDefinitionVO | null): Part
   return payload as Partial<AgentDefinitionVO>
 }
 
+export function buildToolSelectorOptions(tools: Array<Pick<ToolVO, 'id' | 'name' | 'toolId'>>): SelectOption[] {
+  return tools.map((tool) => ({ label: tool.name, value: String(tool.id), description: tool.toolId }))
+}
+
 function useSelectorOptions(open: boolean) {
   const models = useQuery({ queryKey: ['list', 'model-config', 'selector'], queryFn: async () => (await modelConfigs.page({ page: 1, size: 200 })).data.data.records, enabled: open })
   const toolList = useQuery({ queryKey: ['list', 'tool', 'selector'], queryFn: async () => (await tools.page({ page: 1, size: 500 })).data.data.records, enabled: open })
@@ -121,7 +125,9 @@ function useSelectorOptions(open: boolean) {
   const sensitiveList = useQuery({ queryKey: ['list', 'sensitive', 'selector'], queryFn: async () => (await sensitiveWords.page({ page: 1, size: 200 })).data.data.records, enabled: open })
 
   const modelOptions: SelectOption[] = (models.data ?? []).map((model) => ({ label: `${model.name} (${model.modelId})`, value: String(model.id) }))
-  const toolOptions: SelectOption[] = (toolList.data ?? []).map((tool) => ({ label: tool.name, value: tool.toolId, description: tool.toolId }))
+  // AgentDefinitionVO.tool is a list of database Long ids. toolId is the
+  // runtime invocation name and must never be submitted in this field.
+  const toolOptions = buildToolSelectorOptions(toolList.data ?? [])
   const skillOptions: SelectOption[] = (skillList.data ?? []).map((skill) => ({ label: skill.alias || skill.name, value: String(skill.id) }))
   const mcpOptions: SelectOption[] = (mcpList.data ?? []).map((server) => ({ label: server.name, value: String(server.id) }))
   const hookOptions: SelectOption[] = (hookList.data ?? []).map((hook) => ({ label: hook.name, value: String(hook.id) }))
