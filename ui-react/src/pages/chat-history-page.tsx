@@ -73,6 +73,12 @@ export function ChatHistoryPage() {
           <Input className="pl-8" placeholder="搜索会话" value={keyword} onChange={(event) => { setKeyword(event.target.value); setSessionPage(1) }} />
         </div>
         <div className="min-h-0 flex-1 space-y-1 overflow-auto">
+          {sessionsQuery.error ? (
+            <div className="rounded-lg border border-destructive/25 bg-destructive/5 p-3 text-xs text-destructive">
+              <p>{readableError(sessionsQuery.error, '会话列表加载失败')}</p>
+              <Button variant="outline" size="sm" className="mt-2" onClick={() => void sessionsQuery.refetch()}>重试</Button>
+            </div>
+          ) : null}
           {(sessionsQuery.data?.records ?? []).map((session: ChatSessionVO) => (
             <button
               key={String(session.id)}
@@ -84,7 +90,7 @@ export function ChatHistoryPage() {
             </button>
           ))}
           {sessionsQuery.isLoading ? <TableSkeleton rows={4} /> : null}
-          {!sessionsQuery.isLoading && (sessionsQuery.data?.records ?? []).length === 0 ? (
+          {!sessionsQuery.isLoading && !sessionsQuery.error && (sessionsQuery.data?.records ?? []).length === 0 ? (
             <p className="py-6 text-center text-xs text-muted-foreground">暂无会话</p>
           ) : null}
         </div>

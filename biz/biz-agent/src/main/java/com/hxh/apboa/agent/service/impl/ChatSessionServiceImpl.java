@@ -276,10 +276,11 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
     @Override
     public List<ChatSessionVO> listSessions(ChatSessionQueryDTO query) {
         Long userId = UserUtils.getId();
+        String title = normalizeTitle(query.getTitle());
         return lambdaQuery()
                 .eq(ChatSession::getUserId, userId)
                 .eq(query.getAgentId() != null, ChatSession::getAgentId, query.getAgentId())
-                .like(query.getTitle() != null && !query.getTitle().isBlank(), ChatSession::getTitle, query.getTitle().trim())
+                .like(title != null, ChatSession::getTitle, title)
                 .orderByDesc(ChatSession::getIsPinned)
                 .orderByDesc(ChatSession::getUpdatedAt)
                 .list()
@@ -291,14 +292,22 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
     @Override
     public IPage<ChatSessionVO> pageSessions(PageParams pageParams, ChatSessionQueryDTO query) {
         Long userId = UserUtils.getId();
+        String title = normalizeTitle(query.getTitle());
         LambdaQueryWrapper<ChatSession> wrapper = new LambdaQueryWrapper<ChatSession>()
                 .eq(ChatSession::getUserId, userId)
                 .eq(query.getAgentId() != null, ChatSession::getAgentId, query.getAgentId())
-                .like(query.getTitle() != null && !query.getTitle().isBlank(), ChatSession::getTitle, query.getTitle().trim())
+                .like(title != null, ChatSession::getTitle, title)
                 .eq(query.getIsPinned() != null, ChatSession::getIsPinned, query.getIsPinned())
                 .orderByDesc(ChatSession::getUpdatedAt);
         IPage<ChatSession> page = page(MP.getPage(pageParams), wrapper);
         return BeanUtils.copyPage(page, ChatSessionVO.class);
+    }
+
+    private static String normalizeTitle(String title) {
+        if (title == null || title.isBlank()) {
+            return null;
+        }
+        return title.trim();
     }
 
     @Override
