@@ -1,4 +1,6 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -66,28 +68,6 @@ interface UipInteraction {
 
 interface UipMessage { interaction?: UipInteraction }
 
-function renderInline(text: string, keyPrefix: string): ReactNode[] {
-  const nodes: ReactNode[] = []
-  const pattern = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\(https?:\/\/[^\s)]+\))/g
-  let lastIndex = 0
-  let match: RegExpExecArray | null
-  let index = 0
-  while ((match = pattern.exec(text)) !== null) {
-    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index))
-    const token = match[0]
-    if (token.startsWith('**')) nodes.push(<strong key={`${keyPrefix}-b${index}`}>{token.slice(2, -2)}</strong>)
-    else if (token.startsWith('`')) nodes.push(<code key={`${keyPrefix}-c${index}`} className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">{token.slice(1, -1)}</code>)
-    else {
-      const link = /^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/.exec(token)
-      if (link) nodes.push(<a key={`${keyPrefix}-a${index}`} href={link[2]} target="_blank" rel="noreferrer" className="underline underline-offset-2">{link[1]}</a>)
-    }
-    lastIndex = match.index + token.length
-    index++
-  }
-  if (lastIndex < text.length) nodes.push(text.slice(lastIndex))
-  return nodes
-}
-
 export function MarkdownLite({ content, disabled = false, onInteraction }: { content: string; disabled?: boolean; onInteraction?: (payload: MarkdownInteractionPayload) => void }) {
   if (!content) return null
   const segments = content.split(/```/)
@@ -101,7 +81,26 @@ export function MarkdownLite({ content, disabled = false, onInteraction }: { con
       if (language === 'uip' || language === 'apip') return <UipBlock key={`code-${segmentIndex}`} code={code} disabled={disabled} onSubmit={onInteraction} />
       return <pre key={`code-${segmentIndex}`} className="overflow-auto rounded-lg bg-slate-950 p-3 font-mono text-xs text-slate-100">{language ? <div className="mb-1 text-[10px] uppercase text-slate-400">{language}</div> : null}<code>{code}</code></pre>
     }
-    return <Fragment key={`text-${segmentIndex}`}>{segment.split(/\n{2,}/).map((paragraph, paragraphIndex) => paragraph.trim() ? <p key={`p-${segmentIndex}-${paragraphIndex}`} className="whitespace-pre-wrap">{renderInline(paragraph, `${segmentIndex}-${paragraphIndex}`)}</p> : null)}</Fragment>
+    return <ReactMarkdown
+      key={`text-${segmentIndex}`}
+      remarkPlugins={[remarkGfm]}
+      urlTransform={(url) => /^https?:\/\//i.test(url) || url.startsWith('/') ? url : ''}
+      components={{
+        a: ({ children, ...props }) => <a {...props} target="_blank" rel="noreferrer" className="underline underline-offset-2">{children}</a>,
+        h1: ({ children }) => <h1 className="mt-4 text-xl font-semibold first:mt-0">{children}</h1>,
+        h2: ({ children }) => <h2 className="mt-4 text-lg font-semibold first:mt-0">{children}</h2>,
+        h3: ({ children }) => <h3 className="mt-3 text-base font-semibold first:mt-0">{children}</h3>,
+        p: ({ children }) => <p className="whitespace-pre-wrap">{children}</p>,
+        ul: ({ children }) => <ul className="ml-5 list-disc space-y-1">{children}</ul>,
+        ol: ({ children }) => <ol className="ml-5 list-decimal space-y-1">{children}</ol>,
+        blockquote: ({ children }) => <blockquote className="border-l-2 border-border pl-3 text-muted-foreground">{children}</blockquote>,
+        table: ({ children }) => <div className="overflow-auto"><table className="w-full border-collapse text-left text-xs">{children}</table></div>,
+        th: ({ children }) => <th className="border border-border bg-muted px-2 py-1.5 font-medium">{children}</th>,
+        td: ({ children }) => <td className="border border-border px-2 py-1.5 align-top">{children}</td>,
+        code: ({ children }) => <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">{children}</code>,
+        img: ({ alt }) => <span className="text-xs text-muted-foreground">[图片：{alt || '未命名'}]</span>,
+      }}
+    >{segment}</ReactMarkdown>
   })}</div>
 }
 
