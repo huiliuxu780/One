@@ -1,6 +1,6 @@
 # Apboa Next React 迁移基线
 
-更新日期：2026-10-05
+更新日期：2026-10-06
 
 剩余工作包、协议约束、真实后端验收矩阵和上线门槛见 [REMAINING_SPEC.md](./REMAINING_SPEC.md)。
 
@@ -37,24 +37,24 @@
 | 应用外壳 | `layout/`、`components/layout/` | 侧栏、路由、用户菜单、状态页 | 无 | 第一版已完成 |
 | 登录与权限 | `pages/Login.vue`、account store | 固定租户登录、Token 刷新、路由守卫、角色权限 | `/api/auth/*`、`/api/account/*` | 第一版已完成 |
 | Agent 列表 | `views/Agent/index.vue` | 查询、类型/标签过滤、详情、分页 | `/api/agent/definition/*` | 首屏真实接口已完成 |
-| Agent 配置 | `components/agent/` | 自定义 Agent 与 A2A 创建编辑、模型、工具、技能、MCP、Hook、子 Agent、工作流、记忆、调度、统计、版本 | Agent、A2A、job、statistics API | 待迁移 |
-| 聊天会话 | `views/Chat/`、`components/chat/` | 会话 CRUD、消息树、刷新恢复 | chatSession API | 待迁移 |
-| AG-UI 流 | `api/agui/agent-client.ts` | 文本、推理、工具、状态补丁、停止、重连 | Runtime AG-UI、SSE | 待迁移 |
-| 交互消息 | markdown VEP/APIP、Plan、SubAgent | 图表、表单、确认、任务计划、子 Agent 事件 | AG-UI 事件 | 待迁移 |
-| 工作空间 | `components/workspace/` | 上传、下载、批量下载、预览、树操作 | workspace、attach API | 待迁移 |
-| Models | `views/Model/` | 供应商、模型配置、扩展参数 | model API | 待迁移 |
-| Skills | `views/Skill/` | 列表、导入、编辑器、文件树、关联工具、SkillHub | skill、skillHub API | 待迁移 |
-| Tools | `views/Tool/` | CRUD、代码编辑、调试 | tool API | 待迁移 |
-| MCP | `views/Mcp/` | CRUD、激活、调试、工具治理 | mcp API | 待迁移 |
-| Hook | `views/Hook/` | CRUD、优先级、代码编辑 | hook API | 待迁移 |
-| Prompt | `views/Prompt/` | CRUD、模板编辑 | prompt API | 待迁移 |
-| 敏感词 | `views/Sensitive/` | CRUD、词条编辑 | sensitive API | 待迁移 |
-| 自动化 | `views/Automation/` | 列表、Cron 编辑、目标输入、手动运行、记录 | automation API | 待迁移 |
-| 工作流 | `views/Workflow/` | React Flow 画布、节点面板、校验、保存、发布、运行调试、版本 | workflow、workflowResources API | 待迁移 |
-| 工作台 | `views/Dashboard/` | 面板运行、数据集、设计器、历史版本 | dashboard API | 待迁移 |
-| API 服务 | `views/ApiService/` | API、应用、日志 | apiService API、runner-gateway | 待迁移 |
-| 运维与设置 | `views/Ops/`、`views/Settings/` | 账号、系统参数、API Key、节点监控、存储 | account、params、sk、heartbeat、storage API | 待迁移，租户页排除 |
-| 审查 | `views/Review/` | Agent 与工作流审查 | 对应业务 API | 待迁移 |
+| Agent 配置 | `components/agent/` | 自定义 Agent 与 A2A 创建编辑、模型、工具、技能、MCP、Hook、子 Agent、工作流、记忆、调度、统计、版本 | Agent、A2A、job、statistics API | 已实现；子 Agent/A2A 真实成功用例待验收 |
+| 聊天会话 | `views/Chat/`、`components/chat/` | 会话 CRUD、消息树、刷新恢复 | chatSession API | 已实现；真实会话与历史已验证 |
+| AG-UI 流 | `api/agui/agent-client.ts` | 文本、推理、工具、状态补丁、停止、重连 | Runtime AG-UI、SSE | 协议层已实现；文本/推理已实测，停止/断流重连待真实浏览器验收 |
+| 交互消息 | markdown VEP/APIP、Plan、SubAgent | 图表、表单、确认、任务计划、子 Agent 事件 | AG-UI 事件 | 已实现与单测；HITL/子 Agent 真实成功用例待验收 |
+| 工作空间 | `components/workspace/` | 上传、下载、批量下载、预览、树操作 | workspace、attach API | 已实现；多类型文件全矩阵待验收 |
+| Models | `views/Model/` | 供应商、模型配置、扩展参数 | model API | 已实现，DashScope 两模型连通性已验证 |
+| Skills | `views/Skill/` | 列表、导入、编辑器、文件树、关联工具、SkillHub | skill、skillHub API | 已实现 |
+| Tools | `views/Tool/` | CRUD、代码编辑、调试 | tool API | 已实现；外部依赖工具待凭据验收 |
+| MCP | `views/Mcp/` | CRUD、激活、调试、工具治理 | mcp API | 已实现；第三方 MCP 待凭据验收 |
+| Hook | `views/Hook/` | CRUD、优先级、代码编辑 | hook API | 已实现 |
+| Prompt | `views/Prompt/` | CRUD、模板编辑 | prompt API | 已实现 |
+| 敏感词 | `views/Sensitive/` | CRUD、词条编辑 | sensitive API | 已实现 |
+| 自动化 | `views/Automation/` | 列表、Cron 编辑、目标输入、手动运行、记录 | automation API | 已实现；Agent/Workflow 成功与失败调度矩阵待验收 |
+| 工作流 | `views/Workflow/` | React Flow 画布、节点面板、校验、保存、发布、运行调试、版本 | workflow、workflowResources API | 已实现；回声流程发布/运行通过，高级节点全矩阵待验收 |
+| 工作台 | `views/Dashboard/` | 面板运行、数据集、设计器、历史版本 | dashboard API | 已实现 |
+| API 服务 | `views/ApiService/` | API、应用、日志 | apiService API、runner-gateway | 已实现；真实上线/调用/日志/下线已验证 |
+| 运维与设置 | `views/Ops/`、`views/Settings/` | 账号、系统参数、API Key、节点监控、存储 | account、params、sk、heartbeat、storage API | 已实现，租户操作页已排除 |
+| 审查 | `views/Review/` | Agent 与工作流审查 | 对应业务 API | 诚实空态：后端无审查 API，旧 Vue 为静态假数据 |
 
 ## 协议与复用规则
 
@@ -151,7 +151,7 @@
 - 供应商与模型配置：DashScope 原生端点对 qwen3.8 返回 400（url error），改用 **OpenAI 兼容模式**（`type=OPEN_AI`，baseUrl `https://dashscope.aliyuncs.com/compatible-mode/v1`）后连通性检查两个模型均"连接成功"。
 - 真实 AG-UI 流式对话验收：创建会话（threadId=sessionId）→ `runtime/agui/run/{agentCode}` SSE。事件序列完整：`REPLAY_CAUGHT_UP → RUN_STARTED → REASONING_MESSAGE_START/CONTENT/END（7 个思考增量）→ TEXT_MESSAGE_START/CONTENT(5)/END → RUN_FINISHED`；SSE data 为双层 JSON 编码，与 Vue 版解析器（字符串再解一层）一致。助手最终回复："我是一个简洁友好的中文助手，随时为你解答问题、处理任务！"
 - 已创建可直接对话的测试 Agent：`chat_flash_test`（对话测试（qwen3.8-flash））；qwen3.8-max 配置就绪，可在 Agent 编辑器中切换。
-- 剩余验收项：停止/重连/HITL/子 Agent 场景、qwen3.8-max 实测；API 服务真实调用待 runner-gateway。
+- 剩余验收项：停止/重连/HITL/子 Agent 场景、qwen3.8-max 实测。API 服务真实调用已于 2026-10-06 通过。
 
 
 ## 2026-10-05 全量部署与演示数据
@@ -159,4 +159,13 @@
 - 最新 React 构建已部署至 dev 前端容器（`/react/`，包含全部已完成页面），SSH 隧道 80 端口即可访问。
 - 通过真实 API 造演示数据：Agent×2（qwen3.8-flash/max）、自定义工具（JAVASCRIPT）、提示词模板、敏感词配置、Hook、长期记忆/代码执行/Studio 各一条、看板 + HTTP 数据集、网关应用 + API（绑定工作流、未上线）、自动化任务（禁用态，避免计划外模型调用）。
 - 工作流"演示工作流（回声）"（START→AGENT→END，AGENT 绑定 qwen3.8-flash）已发布至 v4：校验通过、debug-run 三节点全部 SUCCESS，END 通过 inputConfigs 绑定 AGENT 的 `output` 变量。排障记录：END 的 JACKSON 格式化器要求模板为合法 JSON；模板变量需通过节点 inputConfigs 以 `NODE_OUTPUT` 方式绑定，仅写字面 `${var}` 不会被替换。
-- 已知待办：审查页为诚实空态（后端无审查 API）；API 服务真实调用待 runner-gateway profile；Communication 需要有效 ChatKey 验证。
+- 已知待办：审查页为诚实空态（后端无审查 API）；Communication 需要有效 ChatKey 验证；停止/断流重连/HITL/子 Agent 还缺真实浏览器级证据。
+
+## 2026-10-06 网关、容量与回滚实测
+
+- 会话分页接口已修复空标题查询触发的 510，真实返回 4 条会话，React 历史页刷新后正常渲染。
+- 启动内部 `gateway` profile，将演示应用与 `POST /v1/ask` 上线；从 Gateway 容器内携平台令牌调用，返回 HTTP 200 和真实工作流文本，管理页生成一条 200 访问日志。
+- API 下线后同路径返回 404；验收后应用和 API 已恢复为原始离线状态，避免计划外模型调用。
+- 单次真实工作流调用后：主机内存 7522 MiB，已用 3451 MiB，可用 3761 MiB，无 Swap；Gateway 446.5 MiB，Runtime 545.2 MiB，Console 415.2 MiB，MySQL 419.6 MiB。根盘 40 GiB 已用 16 GiB，可用 22 GiB。这仅证明当前开发负载可运行，不是并发容量保证。
+- 宿主机仅公网监听 SSH 22；网页仅绑定 `127.0.0.1:80`，MySQL、Redis 和 Java 服务未发布宿主机端口。
+- 完成 React→Vue→React 实际切换：Vue `/web/` 与登录接口返回 200，恢复后 React `/react/` 返回 200。切换前后 Agent 2 条、Workflow 1 条、会话 4 条，共享应用数据卷未替换。

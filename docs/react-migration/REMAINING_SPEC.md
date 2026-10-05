@@ -1,8 +1,8 @@
 # Apboa Next React 剩余迁移任务 Spec
 
-状态：Implementation-ready
+状态：主体已实施，剩余验收项追踪中
 
-更新日期：2026-10-05
+更新日期：2026-10-06
 
 目标分支：`codex/react-migration`
 基线提交：`9aac54d`
@@ -329,13 +329,13 @@ Vue 参考：`views/Workflow/`、`components/workflow/`、`config/workflow/`。
 
 ## 8. 当前阻塞与所需输入
 
-以下输入不阻塞纯前端迁移，但会阻塞对应真实验收：
+以下为当前输入与阻塞状态：
 
-1. 一个开发专用云模型 API 凭据、Base URL、Provider 和模型名；必须通过 ECS `0600` 环境文件或密钥管理注入。
+1. 已解决：开发专用云模型已经由产品供应商配置注入，凭据未进入代码、日志或提交。
 2. 若需公网访问：域名、DNS 控制权和 TLS 方案。没有 TLS 时继续使用 SSH 隧道。
-3. API Service 阶段需要确认 runner-gateway 的公网入口、鉴权和限流策略。
+3. API Service 的内部 Gateway 已启动并通过上线、调用、日志、下线验收；公网入口仍受域名、TLS 和对外限流策略阻塞。
 4. 第三方 MCP、邮件、飞书、钉钉、企微等功能若要求全量验收，需要相应开发测试凭据；没有凭据时只能完成接口与失败路径验收，不能宣称集成成功。
-5. G6 round-trip 验收需要至少三份从上游导出的真实 `WorkflowDefinition` JSON fixture；该输入缺失时只能完成协议层单元测试，不能判定 G6 通过。
+5. 协议层已有三份 fixture 完成 round-trip 单测；分支、循环、数据库、MQ 和第三方 Channel 等高级节点仍缺真实成功运行矩阵，不能因单测而判定 G6 全量通过。
 6. 待确认：旧 Vue 构建包含文档子应用（`VITE_APP_TARGET=doc`，部署于 `/web/doc`），本文当前未覆盖；需决定纳入迁移或明确排除。
 
 ## 9. 完成定义
@@ -349,3 +349,5 @@ Vue 参考：`views/Workflow/`、`components/workflow/`、`config/workflow/`。
 - React Flow 保存协议经 round-trip 和真实运行验证。
 - ECS 容量报告来自实际负载；公网入口具备 TLS；内部端口未暴露。
 - 已完成可执行回滚演练并记录恢复步骤和数据完整性结果。
+
+当前不能宣布“全量迁移完成”：可执行回滚和内部 Gateway 已通过，但停止/断流重连/HITL/子 Agent、自动化成功与失败矩阵、高级工作流节点、第三方集成以及域名/TLS 仍未满足定义。

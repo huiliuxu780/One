@@ -19,13 +19,13 @@ import { readableError } from '@/lib/utils'
 
 /**
  * API 服务（RM-08）：应用/API/访问日志管理。
- * 真实调用验收依赖 runner-gateway profile（Spec 第 8 节阻塞项 3）；管理面接口走 Console。
+ * 管理面接口走 Console，数据面由内部 gateway profile 提供。
  */
 export function ApiServicePage() {
   return (
     <div className="px-6 py-6">
       <h1 className="text-xl font-semibold tracking-tight">API 服务</h1>
-      <p className="mb-4 mt-1 text-sm text-muted-foreground">应用与 API 管理、上下线与访问日志；真实网关调用待 runner-gateway 启用后验收。</p>
+      <p className="mb-4 mt-1 text-sm text-muted-foreground">应用与 API 管理、上下线与访问日志；开发环境数据面仅在 Docker 内部网络可达。</p>
       <Tabs defaultValue="apps">
         <TabsList>
           <TabsTrigger value="apps">应用</TabsTrigger>

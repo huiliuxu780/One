@@ -76,6 +76,12 @@ docker compose --env-file .env stop frontend
 
 如需回退镜像，先切回已验证的 Git 提交并重新构建应用镜像，再执行 `docker compose up -d`。不要删除 `mysql_data`、`redis_data` 或 `app_data` 数据卷。
 
+2026-10-06 已在开发 ECS 完成 React→Vue→React 实际切换。可执行 Vue 镜像为
+`apboa-vue-rollback:20261005-exec`，上一 React 镜像为
+`apboa-dev-frontend:rollback-9aac54d`。切换 Vue 时应将它加入
+`apboa-dev_backend` 网络，只替换前端容器，不携带也不删除任何数据卷。
+恢复 React 后至少检查 `/react/`、登录、Agent/Workflow/会话记录数和工作空间文件数。
+
 ## React 开发态服务
 
 宿主机无需安装 Node。以下服务加入 `backend` 网络，在容器内安装依赖并启动 Vite，代理目标指向 compose 服务名，可直接对真实后端联调：
