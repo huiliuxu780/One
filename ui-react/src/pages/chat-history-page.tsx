@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { GitBranch, MagnifyingGlass } from '@phosphor-icons/react'
+import { useSearchParams } from 'react-router-dom'
+import { GitBranch, MagnifyingGlass, X } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,6 +17,9 @@ import { readableError } from '@/lib/utils'
  * 会话历史（RM-03 ChatHistory）：分页浏览会话与消息链，支持切换当前分支与编辑当前消息内容。
  */
 export function ChatHistoryPage() {
+  // 旧 Vue 深链 /chat/history/:agentId 由 router 转为 ?agentId=，按指定智能体过滤会话。
+  const [searchParams, setSearchParams] = useSearchParams()
+  const agentFilter = searchParams.get('agentId') || undefined
   const [keyword, setKeyword] = useState('')
   const [sessionPage, setSessionPage] = useState(1)
   const [activeSession, setActiveSession] = useState<ChatSessionVO | null>(null)
@@ -23,8 +27,8 @@ export function ChatHistoryPage() {
   const [editText, setEditText] = useState('')
 
   const sessionsQuery = useQuery({
-    queryKey: ['list', 'chat-session', 'history', sessionPage, keyword],
-    queryFn: async () => (await pageSessions({ page: sessionPage, size: 10, title: keyword || undefined })).data.data,
+    queryKey: ['list', 'chat-session', 'history', sessionPage, keyword, agentFilter],
+    queryFn: async () => (await pageSessions({ page: sessionPage, size: 10, title: keyword || undefined, agentId: agentFilter })).data.data,
   })
 
   const messagesQuery = useQuery({
@@ -72,6 +76,12 @@ export function ChatHistoryPage() {
           <MagnifyingGlass size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input className="pl-8" placeholder="搜索会话" value={keyword} onChange={(event) => { setKeyword(event.target.value); setSessionPage(1) }} />
         </div>
+        {agentFilter ? (
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-xs">
+            <span className="min-w-0 flex-1 truncate">按智能体过滤：{agentFilter}</span>
+            <button aria-label="清除智能体过滤" onClick={() => setSearchParams({}, { replace: true })}><X size={12} /></button>
+          </div>
+        ) : null}
         <div className="min-h-0 flex-1 space-y-1 overflow-auto">
           {sessionsQuery.error ? (
             <div className="rounded-lg border border-destructive/25 bg-destructive/5 p-3 text-xs text-destructive">

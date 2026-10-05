@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { ArrowClockwise, Download, FilePlus, FolderPlus, MagnifyingGlass, Plus, Trash, Upload } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -22,6 +23,7 @@ import type { McpServerVO, SkillFileTreeNode, SkillPackageVO, SkillsHubVO, ToolV
 import { usePagedList } from '@/features/data/paged'
 
 export function SkillPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [search, setSearch] = useState('')
   const paged = usePagedList<SkillPackageVO>({
     resource: 'skill',
@@ -34,6 +36,31 @@ export function SkillPage() {
   const [treeSkill, setTreeSkill] = useState<SkillPackageVO | null>(null)
   const [toolsSkill, setToolsSkill] = useState<SkillPackageVO | null>(null)
   const [busy, setBusy] = useState(false)
+  // 旧 Vue 深链 /skill/new、/skill/hub、/skill/:id/edit 由 router 转成本页 query；动作只执行一次。
+  const deepLinkHandled = useRef(false)
+
+  useEffect(() => {
+    if (deepLinkHandled.current) return
+    const action = searchParams.get('action')
+    const hub = searchParams.get('hub')
+    const edit = searchParams.get('edit')
+    if (!action && !hub && !edit) return
+    deepLinkHandled.current = true
+    const clear = () => setSearchParams({}, { replace: true })
+    if (action === 'new') {
+      setEditing(null)
+      setEditingOpen(true)
+      clear()
+    } else if (hub) {
+      setHubOpen(true)
+      clear()
+    } else if (edit) {
+      skills.detail(edit).then((response) => {
+        if (!response.data.data) throw new Error('技能不存在或已被删除')
+        setTreeSkill(response.data.data)
+      }).catch((cause) => toast.error(readableError(cause, '技能加载失败'))).finally(clear)
+    }
+  }, [searchParams, setSearchParams])
 
   const rows = paged.data?.records ?? []
 

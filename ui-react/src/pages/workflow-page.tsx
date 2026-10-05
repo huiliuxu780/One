@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { Copy, LockKeyOpen, Lock, MagnifyingGlass, PencilSimple, Plus, Trash } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -70,6 +71,16 @@ export function WorkflowPage() {
   }
 
   const rows = paged.data?.records ?? []
+
+  // 旧 Vue 深链 /workflow/new 由 router 转为 ?create=1：创建一次并进入编辑器，严格防重复创建。
+  const [searchParams, setSearchParams] = useSearchParams()
+  const deepLinkHandled = useRef(false)
+  useEffect(() => {
+    if (deepLinkHandled.current || !searchParams.get('create')) return
+    deepLinkHandled.current = true
+    setSearchParams({}, { replace: true })
+    createMutation.mutate()
+  }, [searchParams, setSearchParams, createMutation])
 
   return (
     <div className="px-6 py-6">

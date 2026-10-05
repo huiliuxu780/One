@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { MagnifyingGlass, Plus, Trash } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -22,11 +23,13 @@ import { readableError } from '@/lib/utils'
  * 管理面接口走 Console，数据面由内部 gateway profile 提供。
  */
 export function ApiServicePage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab = ['apps', 'apis', 'logs'].includes(searchParams.get('tab') || '') ? searchParams.get('tab')! : 'apps'
   return (
     <div className="px-6 py-6">
       <h1 className="text-xl font-semibold tracking-tight">API 服务</h1>
       <p className="mb-4 mt-1 text-sm text-muted-foreground">应用与 API 管理、上下线与访问日志；开发环境数据面仅在 Docker 内部网络可达。</p>
-      <Tabs defaultValue="apps">
+      <Tabs value={tab} onValueChange={(value) => setSearchParams(value === 'apps' ? {} : { tab: value }, { replace: true })}>
         <TabsList>
           <TabsTrigger value="apps">应用</TabsTrigger>
           <TabsTrigger value="apis">API</TabsTrigger>
@@ -219,6 +222,29 @@ function ApisTab() {
   const [editing, setEditing] = useState<GatewayApi | null>(null)
   const [creating, setCreating] = useState(false)
   const [busy, setBusy] = useState(false)
+  // 旧 Vue 深链 /api-service/new、/api-service/:id/edit 由 router 转成本页 query。
+  const [searchParams, setSearchParams] = useSearchParams()
+  const deepLinkHandled = useRef(false)
+
+  useEffect(() => {
+    if (deepLinkHandled.current) return
+    const action = searchParams.get('action')
+    const edit = searchParams.get('edit')
+    if (!action && !edit) return
+    deepLinkHandled.current = true
+    const clear = () => setSearchParams({}, { replace: true })
+    if (action === 'new') {
+      setEditing(null)
+      setCreating(true)
+      clear()
+      return
+    }
+    if (!edit) return
+    gatewayApis.detail(edit).then((response) => {
+      if (!response.data.data) throw new Error('API 不存在或已被删除')
+      setEditing(response.data.data)
+    }).catch((cause) => toast.error(readableError(cause, 'API 加载失败'))).finally(clear)
+  }, [searchParams, setSearchParams])
 
   const rows = listQuery.data?.records ?? []
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['list', 'gateway-api'] })

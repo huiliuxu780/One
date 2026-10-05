@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { ClockCounterClockwise, MagnifyingGlass, Play, Plus, Square, Trash } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -43,6 +44,32 @@ export function AutomationPage() {
   const [editing, setEditing] = useState<JobInfo | null>(null)
   const [recordsJob, setRecordsJob] = useState<JobInfo | null>(null)
   const [busy, setBusy] = useState(false)
+  // 旧 Vue 深链 /automation/new、/:id/edit、/:id/records 由 router 转成本页 query。
+  const [searchParams, setSearchParams] = useSearchParams()
+  const deepLinkHandled = useRef(false)
+
+  useEffect(() => {
+    if (deepLinkHandled.current) return
+    const action = searchParams.get('action')
+    const edit = searchParams.get('edit')
+    const records = searchParams.get('records')
+    if (!action && !edit && !records) return
+    deepLinkHandled.current = true
+    const clear = () => setSearchParams({}, { replace: true })
+    if (action === 'new') {
+      setEditing(null)
+      setEditorOpen(true)
+      clear()
+      return
+    }
+    const target = edit ?? records
+    if (!target) return
+    automationApi.getJobById(target).then((response) => {
+      if (!response.data.data) throw new Error('任务不存在或已被删除')
+      if (edit) { setEditing(response.data.data); setEditorOpen(true) }
+      else setRecordsJob(response.data.data)
+    }).catch((cause) => toast.error(readableError(cause, '任务加载失败'))).finally(clear)
+  }, [searchParams, setSearchParams])
 
   const rows = paged.data?.records ?? []
 

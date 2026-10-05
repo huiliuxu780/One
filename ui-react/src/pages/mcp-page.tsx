@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { ArrowClockwise, MagnifyingGlass, Plus, Plugs, Wrench } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -36,6 +37,20 @@ export function McpPage() {
   const [editing, setEditing] = useState<McpServerVO | null>(null)
   const [toolsServer, setToolsServer] = useState<McpServerVO | null>(null)
   const [busy, setBusy] = useState(false)
+  // 旧 Vue 深链 /mcp/:serverId/tools 由 router 转成本页 query，打开指定 Server 的工具治理。
+  const [searchParams, setSearchParams] = useSearchParams()
+  const deepLinkHandled = useRef(false)
+
+  useEffect(() => {
+    if (deepLinkHandled.current) return
+    const tools = searchParams.get('tools')
+    if (!tools) return
+    deepLinkHandled.current = true
+    mcpServers.detail(tools).then((response) => {
+      if (!response.data.data) throw new Error('MCP Server 不存在或已被删除')
+      setToolsServer(response.data.data)
+    }).catch((cause) => toast.error(readableError(cause, 'MCP Server 加载失败'))).finally(() => setSearchParams({}, { replace: true }))
+  }, [searchParams, setSearchParams])
 
   const rows = paged.data?.records ?? []
 
