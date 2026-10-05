@@ -184,6 +184,7 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       REDIS_DATABASE: ${REDIS_DATABASE}
       JWT_SECRET: ${JWT_SECRET}
+      VECTOR_STORE_TYPE: none
       CONSOLE_HOST: console
       SHELL_PROXY_ENABLED: "true"
       PROXY_HOST: proxy
