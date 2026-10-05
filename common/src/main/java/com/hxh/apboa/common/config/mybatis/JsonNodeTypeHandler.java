@@ -22,7 +22,13 @@ public class JsonNodeTypeHandler extends AbstractJsonTypeHandler<Object> {
 
     @Override
     public Object parse(String json) {
-        return JsonUtils.parse(json);
+        try {
+            return JsonUtils.parse(json);
+        } catch (RuntimeException ignored) {
+            // 早期执行记可能把纯文本直接写入 JSON 列。读取时将其视为 JSON 字符串，
+            // 避免一条历史记录使整个详情接口失败。
+            return JsonUtils.valueToTree(json);
+        }
     }
 
     @Override

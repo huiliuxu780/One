@@ -237,7 +237,9 @@ public class WorkflowRunServiceImpl extends ServiceImpl<WorkflowRunMapper, Workf
 
         List<WorkflowNodeExecution> executions = persistNodeExecutions(workflow, run, context);
         boolean nodeFailed = executions.stream().anyMatch(x -> x.getStatus() == NodeRunStatus.FAIL);
-        run.setOutputs(output);
+        // JsonNodeTypeHandler 对 String 的历史序列化语义是原样写入，纯文本会产生非法 JSON。
+        // 转为 JsonNode 后写入，对象/数组/数值保持结构，文本则正确带引号。
+        run.setOutputs(objectMapper.valueToTree(output));
         run.setError(error);
         run.setEndTime(System.currentTimeMillis());
         run.setStatus(error == null && !nodeFailed ? WorkflowRunStatus.SUCCESS : WorkflowRunStatus.FAIL);

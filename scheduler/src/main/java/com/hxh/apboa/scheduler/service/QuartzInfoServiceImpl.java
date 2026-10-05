@@ -54,7 +54,7 @@ public class QuartzInfoServiceImpl extends ServiceImpl<JobInfoMapper, JobInfo> i
         if (job == null) {
             throw new RuntimeException("任务实例不存在");
         }
-        checkTarget(job);
+        checkTarget(jobInfo);
         // 用前端传入的字段更新 job，保持 createdBy 等非前端字段不变
         job.setType(jobInfo.getType());
         job.setBizId(jobInfo.getBizId());
@@ -110,6 +110,8 @@ public class QuartzInfoServiceImpl extends ServiceImpl<JobInfoMapper, JobInfo> i
         checkTarget(jobInfo);
         quartzClient.remove(JobInit.buildConfig(jobInfo));
         quartzClient.create(JobInit.buildConfig(jobInfo));
+        jobInfo.setEnabled(true);
+        updateStatus(jobInfo);
     }
 
     @Override
@@ -118,10 +120,11 @@ public class QuartzInfoServiceImpl extends ServiceImpl<JobInfoMapper, JobInfo> i
         if (jobInfo == null) {
             throw new RuntimeException("任务实例不存在");
         }
-        if (!jobInfo.getEnabled()) {
-            return;
-        }
+        // 无论数据库状态如何都尝试移除 Quartz 实例。toggle 会先更新 enabled，
+        // 旧逻辑在此提前返回，会造成 UI 显示已停止但调度仍在运行。
         quartzClient.remove(JobInit.buildConfig(jobInfo));
+        jobInfo.setEnabled(false);
+        updateStatus(jobInfo);
     }
 
     @Override
