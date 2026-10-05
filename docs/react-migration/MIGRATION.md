@@ -152,3 +152,11 @@
 - 真实 AG-UI 流式对话验收：创建会话（threadId=sessionId）→ `runtime/agui/run/{agentCode}` SSE。事件序列完整：`REPLAY_CAUGHT_UP → RUN_STARTED → REASONING_MESSAGE_START/CONTENT/END（7 个思考增量）→ TEXT_MESSAGE_START/CONTENT(5)/END → RUN_FINISHED`；SSE data 为双层 JSON 编码，与 Vue 版解析器（字符串再解一层）一致。助手最终回复："我是一个简洁友好的中文助手，随时为你解答问题、处理任务！"
 - 已创建可直接对话的测试 Agent：`chat_flash_test`（对话测试（qwen3.8-flash））；qwen3.8-max 配置就绪，可在 Agent 编辑器中切换。
 - 剩余验收项：停止/重连/HITL/子 Agent 场景、qwen3.8-max 实测；API 服务真实调用待 runner-gateway。
+
+
+## 2026-10-05 全量部署与演示数据
+
+- 最新 React 构建已部署至 dev 前端容器（`/react/`，包含全部已完成页面），SSH 隧道 80 端口即可访问。
+- 通过真实 API 造演示数据：Agent×2（qwen3.8-flash/max）、自定义工具（JAVASCRIPT）、提示词模板、敏感词配置、Hook、长期记忆/代码执行/Studio 各一条、看板 + HTTP 数据集、网关应用 + API（绑定工作流、未上线）、自动化任务（禁用态，避免计划外模型调用）。
+- 工作流"演示工作流（回声）"（START→AGENT→END，AGENT 绑定 qwen3.8-flash）已发布至 v4：校验通过、debug-run 三节点全部 SUCCESS，END 通过 inputConfigs 绑定 AGENT 的 `output` 变量。排障记录：END 的 JACKSON 格式化器要求模板为合法 JSON；模板变量需通过节点 inputConfigs 以 `NODE_OUTPUT` 方式绑定，仅写字面 `${var}` 不会被替换。
+- 已知待办：审查页为诚实空态（后端无审查 API）；API 服务真实调用待 runner-gateway profile；Communication 需要有效 ChatKey 验证。
