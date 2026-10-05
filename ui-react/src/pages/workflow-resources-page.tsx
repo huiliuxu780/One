@@ -28,8 +28,8 @@ const typeOptions: Record<WorkflowResourceKind, string[]> = {
 }
 
 function editCopy(entity: WorkflowManagedResource): WorkflowManagedResource {
-  const { password: _password, ...safe } = entity
-  return { ...safe, password: '' }
+  const { password: _password, config: _config, ...safe } = entity
+  return { ...safe, password: '', config: '' }
 }
 
 export function WorkflowResourcesPage() {
@@ -50,6 +50,7 @@ export function WorkflowResourcesPage() {
     mutationFn: async (entity: WorkflowManagedResource) => {
       const payload = { ...entity }
       if (entity.id && !entity.password) delete payload.password
+      if (entity.id && !entity.config) delete payload.config
       return entity.id ? updateWorkflowResource(kind, payload) : createWorkflowResource(kind, payload)
     },
     onSuccess: () => { toast.success('已保存'); setDraft(null); refresh() },

@@ -168,7 +168,8 @@ function ServerFormDialog({
     mode: editing?.mode ?? McpMode.SYNC,
     timeout: editing?.timeout ?? 30,
     description: editing?.description ?? '',
-    protocolConfig: editing?.protocolConfig ? JSON.stringify(editing.protocolConfig, null, 2) : '',
+    // MCP 配置可能含 token/API key；编辑时不回显，留空表示保持原值。
+    protocolConfig: '',
     enabled: editing?.enabled ?? true,
   }))
   const [busy, setBusy] = useState(false)
@@ -185,6 +186,7 @@ function ServerFormDialog({
       if (typeof raw === 'string' && raw.trim()) protocolConfig = JSON.parse(raw)
       else if (raw && typeof raw !== 'string') protocolConfig = raw
       const payload = { ...(editing ?? {}), ...values, timeout: Number(values.timeout ?? 30), protocolConfig }
+      if (editing && typeof raw === 'string' && !raw.trim()) delete (payload as Record<string, unknown>).protocolConfig
       if (editing) await mcpServers.update(payload as Partial<McpServerVO>)
       else await mcpServers.save(payload as Partial<McpServerVO>)
       toast.success('已保存')

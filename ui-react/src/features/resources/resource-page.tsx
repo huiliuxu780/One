@@ -193,10 +193,8 @@ function ResourceFormDialog<T extends { id?: string | number }>({
           }
         }
         if (field.type === 'tags' && raw != null && !Array.isArray(raw)) payload[field.name] = String(raw).split(',').map((item) => item.trim()).filter(Boolean)
-        if (field.type === 'password') {
-          // 留空不修改：编辑时剔除空密钥，新建时空密钥同样剔除
-          if (!raw) delete payload[field.name]
-        }
+        // 留空不修改：密钥字段无论显示控件类型如何都不回显、不提交空值。
+        if (field.secret && !raw) delete payload[field.name]
         if (field.type === 'number' && raw === '') payload[field.name] = undefined
       }
       if (editing != null) await def.api.update(payload as Partial<T>)

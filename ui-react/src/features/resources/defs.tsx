@@ -44,7 +44,7 @@ export const toolDef: ResourceDef<ToolVO> = {
   key: 'tool',
   title: '工具',
   description: '内置与自定义工具；自定义工具支持代码编辑与参数 Schema。',
-  api: tools,
+  api: { ...tools, usedWith: tools.usedWithAgent },
   searchPlaceholder: '按工具名称搜索',
   columns: [
     { header: '名称', field: 'name' },
@@ -69,13 +69,23 @@ export const toolDef: ResourceDef<ToolVO> = {
     { name: 'code', label: '工具代码', type: 'textarea', wide: true, placeholder: '自定义工具代码' },
     { name: 'enabled', label: '启用', type: 'switch', defaultValue: true },
   ],
+  rowActions: [{ label: '调试', action: async (row) => {
+    const raw = window.prompt(`输入 ${row.toolId} 的参数 JSON`, '{}')
+    if (raw == null) return
+    try {
+      const response = await tools.debug(row.toolId, JSON.parse(raw) as Record<string, unknown>)
+      toast.success('工具调试完成', { description: JSON.stringify(response.data.data ?? response.data).slice(0, 500) })
+    } catch (cause) {
+      toast.error(readableError(cause, '工具调试失败'))
+    }
+  } }],
 }
 
 export const hookDef: ResourceDef<HookRow> = {
   key: 'hook',
   title: 'Hook',
   description: 'Agent 生命周期钩子：类路径或内联代码。',
-  api: hooks,
+  api: { ...hooks, usedWith: hooks.usedWithAgent },
   columns: [
     { header: '名称', field: 'name' },
     { header: '类型', field: 'hookType' as never },
@@ -98,7 +108,7 @@ export const hookDef: ResourceDef<HookRow> = {
 export const promptDef: ResourceDef<SystemPromptTemplateVO> = {
   key: 'prompt',
   title: '提示词模板',
-  api: prompts,
+  api: { ...prompts, usedWith: prompts.usedWithAgent },
   searchPlaceholder: '按模板名称搜索',
   columns: [
     { header: '名称', field: 'name' },
@@ -120,7 +130,7 @@ export const promptDef: ResourceDef<SystemPromptTemplateVO> = {
 export const sensitiveDef: ResourceDef<SensitiveWordConfigVO> = {
   key: 'sensitive',
   title: '敏感词配置',
-  api: sensitiveWords,
+  api: { ...sensitiveWords, usedWith: sensitiveWords.usedWithAgent },
   columns: [
     { header: '名称', field: 'name' },
     { header: '分类', field: 'category' },
@@ -145,7 +155,7 @@ export const modelProviderDef: ResourceDef<ModelProviderVO> = {
   key: 'model-provider',
   title: '模型供应商',
   description: '供应商连接信息；API Key 只在提交时传输，不回显。',
-  api: modelProviders,
+  api: { ...modelProviders, usedWith: modelProviders.usedWithModel },
   columns: [
     { header: '名称', field: 'name' },
     { header: '类型', field: 'type' },
@@ -169,7 +179,7 @@ export const modelConfigDef: ResourceDef<ModelConfigVO> = {
   key: 'model-config',
   title: '模型配置',
   description: '可选模型与推理参数；上下文窗口与最大输出将用于前端提示。',
-  api: modelConfigs,
+  api: { ...modelConfigs, usedWith: modelConfigs.usedWithAgent },
   searchPlaceholder: '按模型名称搜索',
   columns: [
     { header: '名称', field: 'name' },
@@ -205,12 +215,20 @@ export const modelConfigDef: ResourceDef<ModelConfigVO> = {
     { name: 'description', label: '描述', type: 'textarea', wide: true },
     { name: 'enabled', label: '启用', type: 'switch', defaultValue: true },
   ],
+  rowActions: [{ label: '连通性', action: async (row) => {
+    try {
+      const response = await modelConfigs.check(String(row.id))
+      toast.success(response.data.data?.message || '模型连通性检查完成')
+    } catch (cause) {
+      toast.error(readableError(cause, '模型连通性检查失败'))
+    }
+  } }],
 }
 
 export const memoryDef: ResourceDef<LongTermMemoryConfig> = {
   key: 'long-term-memory',
   title: '长期记忆配置',
-  api: longTermMemories,
+  api: { ...longTermMemories, usedWith: longTermMemories.usedWithAgent },
   nonPaged: true,
   columns: [
     { header: '名称', field: 'configName' },
@@ -230,7 +248,7 @@ export const memoryDef: ResourceDef<LongTermMemoryConfig> = {
         { label: 'BAILIAN', value: 'BAILIAN' },
       ],
     },
-    { name: 'config', label: '连接配置 (JSON)', type: 'json', wide: true, placeholder: '{"endpoint":"...","apiKey":"..."}' },
+    { name: 'config', label: '连接配置 (JSON)', type: 'json', wide: true, secret: true, placeholder: '{"endpoint":"...","apiKey":"..."}' },
     { name: 'enabled', label: '启用', type: 'switch', defaultValue: true },
   ],
 }
@@ -238,7 +256,7 @@ export const memoryDef: ResourceDef<LongTermMemoryConfig> = {
 export const codeExecutionDef: ResourceDef<CodeExecutionConfig> = {
   key: 'code-execution',
   title: '代码执行环境',
-  api: codeExecutionConfigs,
+  api: { ...codeExecutionConfigs, usedWith: codeExecutionConfigs.usedWithAgent },
   nonPaged: true,
   columns: [
     { header: '名称', field: 'configName' },
@@ -262,7 +280,7 @@ export const codeExecutionDef: ResourceDef<CodeExecutionConfig> = {
 export const studioDef: ResourceDef<StudioConfig> = {
   key: 'studio',
   title: 'Studio 配置',
-  api: studios,
+  api: { ...studios, usedWith: studios.usedWithAgent },
   nonPaged: true,
   columns: [
     { header: '地址', field: 'url', className: 'font-mono text-xs' },

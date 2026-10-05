@@ -17,8 +17,8 @@ import { toast } from '@/components/ui/sonner'
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/states'
 import { CodeEditor } from '@/components/editor/code-editor'
 import { readableError } from '@/lib/utils'
-import { skills, tools } from '@/api/resources'
-import type { McpServerVO, SkillFileTreeNode, SkillPackageVO, ToolVO } from '@/types'
+import { skillHub, skills, tools } from '@/api/resources'
+import type { McpServerVO, SkillFileTreeNode, SkillPackageVO, SkillsHubVO, ToolVO } from '@/types'
 import { usePagedList } from '@/features/data/paged'
 
 export function SkillPage() {
@@ -30,6 +30,7 @@ export function SkillPage() {
   const [editing, setEditing] = useState<SkillPackageVO | null>(null)
   const [editingOpen, setEditingOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [hubOpen, setHubOpen] = useState(false)
   const [treeSkill, setTreeSkill] = useState<SkillPackageVO | null>(null)
   const [toolsSkill, setToolsSkill] = useState<SkillPackageVO | null>(null)
   const [busy, setBusy] = useState(false)
@@ -59,6 +60,7 @@ export function SkillPage() {
           <p className="mt-1 text-sm text-muted-foreground">技能包管理：本地/Git/ZIP 导入、文件树编辑、工具关联与打包下载。</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setHubOpen(true)}>SkillHub</Button>
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <Upload size={14} /> 导入
           </Button>
@@ -122,10 +124,37 @@ export function SkillPage() {
 
       <SkillFormDialog open={editingOpen} onOpenChange={setEditingOpen} editing={editing} onSaved={() => void paged.refetch()} />
       <ImportDialog open={importOpen} onOpenChange={setImportOpen} onImported={() => void paged.refetch()} />
+      {hubOpen ? <SkillHubSheet onClose={() => setHubOpen(false)} onImported={() => void paged.refetch()} /> : null}
       {treeSkill ? <SkillFilesDialog skill={treeSkill} onClose={() => setTreeSkill(null)} /> : null}
       {toolsSkill ? <SkillToolsDialog skill={toolsSkill} onClose={() => setToolsSkill(null)} /> : null}
     </div>
   )
+}
+
+function SkillHubSheet({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const [keyword, setKeyword] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [page, setPage] = useState(1)
+  const [downloading, setDownloading] = useState('')
+  const query = useQuery({
+    queryKey: ['list', 'skill-hub', searchTerm, page],
+    queryFn: async () => (await skillHub.search({ keyword: searchTerm || undefined, page, sortBy: 'downloads', order: 'desc' })).data.data,
+  })
+  const rows: SkillsHubVO[] = query.data ?? []
+  async function install(item: SkillsHubVO) {
+    setDownloading(item.slug)
+    try {
+      const response = await skillHub.download(item.slug, item.category || 'SkillHub')
+      const result = response.data.data
+      toast.success(`已导入 ${result.importedCount} 个技能`)
+      onImported()
+    } catch (cause) {
+      toast.error(readableError(cause, 'SkillHub 导入失败'))
+    } finally {
+      setDownloading('')
+    }
+  }
+  return <Sheet open onOpenChange={(open) => !open && onClose()}><SheetContent side="right" className="w-full overflow-auto sm:max-w-3xl"><SheetHeader><SheetTitle>SkillHub</SheetTitle><SheetDescription>搜索 SkillHub 免费技能并通过后端安全下载、解压和导入。</SheetDescription></SheetHeader><form className="my-4 flex gap-2" onSubmit={(event) => { event.preventDefault(); setPage(1); setSearchTerm(keyword) }}><Input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索技能" /><Button type="submit">搜索</Button></form>{query.isLoading ? <TableSkeleton rows={5} /> : query.error ? <ErrorState error={query.error} onRetry={() => void query.refetch()} /> : rows.length === 0 ? <EmptyState title="没有搜索结果" description="SkillHub 可能暂时不可达，或没有匹配技能。" /> : <div className="grid gap-3 sm:grid-cols-2">{rows.map((item) => <div key={item.slug} className="rounded-xl border border-border p-4"><div className="flex items-start gap-3">{item.iconUrl ? <img src={item.iconUrl} alt="" className="size-10 rounded-lg object-cover" /> : null}<div className="min-w-0"><div className="truncate font-medium">{item.name}</div><div className="text-xs text-muted-foreground">{item.category} · v{item.version} · {item.downloads} 下载</div></div></div><p className="mt-3 line-clamp-3 text-sm text-muted-foreground">{item.description}</p><div className="mt-3 flex gap-2"><Button size="sm" onClick={() => void install(item)} disabled={Boolean(downloading)}>{downloading === item.slug ? '导入中…' : '导入'}</Button><Button asChild size="sm" variant="outline"><a href={item.homepage} target="_blank" rel="noreferrer">详情</a></Button></div></div>)}</div>}<div className="mt-4 flex justify-center gap-2"><Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>上一页</Button><Badge variant="secondary">第 {page} 页</Badge><Button variant="outline" size="sm" disabled={rows.length < 30} onClick={() => setPage((value) => value + 1)}>下一页</Button></div></SheetContent></Sheet>
 }
 
 function SkillFormDialog({ open, onOpenChange, editing, onSaved }: {

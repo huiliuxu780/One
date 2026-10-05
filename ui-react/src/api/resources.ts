@@ -14,6 +14,7 @@ import type {
   SkillFileTreeNode,
   SkillImportResult,
   SkillPackageVO,
+  SkillsHubVO,
   StudioConfig,
   SystemPromptTemplateVO,
   ToolVO,
@@ -68,6 +69,7 @@ export const tools = {
   update: (entity: Partial<ToolVO>) => put<boolean>('/api/tool', entity),
   remove: (ids: string[]) => del('/api/tool', ids),
   usedWithAgent: (ids: string[]) => post<unknown[]>('/api/tool/used-with-agent', ids),
+  debug: (toolName: string, args: Record<string, unknown>) => post<unknown>(`/api/runtime/tool/${encodeURIComponent(toolName)}/do`, args),
 }
 
 /** 技能包 */
@@ -112,6 +114,13 @@ export const skills = {
   downloadFileUrl: (skillId: string, path: string) => `/api/skill/${skillId}/download?path=${encodeURIComponent(path)}`,
   downloadZipUrl: (skillId: string) => `/api/skill/${skillId}/download-zip`,
   syncToFile: (skillId: string) => post<boolean>(`/api/skill/${skillId}/sync-to-file`),
+}
+
+export const skillHub = {
+  search: (query: { keyword?: string; category?: string; source?: string; labels?: string; sortBy?: string; order?: string; page: number }) =>
+    apiClient.get<ApiResponse<SkillsHubVO[]>>('/api/skill/hub/search', { params: query }),
+  download: (slug: string, category: string) =>
+    apiClient.get<ApiResponse<SkillImportResult>>('/api/skill/hub/download', { params: { slug, category } }),
 }
 
 /** MCP Server */
