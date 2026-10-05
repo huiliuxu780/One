@@ -124,3 +124,19 @@
 验证结果：`tsc -b` 通过；Vitest 11/11 通过；生产构建通过且路由分包生效；`size:check` 全部在阈值内（entry 183KB / react vendor 350KB）。真实后端冒烟：dev 容器经 backend 网络代理 `/api`，静态页 HTTP 200，`/api/auth/login` 抵达真实 Console 并返回业务码。
 
 阻塞：部署实例的 admin 密码已与 `db_init.sql`/README 默认值不一致（无修改记录）。需要用户提供开发环境测试账号，或确认重置为文档默认值后，才能完成"会话恢复、token 刷新"的真实验收。
+
+## 2026-10-05 RM-02 ~ RM-08 主体迁移完成
+
+同日在 RM-01 基础上完成剩余工作包的主体迁移（提交 73a4e00、28b30b8 及其后）：
+
+- RM-02 Agent：列表（搜索/类型/标签/分页/复制/占用检查删除）+ 多页签编辑器（基础/模型/提示词/工具技能MCP/Hook/敏感词/子Agent/工作流/高级/A2A WellKnown 与 Nacos），`knowledgeBase`/`ragConfig` 兼容字段提交时原样透传。
+- RM-03 聊天：AG-UI 协议层按 Vue 版原样移植（SSE 跨 chunk UTF-8、多 data: 行、尾部残片、未知事件透传、reconnect 回放与 REPLAY_CAUGHT_UP、HITL resume、stop 轮询至终态），修复原实现刷新失败时 waiter 永久挂起的缺陷；会话列表（置顶/重命名/删除）+ 消息链渲染 + 工具卡片 + HITL 逐项允许/拒绝（memoryActive）+ 安全 Markdown 渲染（纯 React 元素，无 HTML 注入面）。
+- RM-04 工作空间：容量（后端返回）、单/批/压缩包上传、单/批/全量下载、删除与清空确认。
+- RM-05 资源：模型（配置+供应商，密钥留空不修改）、工具、技能（本地/Git/ZIP 导入、文件树 + CodeMirror 6 编辑、工具关联、打包下载、同步）、MCP（激活/同步/全局启用与确认治理/真实调试展示原始错误）、Hook、提示词、敏感词、长期记忆、代码执行、Studio，全部走统一 CRUD 引擎并带占用检查删除。
+- RM-06 自动化：Cron 任务 CRUD、启动/停止/切换/手动触发、执行记录与 Agent/Workflow 详情入口。
+- RM-07 工作流：`toBackendDefinition`/`fromBackendDefinition` 唯一协议边界 + 3 份 fixture round-trip 与 React Flow 私有字段剥离测试；React Flow 画布（metadata 节点库、连线、节点配置面板、保存、校验、发布、版本、调试/正式运行）；含旧知识库节点的流程加载后原样保留并明确提示，不静默改写。
+- RM-08 设置与运维：账号管理、API Key（创建时一次性展示完整值）、系统参数 CRUD；执行节点/WebSocket 节点监控（15s 轮询）、存储协议连通性验证。
+
+真实后端契约冒烟（admin 会话）：agent/workflow/model/tool/skill/mcp/hook/prompt/sensitive/params/sk/heartbeat/account/chat-session 共 16 个模块端点全部返回 `code=200`，runtime 的 `workflow/node-metadata` 与 `agui/active-runs` 均为 HTTP 200。
+
+仍未完成（导航中保留"迁移中"占位）：对话广场（ChatCluster）、会话历史分支 UI、Dashboard 工作台、API 服务（阻塞于 runner-gateway 公网入口/鉴权/限流策略确认）、审查（Review）；聊天真实验收仍需云模型凭据。
