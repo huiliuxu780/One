@@ -183,3 +183,19 @@
 - HITL 使用内置时间工具验证：刷新后 pending 确认仍存在；“允许”后工具真实执行并返回时间，“拒绝”后工具不执行且模型明确报告未获授权。`chat_flash_test` 委派 `chat_max_test` 时渲染 `SUCCESS` 子 Agent 事件，并返回约定文本。
 - 修复 Agent 工具绑定误提交运行时代码而非数据库长整型 ID 的契约错误，并修复工具编辑时后端 `language=null` 被提交为空字符串的问题。新建工具只提供后端已注册的 Java 动态加载器；无法执行的 JavaScript 演示工具已停用。
 - 旧 Vue 的独立使用手册子应用已迁移为 React `/react/docs`；13 个非知识库章节、GFM 表格与代码块可访问，知识库章节与向量数据库部署说明按明确排除范围删除，旧 `/web/doc` 入口保留重定向。
+
+## 2026-10-06 深链动作、@mention 与运维补齐（c211d01）
+
+对 0963f2d 之后真实缺口的修复与补齐，全程未沿用"实现已完成"的结论，逐项核实：
+
+- 账号管理：管理员创建账号（`/api/auth/admin/create-account`，加入当前默认租户）、删除账号（前端禁止删除当前账号，后端管理员保护保留）；管理员重置密码修复为 MD5 后提交（此前明文提交 change-password 契约错误）。
+- 设置新增"系统介绍"页签，内容如实描述单默认租户、无知识库/本地 RAG 的范围。
+- 运维页补齐：存储配置 CRUD、S3/FTP/LOCAL 协议参数、设为唯一启用配置（修正旧 UI 将 `validSuccess` 误标为连通性测试的语义）、全局附件列表/下载/批量下载/删除、附件操作日志。`ProtocolConfigDialog` 按 `id-protocol` key 重挂载，切换目标不再残留旧表单 state；secret 字段不回显、留空保留后端值；Blob 下载延迟撤销 objectURL。
+- 聊天普通 Markdown 升级为 ReactMarkdown + remark-gfm，保留 Mermaid/VEP/UIP/APIP 协议块；javascript: URL 剥离。
+- 旧 Vue 深链全部重定向且页面真实执行原动作：skill new/hub/edit、MCP 工具治理、automation new/edit/records、api-service new/edit、workflow new（创建一次并防重复）、chat history 按 agentId 过滤、dashboard/model/settings/ops/review 子页签。
+- 聊天输入框迁移 @mention：三类真实数据源（工作空间文件树、`enabled/tools`、`enabled/skills` + 2 个内置技能），协议与 Vue 逐字节一致（`<workspace-file>路径</workspace-file>`、`<agent-tool>toolId</agent-tool>`、`<agent-skill>包名</agent-skill>` 内嵌 content）；Backspace 整块删除、IME 组合期不触发；用户消息经 TaggedText 还原标签徽标。
+- 部署修复：ECS 前端镜像只打包预构建 dist，git pull 不会更新产物，本轮已在 node:22-alpine 容器内重建 dist 再构建镜像；nginx 为 `/react/index.html` 增加 `no-cache, must-revalidate`，否则部署后浏览器继续使用旧入口。
+
+验证：`tsc -b`、Vitest 45/45（新增 mention 协议、GFM/URL 安全、路由兼容矩阵测试）、生产构建、size:check、`git diff --check` 全部通过。真实后端（本地 Vite→隧道→ECS）验证登录、`/automation/new` 深链弹窗、SkillHub、@mention 端到端（插入协议标签→发送→模型真实解析技能内容回复→标签徽标渲染）、存储配置 CRUD 闭环（创建/协议配置/删除）、控制台 0 错误、刷新恢复。ECS 生产构建复验登录、深链弹窗、SSE 真实对话（回复"部署验证"）、@mention 下拉。资源采样：容器 restarts 均 0，主机内存已用 3420MB/可用 3792MB，磁盘 19G/40G。React→0963f2d 基线镜像→React 的回滚演练完成，`rollback-83d96f0-pre` 镜像保留。
+
+诚实缺口（见 FRONTEND_PARITY_AUDIT.md §11）：消息内文件标签点击预览与聊天附件点击预览未迁移；高级工作流节点成功矩阵、外部 A2A/第三方集成验收仍受凭据与场景限制；本轮新增功能的 Chrome 之外浏览器兼容未测。
