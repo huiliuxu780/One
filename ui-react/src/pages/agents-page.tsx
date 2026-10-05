@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { MagnifyingGlass, PencilSimple, Plus, Robot, Trash, Copy } from '@phosphor-icons/react'
+import { DotsThreeOutline, MagnifyingGlass, PencilSimple, Plus, Robot, Trash, Copy } from '@phosphor-icons/react'
 import { listAgentTags, pageAgents, removeAgents, usedWithAgent } from '@/api/agents'
 import { AgentCard } from '@/features/agents/agent-card'
 import { AgentEditor } from '@/features/agents/agent-editor'
+import { AgentDetails } from '@/features/agents/agent-details'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Pagination } from '@/components/ui/pagination'
@@ -25,6 +26,7 @@ export function AgentsPage() {
   const [editorOpen, setEditorOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [cloneFrom, setCloneFrom] = useState<AgentDefinitionVO | null>(null)
+  const [detailsAgent, setDetailsAgent] = useState<AgentDefinitionVO | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -103,6 +105,7 @@ export function AgentsPage() {
               <div key={String(agent.id)} className="space-y-2">
                 <AgentCard agent={agent} />
                 <div className="flex gap-1">
+                  <Button variant="outline" size="sm" onClick={() => setDetailsAgent(agent)}><DotsThreeOutline size={13} /> 详情</Button>
                   <Button variant="outline" size="sm" className="flex-1" onClick={() => openEdit(agent)}><PencilSimple size={13} /> 编辑</Button>
                   <Button variant="outline" size="sm" className="flex-1" onClick={() => openClone(agent)}><Copy size={13} /> 复制</Button>
                   <Button variant="outline" size="sm" className="text-destructive" onClick={() => void handleDelete([agent])}><Trash size={13} /> 删除</Button>
@@ -120,6 +123,7 @@ export function AgentsPage() {
       </div>
 
       <AgentEditor open={editorOpen} onOpenChange={setEditorOpen} agentId={editingId} cloneFrom={cloneFrom} onSaved={() => void load()} />
+      {detailsAgent ? <AgentDetails agent={detailsAgent} onClose={() => setDetailsAgent(null)} /> : null}
     </main>
   )
 }

@@ -1,4 +1,4 @@
-import type { AgentA2A, AgentDefinitionDTO, AgentDefinitionVO, ApiResponse, PageResult } from '@/types'
+import type { AgentA2A, AgentDefinitionDTO, AgentDefinitionVO, AgentStatisticsVO, ApiResponse, JobInfo, PageResult } from '@/types'
 import { apiClient } from './client'
 
 export function pageAgents(query: AgentDefinitionDTO) {
@@ -42,4 +42,28 @@ export function getA2aConfig(agentId: string) {
 
 export function saveA2aConfig(data: AgentA2A) {
   return apiClient.post<ApiResponse<boolean>>('/api/agentA2a', data)
+}
+
+export function getAgentChatKey(agentId: string, refresh = false) {
+  return apiClient.get<ApiResponse<string>>(`/api/agent/chat-key/${agentId}`, { params: { refresh } })
+}
+
+export function getAgentTrends(agentId: string, days: number) {
+  return apiClient.get<ApiResponse<AgentStatisticsVO>>(`/api/agent/statistics/${agentId}/trends`, { params: { days } })
+}
+
+export function getAgentJob(agentId: string) {
+  return apiClient.get<ApiResponse<JobInfo | null>>('/api/runtime/job/getByBizId', { params: { bizId: agentId } })
+}
+
+export function addAgentJob(job: JobInfo) {
+  return apiClient.post<ApiResponse<boolean>>('/api/runtime/job/add', job)
+}
+
+export function updateAgentJob(job: JobInfo) {
+  return apiClient.post<ApiResponse<boolean>>('/api/runtime/job/update', job)
+}
+
+export function deleteAgentJob(agentId: string) {
+  return apiClient.get<ApiResponse<boolean>>('/api/runtime/job/deleteByBizId', { params: { bizId: agentId } })
 }
