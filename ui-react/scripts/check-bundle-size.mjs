@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // 构建产物体积阈值检查：pnpm build 后执行 pnpm size:check。
 // 可用 APBOA_SIZE_LIMITS 覆盖阈值（JSON，单位字节），如 {"entry":409600,"page":614400}。
-import { readdir, stat } from 'node:fs/promises'
+import { readFile, readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -11,6 +11,8 @@ const DEFAULT_LIMITS = {
   vendor: 500 * KB,
   xyflow: 1500 * KB,
   codemirror: 900 * KB,
+  // Mermaid 自带多种图定义，必须异步加载；此预算不适用于普通页面或首屏。
+  mermaid: 700 * KB,
   page: 600 * KB,
   css: 300 * KB,
 }
@@ -28,20 +30,26 @@ function parseLimits(raw) {
   }
 }
 
-function classify(filename) {
+async function classify(filename) {
   if (filename.endsWith('.css')) return 'css'
   if (!filename.endsWith('.js')) return null
   if (filename.startsWith('index-')) return 'entry'
   if (filename.startsWith('react-')) return 'vendor'
   if (filename.startsWith('xyflow-')) return 'xyflow'
   if (filename.startsWith('codemirror-')) return 'codemirror'
+  if (filename.startsWith('mermaid-')) return 'mermaid'
+  // Mermaid 的动态图定义由 Vite 自动拆成 hash chunk；按内容识别，避免放宽普通页面预算。
+  if (filename.startsWith('chunk-')) {
+    const content = await readFile(path.join(distAssets, filename), 'utf8')
+    if (content.includes('mermaid')) return 'mermaid'
+  }
   return 'page'
 }
 
 let failures = 0
 const rows = []
 for (const entry of await readdir(distAssets)) {
-  const kind = classify(entry)
+  const kind = await classify(entry)
   if (!kind) continue
   const { size } = await stat(path.join(distAssets, entry))
   const limit = limits[kind]

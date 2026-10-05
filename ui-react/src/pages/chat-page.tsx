@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   ArrowUp,
@@ -24,10 +25,11 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { toast } from '@/components/ui/sonner'
-import { MarkdownLite } from '@/components/markdown-lite'
+import { MarkdownLite, type MarkdownInteractionPayload } from '@/components/markdown-lite'
 import { EmptyState, ErrorState, PageLoading } from '@/components/states'
 import { getAgentAllowedFileTypes, pageAgents } from '@/api/agents'
 import { deleteAttachments, parseAttachmentText, uploadAttachment } from '@/api/attach'
+import { updateCurrentMessageContent } from '@/api/chatSession'
 import type { ChatMessageVO, ChatSessionVO, Message, PlanInfo, SubAgentRunVO, UploadedFileItem } from '@/types'
 import type { ToolCallView } from '@/features/chat/chat-runtime'
 import { useChatStore } from '@/features/chat/chat-store'
@@ -57,18 +59,47 @@ function messageWithFiles(files: UploadItem[], text: string) {
 
 function parseMessage(content: string | unknown): { text: string; files: UploadedFileItem[] } {
   if (typeof content !== 'string') return { text: JSON.stringify(content), files: [] }
-  const split = content.indexOf(ATTACHMENT_SEPARATOR)
-  if (split < 0) return { text: content, files: [] }
+  let normalized = content
   try {
-    const payload = JSON.parse(content.slice(0, split)) as { files?: UploadedFileItem[] }
-    return { text: content.slice(split + ATTACHMENT_SEPARATOR.length), files: Array.isArray(payload.files) ? payload.files : [] }
+    const wrapper = JSON.parse(content) as { content?: unknown }
+    if (wrapper && typeof wrapper.content === 'string') normalized = wrapper.content
   } catch {
-    return { text: content, files: [] }
+    // 普通文本不是 JSON 包装，直接渲染。
   }
+  const split = normalized.indexOf(ATTACHMENT_SEPARATOR)
+  if (split < 0) return { text: normalized, files: [] }
+  try {
+    const payload = JSON.parse(normalized.slice(0, split)) as { files?: UploadedFileItem[] }
+    return { text: normalized.slice(split + ATTACHMENT_SEPARATOR.length), files: Array.isArray(payload.files) ? payload.files : [] }
+  } catch {
+    return { text: normalized, files: [] }
+  }
+}
+
+function injectInteractionSubmission(raw: string, payload: MarkdownInteractionPayload) {
+  const parsedBlock = JSON.parse(payload.code) as { interaction?: { fields?: Array<{ name?: string; defaultValue?: unknown }>; submittedData?: Record<string, unknown> } }
+  if (!parsedBlock.interaction) throw new Error('交互协议缺少 interaction')
+  parsedBlock.interaction.submittedData = payload.data
+  for (const field of parsedBlock.interaction.fields ?? []) {
+    if (field.name && payload.data[field.name] !== undefined) field.defaultValue = payload.data[field.name]
+  }
+  const updatedCode = JSON.stringify(parsedBlock)
+  try {
+    const wrapper = JSON.parse(raw) as { content?: unknown }
+    if (wrapper && typeof wrapper.content === 'string' && wrapper.content.includes(payload.code)) {
+      wrapper.content = wrapper.content.replace(payload.code, updatedCode)
+      return JSON.stringify(wrapper)
+    }
+  } catch {
+    // 非 JSON 包装消息，下面直接替换代码块内容。
+  }
+  if (!raw.includes(payload.code)) throw new Error('当前消息中未找到交互协议块')
+  return raw.replace(payload.code, updatedCode)
 }
 
 export function ChatPage() {
   const store = useChatStore()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [input, setInput] = useState('')
   const [memoryActive, setMemoryActive] = useState(true)
   const [planActive, setPlanActive] = useState(true)
@@ -77,6 +108,7 @@ export function ChatPage() {
   const [agentPickerOpen, setAgentPickerOpen] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const seededAgentRef = useRef<string | null>(null)
 
   const agentsQuery = useQuery({
     queryKey: ['list', 'agent', 'chat-select'],
@@ -93,6 +125,19 @@ export function ChatPage() {
   const allowedTypes = allowedTypesQuery.data ?? []
 
   useEffect(() => { void store.loadSessions() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const requestedAgentId = searchParams.get('agentId')
+    if (!requestedAgentId || agentsQuery.isLoading || seededAgentRef.current === requestedAgentId) return
+    seededAgentRef.current = requestedAgentId
+    if (!agents.some((agent) => String(agent.id) === requestedAgentId)) {
+      toast.error('未找到要对话的智能体，或它已被停用')
+      setSearchParams({}, { replace: true })
+      return
+    }
+    void store.newSession(requestedAgentId).then((session) => {
+      if (session) toast.success('已创建新会话')
+    }).finally(() => setSearchParams({}, { replace: true }))
+  }, [agents, agentsQuery.isLoading, searchParams, setSearchParams, store])
   useEffect(() => {
     setMemoryActive(activeAgent?.enableMemory ?? false)
     setPlanActive(activeAgent?.enablePlanning ?? false)
@@ -181,6 +226,18 @@ export function ChatPage() {
     && !store.running
     && !attachments.some((item) => item.uploading)
     && (Boolean(input.trim()) || attachments.some((item) => !item.error))
+  const latestAssistantId = [...store.history].reverse().find((message) => message.role === 'assistant')?.id
+
+  async function handleInteraction(rawContent: unknown, payload: MarkdownInteractionPayload) {
+    if (store.running || !store.activeSessionId || !activeAgent?.agentCode || typeof rawContent !== 'string') return
+    try {
+      const updated = injectInteractionSubmission(rawContent, payload)
+      await updateCurrentMessageContent(store.activeSessionId, updated)
+      await store.send(payload.userText, activeAgent.agentCode, { memoryActive, planActive, toolProcessActive })
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : '交互提交失败')
+    }
+  }
 
   return (
     <div className="grid h-[100dvh] grid-cols-[260px_minmax(0,1fr)]">
@@ -210,7 +267,7 @@ export function ChatPage() {
             <>
               {store.history.map((message) => message.role === 'subagent' && message.subAgentRun
                 ? <SubAgentCard key={String(message.id)} run={message.subAgentRun} />
-                : <MessageBubble key={String(message.id)} role={message.role} content={message.content} />)}
+                : <MessageBubble key={String(message.id)} role={message.role} content={message.content} interactionDisabled={store.running || message.id !== latestAssistantId} onInteraction={(payload) => void handleInteraction(message.content, payload)} />)}
               {store.reasoning.map((item) => <ReasoningCard key={item.id} content={item.content} complete={item.complete} />)}
               {toolProcessActive && store.toolCalls.length ? <ToolTimeline tools={store.toolCalls} /> : null}
               {store.subAgentRuns.map((run) => <SubAgentCard key={run.invocationId} run={run} />)}
@@ -308,14 +365,14 @@ function AgentPicker({ agents, loading, onClose, onPick }: { agents: Array<{ id:
   return <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4" onClick={onClose}><div className="w-full max-w-md rounded-xl border border-border bg-background p-4 shadow-dialog" onClick={(event) => event.stopPropagation()}><Label>选择智能体开始会话</Label><Input className="mt-2" autoFocus placeholder="搜索…" value={keyword} onChange={(event) => setKeyword(event.target.value)} /><div className="mt-2 max-h-72 space-y-0.5 overflow-auto">{loading ? <PageLoading /> : null}{filtered.map((agent) => <button key={agent.id} className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => void onPick(agent)}><div className="font-medium">{agent.name}</div><div className="font-mono text-xs text-muted-foreground">{agent.code}</div></button>)}{!loading && filtered.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">没有匹配的智能体</p> : null}</div></div></div>
 }
 
-function MessageBubble({ role, content }: { role: string; content: string | unknown }) {
+function MessageBubble({ role, content, interactionDisabled = true, onInteraction }: { role: string; content: string | unknown; interactionDisabled?: boolean; onInteraction?: (payload: MarkdownInteractionPayload) => void }) {
   const parsed = parseMessage(content)
   if (role === 'thinking') return <ReasoningCard content={parsed.text} complete />
   if (role === 'user') return <div className="flex justify-end"><div className="max-w-[80%] rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-primary-foreground">{parsed.files.length ? <div className="mb-2 flex flex-wrap gap-1">{parsed.files.map((file) => <span key={file.id} className="rounded bg-primary-foreground/15 px-2 py-1 text-xs">{file.name}</span>)}</div> : null}{parsed.text ? <MarkdownLite content={parsed.text} /> : null}</div></div>
   if (role === 'tool') return <details className="max-w-[85%] rounded-xl border border-border bg-card px-3 py-2 text-sm"><summary className="cursor-pointer text-xs font-medium text-muted-foreground">工具结果</summary><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs">{parsed.text}</pre></details>
   if (role === 'activity') return <details className="max-w-[85%] rounded-xl border border-dashed border-border bg-muted/40 px-3 py-2 text-sm"><summary className="cursor-pointer text-xs font-medium text-muted-foreground">活动卡片</summary><pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-xs">{parsed.text}</pre></details>
   if (role === 'system') return null
-  return <div className="flex"><div className="max-w-[85%] rounded-2xl rounded-bl-sm border border-border bg-card px-4 py-2.5"><MarkdownLite content={parsed.text} /></div></div>
+  return <div className="flex"><div className="max-w-[85%] rounded-2xl rounded-bl-sm border border-border bg-card px-4 py-2.5"><MarkdownLite content={parsed.text} disabled={interactionDisabled} onInteraction={onInteraction} /></div></div>
 }
 
 function LiveMessage({ message }: { message: Message }) {

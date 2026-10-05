@@ -66,7 +66,7 @@ const assetNavigation: NavigationItem[] = [
   { label: '运维', to: '/ops', icon: Monitor, enabled: true, capability: 'ops:manage' },
 ]
 
-const pendingNavigation: NavigationItem[] = [
+const integrationNavigation: NavigationItem[] = [
   { label: '工作台', to: '/dashboard', icon: House, enabled: true },
   { label: 'API 服务', to: '/api-service', icon: PlugsConnected, enabled: true },
   { label: '审查', to: '/review', icon: ShieldCheck, enabled: true },
@@ -130,7 +130,7 @@ export function AppShell() {
         {renderNavigation(primaryNavigation, '主导航', '工作空间')}
         {renderNavigation(resourceNavigation, '资源管理', '资源管理')}
         {renderNavigation(assetNavigation, '资产配置', '资产配置')}
-        {renderNavigation(pendingNavigation, '规划中', '规划中')}
+        {renderNavigation(integrationNavigation, '分析与集成', '分析与集成')}
 
         <div className="mt-auto">
           <DropdownMenu.Root>
