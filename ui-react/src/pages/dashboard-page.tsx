@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { ArrowsDownUp, Database, MagnifyingGlass, Play, Plus, Star, Trash } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -22,11 +23,12 @@ import { readableError } from '@/lib/utils'
 
 /** 工作台（RM-08 Dashboard）：模板列表、默认项、启停与数据集真实查询。 */
 export function DashboardPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   return (
     <div className="px-6 py-6">
       <h1 className="text-xl font-semibold tracking-tight">工作台</h1>
       <p className="mb-4 mt-1 text-sm text-muted-foreground">看板模板与数据集；数据集执行真实查询，错误与超时原文可见。</p>
-      <Tabs defaultValue="dashboards">
+      <Tabs value={searchParams.get('tab') === 'datasets' ? 'datasets' : 'dashboards'} onValueChange={(value) => setSearchParams(value === 'dashboards' ? {} : { tab: value }, { replace: true })}>
         <TabsList>
           <TabsTrigger value="dashboards">看板</TabsTrigger>
           <TabsTrigger value="datasets">数据集</TabsTrigger>
