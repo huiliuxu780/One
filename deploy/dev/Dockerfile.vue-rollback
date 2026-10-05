@@ -1,0 +1,10 @@
+# 旧 Vue 前端的可执行回滚镜像（在 apboa-vue-rollback 基础上补启动入口）。
+# 上游 docker/nginx/nginx.conf 含 ${RUNTIME_HOST} 等占位符，但被直接复制为
+# default.conf（官方 entrypoint 的 envsubst 仅处理 .template 文件），
+# 故在此于启动前用 sed 精确替换四个占位符。
+FROM apboa-vue-rollback:20261005
+
+COPY deploy/dev/vue-rollback-entrypoint.sh /entrypoint-rollback.sh
+RUN chmod +x /entrypoint-rollback.sh
+
+ENTRYPOINT ["/entrypoint-rollback.sh"]

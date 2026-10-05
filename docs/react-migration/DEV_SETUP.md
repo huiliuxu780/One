@@ -93,11 +93,19 @@ docker compose --env-file .env -f docker-compose.yml -f docker-compose.ui-react-
 
 ## 6. 可执行回滚镜像
 
-旧 Vue 前端已构建为不可变镜像 `apboa-vue-rollback:20261005`（仅保留源码不构成可执行回滚，见 Spec RM-09）：
+旧 Vue 前端已构建为不可变镜像并验证可运行（仅保留源码不构成可执行回滚，见 Spec RM-09）：
+
+- `apboa-vue-rollback:20261005`：Vue 构建产物 + 上游 Nginx 配置。
+- `apboa-vue-rollback:20261005-exec`：在其上补启动入口（上游 `nginx.conf` 的 `${RUNTIME_HOST}` 等占位符不会被官方 entrypoint 替换，且写死 `apboa-console` 主机名；入口脚本以 sed 精确替换，保留 nginx 自身变量）。
+
+验证记录：容器加入 dev 网络后 `/web/` 返回 200（标题「Apboa Next智能体平台」），经其 Nginx 代理的 `/api/auth/login` 返回 `code=200` 与真实令牌。
 
 ```bash
-docker run -d --name vue-rollback -p 127.0.0.1:18081:80 apboa-vue-rollback:20261005
-# 访问 http://127.0.0.1:18081/web/（其内置 Nginx 代理 /api 到 compose 服务名时需同网络运行）
+docker run -d --name vue-rollback --network apboa-dev_backend \
+  -p 127.0.0.1:18081:80 apboa-vue-rollback:20261005-exec
+# 访问 http://127.0.0.1:18081/web/
+# 默认指向 dev 网络服务名；可用 RUNTIME_HOST/RUNTIME_PORT/WEBSOCKET_HOST/
+# WEBSOCKET_PORT/CONSOLE_HOST 覆盖
 ```
 
 回滚演练（React → Vue → React）与容量采样属 G8 上线阶段，需在切换窗口执行并记录。
