@@ -12,7 +12,7 @@ const KIND_STYLE: Record<string, { icon: React.ReactNode; className: string }> =
  * 等价旧 Vue TaggedContentRenderer：文本段按原样输出，标签段渲染为徽标；
  * 未注册的标签名退化为纯文本。用户消息默认使用本组件（与 Vue 行为一致）。
  */
-export function TaggedText({ content }: { content: string }) {
+export function TaggedText({ content, onWorkspaceFileClick }: { content: string; onWorkspaceFileClick?: (path: string) => void }) {
   const segments = parseTaggedContent(content)
   return (
     <span className="whitespace-pre-wrap break-words">
@@ -21,10 +21,10 @@ export function TaggedText({ content }: { content: string }) {
         if (!isMentionTag(segment.tagName)) return <span key={index}>{segment.content}</span>
         const style = KIND_STYLE[segment.tagName]
         return (
-          <span key={index} className={`mx-0.5 inline-flex items-center gap-1 rounded border px-1.5 py-0.5 align-baseline text-xs ${style.className}`}>
+          <button type="button" key={index} disabled={segment.tagName !== 'workspace-file' || !onWorkspaceFileClick} onClick={() => segment.tagName === 'workspace-file' && onWorkspaceFileClick?.(segment.tagContent)} className={`mx-0.5 inline-flex items-center gap-1 rounded border px-1.5 py-0.5 align-baseline text-xs disabled:cursor-default ${style.className}`}>
             {style.icon}
             <span className="max-w-56 truncate">{displayFromTagContent(segment.tagName, segment.tagContent)}</span>
-          </span>
+          </button>
         )
       })}
     </span>

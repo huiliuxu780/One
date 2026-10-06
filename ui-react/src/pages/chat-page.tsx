@@ -26,19 +26,20 @@ import { Textarea } from '@/components/ui/textarea'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { toast } from '@/components/ui/sonner'
 import { MarkdownLite, type MarkdownInteractionPayload } from '@/components/markdown-lite'
+import { FilePreviewDialog, type FilePreviewSource } from '@/components/file-preview-dialog'
 import { EmptyState, ErrorState, PageLoading } from '@/components/states'
 import { enabledSkillsOfAgent, enabledToolsOfAgent, getAgentAllowedFileTypes, pageAgents } from '@/api/agents'
-import { listFiles } from '@/api/workspace'
-import { deleteAttachments, parseAttachmentText, uploadAttachment } from '@/api/attach'
+import { downloadFile, listFiles } from '@/api/workspace'
+import { deleteAttachments, downloadAttachment, parseAttachmentText, uploadAttachment } from '@/api/attach'
 import { MentionDropdown, type MentionDropdownHandle } from '@/features/chat/mention-dropdown'
 import { BUILTIN_AGENT_SKILLS, buildTag, findMentionQuery, matchTagBeforeCursor, type MentionResourceItem } from '@/features/chat/mention'
 import { TaggedText } from '@/features/chat/tagged-text'
+import { messageWithFiles, parseMessageContent } from '@/features/chat/message-content'
 import { updateCurrentMessageContent } from '@/api/chatSession'
 import type { ChatMessageVO, ChatSessionVO, Message, PlanInfo, SubAgentRunVO, UploadedFileItem } from '@/types'
 import type { ToolCallView } from '@/features/chat/chat-runtime'
 import { useChatStore } from '@/features/chat/chat-store'
 
-const ATTACHMENT_SEPARATOR = '@==##::::##==@'
 const MAX_ATTACHMENT_SIZE = 30 * 1024 * 1024
 const PARSED_DOCUMENT_TYPES = new Set(['doc', 'docx', 'xlsx', 'xls', 'csv', 'pptx', 'ppt', 'pdf', 'txt', 'md'])
 
@@ -53,31 +54,6 @@ function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-}
-
-function messageWithFiles(files: UploadItem[], text: string) {
-  if (!files.length) return text
-  const payload = files.map(({ id, name, extension, size }) => ({ id, name, extension, size }))
-  return `${JSON.stringify({ files: payload })}${ATTACHMENT_SEPARATOR}${text}`
-}
-
-function parseMessage(content: string | unknown): { text: string; files: UploadedFileItem[] } {
-  if (typeof content !== 'string') return { text: JSON.stringify(content), files: [] }
-  let normalized = content
-  try {
-    const wrapper = JSON.parse(content) as { content?: unknown }
-    if (wrapper && typeof wrapper.content === 'string') normalized = wrapper.content
-  } catch {
-    // 普通文本不是 JSON 包装，直接渲染。
-  }
-  const split = normalized.indexOf(ATTACHMENT_SEPARATOR)
-  if (split < 0) return { text: normalized, files: [] }
-  try {
-    const payload = JSON.parse(normalized.slice(0, split)) as { files?: UploadedFileItem[] }
-    return { text: normalized.slice(split + ATTACHMENT_SEPARATOR.length), files: Array.isArray(payload.files) ? payload.files : [] }
-  } catch {
-    return { text: normalized, files: [] }
-  }
 }
 
 function injectInteractionSubmission(raw: string, payload: MarkdownInteractionPayload) {
@@ -116,6 +92,7 @@ export function ChatPage() {
   const [planActive, setPlanActive] = useState(true)
   const [toolProcessActive, setToolProcessActive] = useState(true)
   const [attachments, setAttachments] = useState<UploadItem[]>([])
+  const [previewSource, setPreviewSource] = useState<FilePreviewSource | null>(null)
   const [agentPickerOpen, setAgentPickerOpen] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -325,6 +302,17 @@ export function ChatPage() {
     }
   }
 
+  function previewAttachment(file: UploadedFileItem) {
+    setPreviewSource({ name: file.name, extension: file.extension || extensionOf(file.name), description: `附件 ${file.id}`, load: async () => (await downloadAttachment(file.id)).data })
+  }
+
+  function previewWorkspaceFile(path: string) {
+    if (!store.activeSessionId) { toast.error('请先选择会话'); return }
+    const name = path.split('/').filter(Boolean).at(-1) || path
+    const sessionId = store.activeSessionId
+    setPreviewSource({ name, extension: extensionOf(name), description: path, load: async () => (await downloadFile(sessionId, path)).data as Blob })
+  }
+
   return (
     <div className="grid h-[100dvh] grid-cols-[260px_minmax(0,1fr)]">
       <aside className="flex h-full flex-col border-r border-sidebar-border bg-sidebar">
@@ -353,7 +341,7 @@ export function ChatPage() {
             <>
               {store.history.map((message) => message.role === 'subagent' && message.subAgentRun
                 ? <SubAgentCard key={String(message.id)} run={message.subAgentRun} />
-                : <MessageBubble key={String(message.id)} role={message.role} content={message.content} interactionDisabled={store.running || message.id !== latestAssistantId} onInteraction={(payload) => void handleInteraction(message.content, payload)} />)}
+                : <MessageBubble key={String(message.id)} role={message.role} content={message.content} interactionDisabled={store.running || message.id !== latestAssistantId} onInteraction={(payload) => void handleInteraction(message.content, payload)} onAttachmentPreview={previewAttachment} onWorkspaceFilePreview={previewWorkspaceFile} />)}
               {store.reasoning.map((item) => <ReasoningCard key={item.id} content={item.content} complete={item.complete} />)}
               {toolProcessActive && store.toolCalls.length ? <ToolTimeline tools={store.toolCalls} /> : null}
               {store.subAgentRuns.map((run) => <SubAgentCard key={run.invocationId} run={run} />)}
@@ -367,7 +355,7 @@ export function ChatPage() {
         </div>
 
         <div className="border-t border-border p-4">
-          {attachments.length ? <div className="mb-2 flex gap-2 overflow-x-auto pb-1">{attachments.map((item) => <AttachmentChip key={item.id} item={item} onRemove={() => void removeAttachment(item)} />)}</div> : null}
+          {attachments.length ? <div className="mb-2 flex gap-2 overflow-x-auto pb-1">{attachments.map((item) => <AttachmentChip key={item.id} item={item} onPreview={() => previewAttachment(item)} onRemove={() => void removeAttachment(item)} />)}</div> : null}
           <div className="mb-2 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
             {activeAgent?.enableMemory ? <Toggle label="记忆" checked={memoryActive} onCheckedChange={setMemoryActive} /> : null}
             {activeAgent?.enablePlanning ? <Toggle label="计划" checked={planActive} onCheckedChange={setPlanActive} /> : null}
@@ -395,6 +383,7 @@ export function ChatPage() {
       </main>
 
       {agentPickerOpen ? <AgentPicker agents={agents.map((agent) => ({ id: String(agent.id), name: agent.name, code: agent.agentCode }))} loading={agentsQuery.isLoading} onClose={() => setAgentPickerOpen(false)} onPick={async (agent) => { setAgentPickerOpen(false); const created = await store.newSession(agent.id); if (!created) toast.error('创建会话失败') }} /> : null}
+      <FilePreviewDialog source={previewSource} onClose={() => setPreviewSource(null)} />
     </div>
   )
 }
@@ -408,11 +397,11 @@ function ContextBadge({ usage, compression }: { usage: number; compression: stri
   return <Badge variant="secondary" className="ml-auto">{compression === 'STARTED' ? '压缩上下文中…' : `上下文 ${percentage}%`}</Badge>
 }
 
-function AttachmentChip({ item, onRemove }: { item: UploadItem; onRemove: () => void }) {
+function AttachmentChip({ item, onPreview, onRemove }: { item: UploadItem; onPreview: () => void; onRemove: () => void }) {
   return (
     <div className={`flex min-w-44 max-w-64 items-center gap-2 rounded-lg border px-2.5 py-2 text-xs ${item.error ? 'border-destructive/40 bg-destructive/5' : 'border-border bg-muted/40'}`}>
       {item.uploading ? <CircleNotch size={15} className="shrink-0 animate-spin" /> : <File size={15} className="shrink-0" />}
-      <div className="min-w-0 flex-1"><div className="truncate font-medium">{item.name}</div><div className="truncate text-muted-foreground">{item.error ?? (item.uploading ? `${item.progress ?? 0}%` : item.size)}</div></div>
+      <button type="button" disabled={item.uploading || Boolean(item.error)} className="min-w-0 flex-1 text-left disabled:cursor-default" onClick={onPreview}><div className="truncate font-medium">{item.name}</div><div className="truncate text-muted-foreground">{item.error ?? (item.uploading ? `${item.progress ?? 0}%` : item.size)}</div></button>
       <button onClick={onRemove} aria-label={`移除 ${item.name}`}><X size={13} /></button>
     </div>
   )
@@ -462,10 +451,10 @@ function AgentPicker({ agents, loading, onClose, onPick }: { agents: Array<{ id:
   return <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4" onClick={onClose}><div className="w-full max-w-md rounded-xl border border-border bg-background p-4 shadow-dialog" onClick={(event) => event.stopPropagation()}><Label>选择智能体开始会话</Label><Input className="mt-2" autoFocus placeholder="搜索…" value={keyword} onChange={(event) => setKeyword(event.target.value)} /><div className="mt-2 max-h-72 space-y-0.5 overflow-auto">{loading ? <PageLoading /> : null}{filtered.map((agent) => <button key={agent.id} className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => void onPick(agent)}><div className="font-medium">{agent.name}</div><div className="font-mono text-xs text-muted-foreground">{agent.code}</div></button>)}{!loading && filtered.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">没有匹配的智能体</p> : null}</div></div></div>
 }
 
-function MessageBubble({ role, content, interactionDisabled = true, onInteraction }: { role: string; content: string | unknown; interactionDisabled?: boolean; onInteraction?: (payload: MarkdownInteractionPayload) => void }) {
-  const parsed = parseMessage(content)
+function MessageBubble({ role, content, interactionDisabled = true, onInteraction, onAttachmentPreview, onWorkspaceFilePreview }: { role: string; content: string | unknown; interactionDisabled?: boolean; onInteraction?: (payload: MarkdownInteractionPayload) => void; onAttachmentPreview?: (file: UploadedFileItem) => void; onWorkspaceFilePreview?: (path: string) => void }) {
+  const parsed = parseMessageContent(content)
   if (role === 'thinking') return <ReasoningCard content={parsed.text} complete />
-  if (role === 'user') return <div className="flex justify-end"><div className="max-w-[80%] rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-primary-foreground">{parsed.files.length ? <div className="mb-2 flex flex-wrap gap-1">{parsed.files.map((file) => <span key={file.id} className="rounded bg-primary-foreground/15 px-2 py-1 text-xs">{file.name}</span>)}</div> : null}{parsed.text ? <TaggedText content={parsed.text} /> : null}</div></div>
+  if (role === 'user') return <div className="flex justify-end"><div className="max-w-[80%] rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-primary-foreground">{parsed.files.length ? <div className="mb-2 flex flex-wrap gap-1">{parsed.files.map((file) => <button type="button" key={file.id} onClick={() => onAttachmentPreview?.(file)} className="rounded bg-primary-foreground/15 px-2 py-1 text-xs hover:bg-primary-foreground/25">{file.name}</button>)}</div> : null}{parsed.text ? <TaggedText content={parsed.text} onWorkspaceFileClick={onWorkspaceFilePreview} /> : null}</div></div>
   if (role === 'tool') return <details className="max-w-[85%] rounded-xl border border-border bg-card px-3 py-2 text-sm"><summary className="cursor-pointer text-xs font-medium text-muted-foreground">工具结果</summary><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs">{parsed.text}</pre></details>
   if (role === 'activity') return <details className="max-w-[85%] rounded-xl border border-dashed border-border bg-muted/40 px-3 py-2 text-sm"><summary className="cursor-pointer text-xs font-medium text-muted-foreground">活动卡片</summary><pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-xs">{parsed.text}</pre></details>
   if (role === 'system') return null

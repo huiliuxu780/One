@@ -8,9 +8,14 @@ import { Input } from '@/components/ui/input'
 import { Pagination } from '@/components/ui/pagination'
 import { toast } from '@/components/ui/sonner'
 import { MarkdownLite } from '@/components/markdown-lite'
+import { FilePreviewDialog, type FilePreviewSource } from '@/components/file-preview-dialog'
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/states'
 import { getMessageTree, pageSessions, switchCurrentMessage, updateCurrentMessageContent } from '@/api/chatSession'
-import type { ChatMessageVO, ChatSessionVO } from '@/types'
+import { downloadAttachment } from '@/api/attach'
+import { downloadFile } from '@/api/workspace'
+import { parseMessageContent } from '@/features/chat/message-content'
+import { TaggedText } from '@/features/chat/tagged-text'
+import type { ChatMessageVO, ChatSessionVO, UploadedFileItem } from '@/types'
 import { readableError } from '@/lib/utils'
 
 /**
@@ -25,6 +30,7 @@ export function ChatHistoryPage() {
   const [activeSession, setActiveSession] = useState<ChatSessionVO | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
+  const [previewSource, setPreviewSource] = useState<FilePreviewSource | null>(null)
 
   const sessionsQuery = useQuery({
     queryKey: ['list', 'chat-session', 'history', sessionPage, keyword, agentFilter],
@@ -67,6 +73,17 @@ export function ChatHistoryPage() {
     } catch (cause) {
       toast.error(readableError(cause, '更新失败'))
     }
+  }
+
+  function previewAttachment(file: UploadedFileItem) {
+    setPreviewSource({ name: file.name, extension: file.extension || file.name.split('.').pop(), description: `附件 ${file.id}`, load: async () => (await downloadAttachment(file.id)).data })
+  }
+
+  function previewWorkspaceFile(path: string) {
+    if (!activeSession) return
+    const name = path.split('/').filter(Boolean).at(-1) || path
+    const sessionId = String(activeSession.id)
+    setPreviewSource({ name, extension: name.split('.').pop(), description: path, load: async () => (await downloadFile(sessionId, path)).data as Blob })
   }
 
   return (
@@ -148,13 +165,20 @@ export function ChatHistoryPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="text-sm"><MarkdownLite content={message.content ?? ''} /></div>
+                  <HistoryMessageContent message={message} onAttachmentPreview={previewAttachment} onWorkspaceFilePreview={previewWorkspaceFile} />
                 )}
               </div>
             ))}
           </div>
         )}
       </main>
+      <FilePreviewDialog source={previewSource} onClose={() => setPreviewSource(null)} />
     </div>
   )
+}
+
+function HistoryMessageContent({ message, onAttachmentPreview, onWorkspaceFilePreview }: { message: ChatMessageVO; onAttachmentPreview: (file: UploadedFileItem) => void; onWorkspaceFilePreview: (path: string) => void }) {
+  const parsed = parseMessageContent(message.content ?? '')
+  if (message.role !== 'user') return <div className="text-sm"><MarkdownLite content={parsed.text} /></div>
+  return <div className="text-sm">{parsed.files.length ? <div className="mb-2 flex flex-wrap gap-1">{parsed.files.map((file) => <button type="button" key={file.id} className="rounded border border-border bg-muted px-2 py-1 text-xs hover:bg-muted/70" onClick={() => onAttachmentPreview(file)}>{file.name}</button>)}</div> : null}<TaggedText content={parsed.text} onWorkspaceFileClick={onWorkspaceFilePreview} /></div>
 }
