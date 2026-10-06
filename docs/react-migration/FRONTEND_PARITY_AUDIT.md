@@ -202,3 +202,17 @@
 - Console 镜像 `032a6b520fab` 经 Maven（`-pl runner-console -am`）重建；Flyway 执行 `V7 secret key value widen`（history success=1）。此前 ECS 已手动应用同义 ALTER 并清理 4 条 `value=NULL` 僵尸行。
 - 生产验证：`/react/` 200；`?kind=channel` 深链直达通知渠道页签并显示真实渠道记录；settings/ops/skill/automation 四页巡检控制台 0 错误；生产环境创建 API Key 成功（一次性弹窗+脱敏列表，V7 端到端生效）后删除清理。
 - 资源采样：全部 8 容器 restarts=0；主机内存已用 2751MB/可用 4461MB；磁盘 23G/40G（61%）。
+
+## 15. 2026-10-06 严格全局审计（26df3ba）
+
+对照方法：Vue `router/modules/*` 全量 49 条路由逐条比对 React router；Vue `src/api` 34 个文件全量 URL 比对 React api 层并 grep 双方调用方；代码扫描 TODO/占位/假数据；部署与运维核查。
+
+结论：
+
+- **路由层真遗漏 0 条**。存疑 2 条均为有意处置：`/register`（Vue 为租户组织流程，属排除范围，React 诚实占位并有路由测试）、`/forgot-password`（Vue 原页面经核实不 import 任何 API，纯静态占位）。
+- **API 层真缺口 3 条，本轮全部修复**：`GET /api/gateway/api/brief`（日志 API 筛选下拉）、`GET /api/gateway/access-log/{id}`（详情正文；原 React 详情弹窗只渲染列表摘要行，属功能缺陷，已改为详情接口实时读取并有组件测试与真实日志验证）、`GET /api/workflow/resources/summary`（资源计数徽标）。
+- 封装不一致备案 4 条：`/api/params/delete` Vue 封装本身是 bug（body 包 `{data}`，后端只收裸数组；Vue UI 从未调用，React 正确）；tool do 路径 React 做了 encodeURIComponent（更稳）；workspace 上传 sessionId 位置不同（后端 `@RequestParam` 两者皆可）；`getMessageTree` 为 React 独有增强。
+- 清理 RM-09 要求的"迁移中"导航死分支（所有导航项已 enabled，分支不可达）。
+- 验证：121 测试（新增 LogsTab 2 项）、构建、体积检查通过；真实网关日志详情弹窗展示响应正文；部署至 ECS（回滚点 `rollback-f5f64bf-pre-26df3ba`）。
+
+仍未完成（与 §11 合并为最终清单）：凭据依赖验收（工作流资源连接成功路径、外部 A2A/第三方 MCP/邮件/飞书/钉钉/企微）、高级工作流节点成功矩阵、强制断网故障注入、附件/日志第 2 页、编辑角色真实账号回归、多类型预览矩阵、非 Chromium 浏览器与并发容量、TLS/域名（公网开放前置）、依赖审计（pnpm audit）、本轮新回滚点的演练、磁盘可回收空间清理（须保留回滚镜像）。
