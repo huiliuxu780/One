@@ -35,6 +35,34 @@ function usedColumn<T extends { used?: string[] }>(): ColumnDef<T> {
 /** Hook 的 VO（HookConfig + used），含 name/hookType/priority 等字段。 */
 type HookRow = HookConfigVO
 
+const toolCodeTemplate = `import java.util.*;
+import com.hxh.apboa.engine.tool.dynamices.IDynamicAgentTool;
+import com.hxh.apboa.engine.agui.AgentContext;
+import org.springframework.stereotype.Component;
+
+@Component
+public class CustomTool implements IDynamicAgentTool {
+    @Override
+    public Object execute(AgentContext context, Map<String, Object> params) {
+        Map<String, Object> result = new HashMap<>();
+        // 在这里读取 params 并实现工具逻辑
+        return result;
+    }
+}`
+
+const hookCodeTemplate = `import io.agentscope.core.hook.Hook;
+import io.agentscope.core.hook.HookEvent;
+import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
+
+@Component
+public class CustomHook implements Hook {
+    @Override
+    public <T extends HookEvent> Mono<T> onEvent(T event) {
+        return Mono.just(event);
+    }
+}`
+
 export const toolDef: ResourceDef<ToolVO> = {
   key: 'tool',
   title: '工具',
@@ -57,8 +85,8 @@ export const toolDef: ResourceDef<ToolVO> = {
   form: [
     { name: 'name', label: '名称', type: 'text', required: true },
     { name: 'toolId', label: '工具 ID', type: 'text', required: true, placeholder: '调用时使用的唯一标识' },
-    { name: 'description', label: '描述', type: 'textarea', wide: true },
-    { name: 'category', label: '分类', type: 'text' },
+    { name: 'description', label: '描述', type: 'textarea', wide: true, required: true },
+    { name: 'category', label: '分类', type: 'text', required: true },
     { name: 'toolType', label: '工具类型', type: 'select', enumFrom: Object.values(ToolType), defaultValue: ToolType.CUSTOM },
     {
       name: 'language',
@@ -69,9 +97,10 @@ export const toolDef: ResourceDef<ToolVO> = {
       description: '当前后端只注册了 JAVA/Groovy 动态工具加载器。',
     },
     { name: 'needConfirm', label: '调用前需人工确认', type: 'switch' },
-    { name: 'inputSchema', label: '输入参数 Schema (JSON)', type: 'json', wide: true, placeholder: '[{"name":"arg","type":"string"}]' },
+    { name: 'version', label: '版本号', type: 'text', required: true, defaultValue: '1.0.0' },
+    { name: 'inputSchema', label: '输入参数', type: 'tool-schema', wide: true, defaultValue: [] },
     { name: 'classPath', label: '类路径（内置工具）', type: 'text' },
-    { name: 'code', label: '工具代码', type: 'textarea', wide: true, placeholder: '自定义工具代码' },
+    { name: 'code', label: '工具代码', type: 'textarea', wide: true, defaultValue: toolCodeTemplate },
     { name: 'enabled', label: '启用', type: 'switch', defaultValue: true },
   ],
   rowActions: [{ label: '调试', renderDialog: (row, onClose) => <ToolDebugDialog tool={row} onClose={onClose} /> }],
@@ -93,9 +122,9 @@ export const hookDef: ResourceDef<HookRow> = {
   form: [
     { name: 'name', label: '名称', type: 'text', required: true },
     { name: 'hookType', label: '类型', type: 'select', enumFrom: Object.values(HookType), defaultValue: HookType.CUSTOM },
-    { name: 'description', label: '描述', type: 'textarea', wide: true },
+    { name: 'description', label: '描述', type: 'textarea', wide: true, required: true },
     { name: 'classPath', label: '类路径', type: 'text' },
-    { name: 'code', label: '代码', type: 'textarea', wide: true },
+    { name: 'code', label: '代码', type: 'textarea', wide: true, required: true, defaultValue: hookCodeTemplate },
     { name: 'priority', label: '优先级', type: 'number', defaultValue: 0 },
     { name: 'enabled', label: '启用', type: 'switch', defaultValue: true },
   ],
@@ -116,8 +145,8 @@ export const promptDef: ResourceDef<SystemPromptTemplateVO> = {
   filters: [{ name: 'category', label: '分类', type: 'text' }],
   form: [
     { name: 'name', label: '名称', type: 'text', required: true },
-    { name: 'category', label: '分类', type: 'text' },
-    { name: 'description', label: '描述', type: 'textarea', wide: true },
+    { name: 'category', label: '分类', type: 'text', required: true },
+    { name: 'description', label: '描述', type: 'textarea', wide: true, required: true },
     { name: 'content', label: '模板内容', type: 'textarea', wide: true, required: true },
     { name: 'enabled', label: '启用', type: 'switch', defaultValue: true },
   ],
@@ -138,11 +167,11 @@ export const sensitiveDef: ResourceDef<SensitiveWordConfigVO> = {
   filters: [{ name: 'category', label: '分类', type: 'text' }],
   form: [
     { name: 'name', label: '名称', type: 'text', required: true },
-    { name: 'category', label: '分类', type: 'text' },
+    { name: 'category', label: '分类', type: 'text', required: true },
     { name: 'action', label: '命中动作', type: 'select', enumFrom: Object.values(SensitiveWordAction), defaultValue: SensitiveWordAction.BLOCK },
     { name: 'replacement', label: '替换文本', type: 'text', placeholder: 'action=REPLACE 时生效' },
-    { name: 'description', label: '描述', type: 'textarea', wide: true },
-    { name: 'words', label: '敏感词', type: 'tags', wide: true, placeholder: '逗号分隔多个词条' },
+    { name: 'description', label: '描述', type: 'textarea', wide: true, required: true },
+    { name: 'words', label: '敏感词', type: 'tags', wide: true, required: true, placeholder: '输入后按逗号或回车添加' },
     { name: 'enabled', label: '启用', type: 'switch', defaultValue: true },
   ],
 }
@@ -284,13 +313,13 @@ export const codeExecutionDef: ResourceDef<CodeExecutionConfig> = {
   ],
   form: [
     { name: 'configName', label: '配置名称', type: 'text', required: true },
-    { name: 'workDir', label: '工作目录', type: 'text', placeholder: '空则使用临时目录' },
-    { name: 'uploadDir', label: '脚本上传目录', type: 'text' },
+    { name: 'workDir', label: '工作目录', type: 'text', defaultValue: '.apboa/workspace' },
+    { name: 'uploadDir', label: '脚本上传目录', type: 'text', defaultValue: '.apboa/skills' },
     { name: 'autoUpload', label: '自动上传 Skill 文件', type: 'switch' },
-    { name: 'enableShell', label: '启用 Shell 工具', type: 'switch' },
+    { name: 'enableShell', label: '启用 Shell 工具', type: 'switch', defaultValue: true },
     { name: 'enableRead', label: '启用读取文件工具', type: 'switch' },
     { name: 'enableWrite', label: '启用写入文件工具', type: 'switch' },
-    { name: 'command', label: '允许执行的命令', type: 'tags', wide: true, placeholder: '如 python3, bash' },
+    { name: 'command', label: '允许执行的命令', type: 'tags', wide: true, defaultValue: ['python3', 'python', 'node', 'bash', 'sh'] },
     { name: 'enabled', label: '启用', type: 'switch', defaultValue: true },
   ],
 }

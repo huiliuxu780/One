@@ -29,7 +29,9 @@ export function enableWorkflowResource(kind: WorkflowResourceKind, id: string, e
 }
 
 export function checkWorkflowResource(kind: WorkflowResourceKind, entity: WorkflowManagedResource) {
-  return entity.id
-    ? apiClient.post<ApiResponse<boolean>>(`${endpoints[kind]}/${entity.id}/check/connect`)
-    : apiClient.post<ApiResponse<boolean>>(`${endpoints[kind]}/check/connect`, entity)
+  return apiClient.post<ApiResponse<boolean>>(`${endpoints[kind]}/check/connect`, entity)
+}
+
+export function checkSavedWorkflowResource(kind: WorkflowResourceKind, id: string) {
+  return apiClient.post<ApiResponse<boolean>>(`${endpoints[kind]}/${id}/check/connect`)
 }

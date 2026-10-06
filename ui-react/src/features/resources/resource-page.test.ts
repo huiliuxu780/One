@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { FieldDef } from './types'
-import { requiredFieldMissing, resourceEditFieldValue } from './resource-page'
+import { requiredFieldMissing, resourceEditFieldValue, validateResourceSemantics } from './resource-page'
 
 function field(overrides: Partial<FieldDef>): FieldDef {
   return { name: 'value', label: '值', type: 'text', ...overrides }
@@ -18,6 +18,21 @@ describe('resourceEditFieldValue', () => {
 
   it('preserves explicit false instead of replacing it with the default', () => {
     expect(resourceEditFieldValue(field({ type: 'switch', defaultValue: true }), false)).toBe(false)
+  })
+})
+
+describe('resource form conditional validation', () => {
+  it('requires provider credentials only for the selected authentication mode', () => {
+    expect(validateResourceSemantics('model-provider', { authType: 'CONFIG' })).toContain('API Key')
+    expect(validateResourceSemantics('model-provider', { authType: 'CONFIG' }, { authType: 'CONFIG' })).toBeNull()
+    expect(validateResourceSemantics('model-provider', { authType: 'CONFIG' }, { authType: 'ENV' })).toContain('API Key')
+    expect(validateResourceSemantics('model-provider', { authType: 'ENV' }, { authType: 'CONFIG' })).toContain('环境变量')
+  })
+
+  it('requires replacement text for replace actions and executable custom tools', () => {
+    expect(validateResourceSemantics('sensitive', { action: 'REPLACE' })).toContain('替换文本')
+    expect(validateResourceSemantics('tool', { toolType: 'CUSTOM', toolId: 'Bad-ID', code: 'code' })).toContain('工具 ID')
+    expect(validateResourceSemantics('tool', { toolType: 'CUSTOM', toolId: 'good_id', code: '' })).toContain('工具代码')
   })
 })
 

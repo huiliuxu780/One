@@ -18,7 +18,7 @@
 
 | Vue 入口 | 用户操作 | Vue 接口 | React 目标 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| `layout/`、`components/layout/` | 侧栏导航、用户菜单、退出 | 无/`auth` | `app-shell.tsx` | 已迁移未验证 | 左侧导航已确认可纵向滚动；账号设置菜单已接入设置页，尚待部署后回归；菜单按能力隐藏，后端权限为最终边界 |
+| `layout/`、`components/layout/` | 侧栏导航、用户菜单、退出 | 无/`auth` | `app-shell.tsx` | 已迁移未验证 | 左侧导航已确认可纵向滚动；账号设置菜单已在本地浏览器接入设置页；生产菜单回归未单独记录。菜单按能力隐藏，后端权限为最终边界 |
 | `pages/Login.vue` | 登录、Token 刷新 | `/api/auth/login`、refresh | `login-page.tsx`、`client.ts` | 已验证 | 登录响应必须含默认租户 `tenantId=1`；401 单飞刷新有 MSW 单测 |
 | 路由守卫 | 未登录跳登录 | — | `protected-route.tsx` | 已验证 | 登录后进入应用（Vue 登录后固定跳 dashboard，不回跳深链；React 行为一致） |
 | 403/404/500 | 错误页 | — | `error-pages.tsx` | 已验证 | 404 文案已去除"尚未迁移"过时表述 |
@@ -74,19 +74,19 @@
 
 | Vue 入口 | 用户操作 | Vue 接口 | React 目标 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| `views/Model/` | 供应商/模型 CRUD、连通性测试、密钥留空不修改 | model API | `model-page.tsx` | 已迁移未验证 | DashScope OpenAI 兼容模式两模型曾连接成功；本轮补齐供应商类型选择与默认 URL、模型类型枚举选择和 Vue 新建默认参数，保存行为待回归 |
-| `/model/:providerId/config` 深链 | 打开供应商下的模型配置 | — | `?providerId=` | 已迁移未验证 | 旧重定向误入供应商页签，本地 Vite + ECS 后端已确认显示供应商下两条模型，新建时预选该供应商；部署后仍需回归 |
+| `views/Model/` | 供应商/模型 CRUD、连通性测试、密钥留空不修改 | model API | `model-page.tsx` | 已迁移未验证 | DashScope OpenAI 兼容模式两模型曾连接成功；补齐供应商类型选择与默认 URL、模型类型枚举选择、Vue 新建默认参数及鉴权模式的条件校验，保存行为待回归 |
+| `/model/:providerId/config` 深链 | 打开供应商下的模型配置 | — | `?providerId=` | 已验证 | 旧重定向误入供应商页签已修复；部署后的页面确认显示该供应商下两条真实模型，本地新建表单预选该供应商；模型保存仍属上一行未验证范围 |
 | `views/Skill/` | 新建/导入（本地/Git/ZIP）/文件树编辑/工具关联/下载/同步/分类筛选/启停 | skill API | `skill-page.tsx` | 已迁移未验证 | 本轮补齐搜索、分类筛选与引用提醒后的启停；真实后端当前技能列表为空，未形成启停回归证据 |
 | `/skill/new` 深链 | 打开新建弹窗 | — | `?action=new` | 已验证 | 生产深链打开新建技能弹窗；Vue 是整页+弹窗，React 等价为弹窗 |
 | `/skill/hub` 深链 | 打开 SkillHub | — | `?hub=1` | 已验证 | 生产深链打开真实 SkillHub 列表；React 为 Sheet，搜索/导入一致 |
 | `/skill/:id/edit` 深链 | 打开指定技能编辑 | `/api/skill/{id}`、`/tree` | `?edit=ID` → 文件管理 Sheet | 已验证 | Vue 为整页文件树+Monaco；React 为文件树+CodeMirror Sheet，无效 ID 显示后端明确错误而非静默空壳 |
-| `views/Tool/` | CRUD、代码编辑、调试、分类/类型筛选、启停 | tool API | `resource-pages.tsx` | 已迁移未验证 | Schema 驱动调试已在真实 Tool 验证；本地分类筛选由两条缩至一条，启停已在真实 Tool 往返验证并恢复原状态；待部署后回归 |
+| `views/Tool/` | CRUD、代码编辑、调试、分类/类型筛选、启停 | tool API | `resource-pages.tsx` | 已迁移未验证 | 调试和分类筛选已在真实 Tool 验证，本地启停往返并恢复原状态。本轮又补齐输入参数结构化编辑、排序、版本号与代码模板；真实 Tool 的编辑表单已加载 Schema，保存协议有类型/单测覆盖，新增/编辑提交尚待真实后端回归 |
 | `views/Mcp/` | CRUD、激活、同步、工具治理、调试、协议筛选、启停 | mcp API | `mcp-page.tsx` | 已迁移未验证 | 本轮补齐分页搜索、协议筛选与引用提醒后的启停；调试展示原始错误，新增操作待真实数据回归 |
 | `/mcp/:serverId/tools` 深链 | 打开指定 Server 工具治理 | `/api/mcp/server/{id}`、`/tools` | `?tools=ID` | 已验证 | 生产深链已回归；无效 ID 显示后端明确错误（Vue 静默空态） |
-| `views/Hook/`、`views/Prompt/`、`views/Sensitive/` 等 | CRUD/占用检查/筛选/启停 | 对应 API | `resource-pages.tsx` | 已迁移未验证 | 审计发现统一资源页原来只显示启停徽标，缺少 Vue 的启停动作；已加占用二次确认和详情加载，待逐资源真实回归 |
+| `views/Hook/`、`views/Prompt/`、`views/Sensitive/` 等 | CRUD/占用检查/筛选/启停 | 对应 API | `resource-pages.tsx` | 已迁移未验证 | 已加占用二次确认和详情加载；本轮补齐 Vue 必填字段、敏感词替换文本校验和多值输入（原实现输入逗号会粘连词项）。本地浏览器确认 `alpha,beta` 成为两枚独立词项且未提交；提示词分类筛选已验证，逐资源保存/启停待真实回归 |
 | 长期记忆配置 | MEM0/ReMe/百炼专属字段、记忆控制模式、保存 | long-term-memory API | `memory-form.tsx` | 已迁移未验证 | 旧 React 仅提供原始 JSON，现按 Vue 协议构建 `config`；真实后端已打开现有 MEM0 编辑表单并验证密钥不回显，三个类型的字段和序列化单测通过，保存及外部连接未验证 |
 | `views/Mcp/`、`views/Skill/`、`views/Workflow/`、`views/Automation/` | 列表搜索、类型筛选 | 各分页 API | 对应 React 页 | 已迁移未验证 | 审计发现若搜索词未并入 `usePagedList` 查询键，请求不会触发；已修正 MCP/Skill/Workflow/Automation，工作流真实列表从四条缩至一条；其余待回归 |
-| 密钥字段 | 留空不修改语义 | — | 各表单 | 已验证 | 后端密文不回显 |
+| 密钥字段 | 留空不修改语义 | — | 各表单 | 已验证 | 后端密文不回显；模型供应商新建 CONFIG 鉴权需填 API Key，编辑时可留空保留原值 |
 
 ## 6. 自动化
 
@@ -101,13 +101,13 @@
 
 | Vue 入口 | 用户操作 | Vue 接口 | React 目标 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| `views/Workflow/` | 列表、搜索、复制、锁定、删除、强制删除 | workflow API | `workflow-page.tsx` | 已迁移未验证 | 本轮修复分页搜索，真实后端从四条缩为一条；待部署后回归 |
+| `views/Workflow/` | 列表、搜索、复制、锁定、删除、强制删除 | workflow API | `workflow-page.tsx` | 已迁移未验证 | 分页搜索在本地 Vite + 真实后端从四条缩为一条；其余写操作和生产筛选待逐项回归 |
 | `/workflow/new` 深链 | 创建进入编辑器 | workflowSave | `?create=1` → 创建一次 → `/workflow/{id}/edit` | 已迁移未验证 | Vue 打开未保存草稿画布（保存时才创建、无防重）；React 架构要求先建后编，深链严格防重复创建。行为差异已在备注声明 |
 | `/workflow/:id` 深链 | 打开编辑器 | — | 重定向 `/workflow/{id}/edit` | 已验证 | 生产深链完成重定向；不存在 ID 保持在编辑器加载/错误链路，不伪造内容 |
 | `components/workflow/` | React Flow 画布、节点配置、校验、保存、发布、版本、调试 | workflow/workflowResources API | `workflow-editor-page.tsx` | 已验证 | toBackendDefinition round-trip 单测；回声流程发布/运行通过 |
 | 高级节点矩阵 | 分支/循环/DB/MQ/Channel 运行 | — | 同上 | 已迁移未验证 | 高级节点成功矩阵缺失（REMAINING_SPEC §8.5） |
 | 知识库节点 | — | — | 只读提示不改写 | 明确排除 | 加载旧流程不静默改写 |
-| `views/WorkflowResources/` | Datasource/Cache/MQ/Channel CRUD | workflowResources API | `workflow-resources-page.tsx` | 已迁移未验证 | 密码留空不修改 |
+| `views/WorkflowResources/` | Datasource/Cache/MQ/Channel CRUD | workflowResources API | `workflow-resources-page.tsx` | 已迁移未验证 | 密码留空不修改；本轮纠正编辑弹窗连接检查误测“已保存配置”，现发送当前表单，列表检查仍测已保存配置，API 路径有单测。四类资源真实连接/保存仍待验收 |
 
 ## 8. 工作台与 API 服务
 
@@ -152,7 +152,7 @@
 
 ## 11. 待办（按优先级）
 
-1. 继续逐页检查保存协议、表单字段、页面内动作和旧深链。已发现并修复的筛选与启停缺口仍需覆盖各资源的真实浏览器回归，不能据此宣布全部迁移完毕。
+1. 继续逐页检查保存协议、表单字段、页面内动作和旧深链。已发现并修复的筛选、启停和资源表单缺口仍需覆盖各资源的真实浏览器回归，不能据此宣布全部迁移完毕。特别是 Tool/模型/长期记忆写入、工作流资源四类连接、账号管理和无现有数据的 Skill/MCP。
 2. 高级工作流节点成功运行矩阵、外部 A2A/第三方 MCP 集成凭据验收（REMAINING_SPEC §8）仍缺证据。
 3. 非 Chromium 浏览器兼容性与并发容量仍未形成证据，不能从单浏览器、单用户开发验收外推。
 

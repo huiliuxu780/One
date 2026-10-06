@@ -18,7 +18,7 @@ export interface ResourceApi<T> {
   usedWith?: (ids: string[]) => Promise<AxiosResponse<ApiResponse<unknown[]>>>
 }
 
-export type FieldType = 'text' | 'textarea' | 'number' | 'switch' | 'select' | 'tags' | 'json' | 'password'
+export type FieldType = 'text' | 'textarea' | 'number' | 'switch' | 'select' | 'tags' | 'json' | 'password' | 'tool-schema'
 
 export interface FieldDef {
   name: string

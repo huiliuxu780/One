@@ -38,6 +38,8 @@ import type { FieldDef, ResourceDef } from './types'
 import { MemoryFormDialog } from './memory-form'
 import type { LongTermMemoryConfig } from '@/types'
 import { MultiSelectField } from '@/features/agents/multi-select-field'
+import { TagInput } from './tag-input'
+import { ToolSchemaField, validateToolSchema } from './tool-schema-field'
 
 function enumOptions(field: FieldDef) {
   if (field.enumFrom) return field.enumFrom.map((value) => ({ label: value, value }))
@@ -61,6 +63,19 @@ export function resourceEditFieldValue(field: FieldDef, raw: unknown): unknown {
 
 export function requiredFieldMissing(field: FieldDef, raw: unknown) {
   return Boolean(field.required && (raw === undefined || raw === null || (typeof raw === 'string' && !raw.trim()) || (Array.isArray(raw) && raw.length === 0)))
+}
+
+export function validateResourceSemantics(key: string, payload: Record<string, unknown>, previous?: Record<string, unknown> | null): string | null {
+  if (key === 'tool' && payload.toolType !== 'BUILTIN') {
+    if (!/^[a-z_]+$/.test(String(payload.toolId ?? ''))) return '工具 ID 只能使用小写字母和下划线'
+    if (!String(payload.code ?? '').trim()) return '请填写工具代码'
+  }
+  if (key === 'sensitive' && payload.action === 'REPLACE' && !String(payload.replacement ?? '').trim()) return '请填写替换文本'
+  if (key === 'model-provider') {
+    if (payload.authType === 'ENV' && !String(payload.envVarName ?? '').trim()) return '请填写环境变量名'
+    if (payload.authType === 'CONFIG' && (!previous || previous.authType !== 'CONFIG') && !String(payload.apiKey ?? '').trim()) return '请填写 API Key'
+  }
+  return null
 }
 
 export function FormFieldRenderer({
@@ -120,22 +135,10 @@ export function FormFieldRenderer({
     case 'tags': {
       const tags = Array.isArray(value) ? (value as unknown[]).map(String) : []
       if (field.options?.length) return <MultiSelectField options={field.options} value={tags} onChange={onChange} placeholder={`请选择${field.label}`} />
-      return (
-        <Input
-          {...common}
-          placeholder={field.placeholder ?? '输入后按回车添加，可多项'}
-          value={tags.join(', ')}
-          onChange={(event) =>
-            onChange(
-              event.target.value
-                .split(/[,，]/)
-                .map((item) => item.trim())
-                .filter(Boolean),
-            )
-          }
-        />
-      )
+      return <TagInput id={id} value={tags} onChange={onChange} placeholder={field.placeholder} />
     }
+    case 'tool-schema':
+      return <ToolSchemaField value={value} onChange={onChange} />
     default:
       return (
         <Input
@@ -223,9 +226,20 @@ function ResourceFormDialog<T extends { id?: string | number }>({
           }
         }
         if (field.type === 'tags' && raw != null && !Array.isArray(raw)) payload[field.name] = String(raw).split(',').map((item) => item.trim()).filter(Boolean)
+        if (field.type === 'tool-schema') {
+          const message = validateToolSchema(raw)
+          if (message) { toast.error(message); return }
+        }
         // 留空不修改：密钥字段无论显示控件类型如何都不回显、不提交空值。
         if (field.secret && !raw) delete payload[field.name]
         if (field.type === 'number' && raw === '') payload[field.name] = undefined
+      }
+      const semanticError = validateResourceSemantics(def.key, payload, editing as Record<string, unknown> | null)
+      if (semanticError) { toast.error(semanticError); return }
+      if (def.key === 'tool' && payload.toolType !== 'BUILTIN') payload.classPath = null
+      if (def.key === 'code-execution') {
+        if (!payload.uploadDir) payload.uploadDir = '.apboa/skills'
+        if (Array.isArray(payload.command) && payload.command.length === 0) payload.command = null
       }
       if (editing != null) await def.api.update(payload as Partial<T>)
       else await def.api.save(payload as Partial<T>)
@@ -248,6 +262,10 @@ function ResourceFormDialog<T extends { id?: string | number }>({
         </DialogHeader>
         <form className="grid gap-4 sm:grid-cols-2" onSubmit={form.handleSubmit(submit)} noValidate>
           {def.form.map((field) => (
+            def.key === 'tool' && (
+              ['toolType', 'language', 'classPath'].includes(field.name) ||
+              (editing as Record<string, unknown> | null)?.toolType === 'BUILTIN' && ['toolId', 'inputSchema', 'code'].includes(field.name)
+            ) ? null :
             <div key={field.name} className={field.wide || field.type === 'textarea' || field.type === 'json' ? 'sm:col-span-2' : ''}>
               <label htmlFor={`field-${field.name}`} className="mb-1.5 block text-sm font-medium">
                 {field.label}
