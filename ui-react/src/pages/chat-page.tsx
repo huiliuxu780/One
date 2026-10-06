@@ -39,6 +39,7 @@ import { updateCurrentMessageContent } from '@/api/chatSession'
 import type { ChatMessageVO, ChatSessionVO, Message, PlanInfo, SubAgentRunVO, UploadedFileItem } from '@/types'
 import type { ToolCallView } from '@/features/chat/chat-runtime'
 import { useChatStore } from '@/features/chat/chat-store'
+import { ContextUsageIndicator } from '@/features/chat/context-usage-indicator'
 
 const MAX_ATTACHMENT_SIZE = 30 * 1024 * 1024
 const PARSED_DOCUMENT_TYPES = new Set(['doc', 'docx', 'xlsx', 'xls', 'csv', 'pptx', 'ppt', 'pdf', 'txt', 'md'])
@@ -330,7 +331,7 @@ export function ChatPage() {
             <div className="truncate text-sm font-semibold">{activeSession?.title || '选择会话'}</div>
             <div className="text-xs text-muted-foreground">{activeAgent ? `${activeAgent.name} · ${activeAgent.agentCode}` : '未选择智能体'}</div>
           </div>
-          {store.contextUsage ? <ContextBadge usage={store.contextUsage.ratio} compression={store.compressionStatus} /> : null}
+          {store.contextUsage ? <ContextUsageIndicator usage={store.contextUsage} compression={store.compressionStatus} /> : null}
           {store.running ? <Badge variant="outline" className="ml-2 gap-1"><CircleNotch size={12} className="animate-spin" /> {store.runState === 'STOPPING' ? '停止中…' : store.reconnecting ? '重连回放中…' : '运行中'}</Badge> : null}
         </header>
 
@@ -390,11 +391,6 @@ export function ChatPage() {
 
 function Toggle({ label, checked, onCheckedChange }: { label: string; checked: boolean; onCheckedChange: (value: boolean) => void }) {
   return <label className="flex items-center gap-1.5"><Switch checked={checked} onCheckedChange={onCheckedChange} /> {label}</label>
-}
-
-function ContextBadge({ usage, compression }: { usage: number; compression: string | null }) {
-  const percentage = Math.max(0, Math.min(100, Math.round((usage <= 1 ? usage * 100 : usage))))
-  return <Badge variant="secondary" className="ml-auto">{compression === 'STARTED' ? '压缩上下文中…' : `上下文 ${percentage}%`}</Badge>
 }
 
 function AttachmentChip({ item, onPreview, onRemove }: { item: UploadItem; onPreview: () => void; onRemove: () => void }) {

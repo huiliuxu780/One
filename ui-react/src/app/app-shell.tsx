@@ -129,12 +129,17 @@ export function AppShell() {
           {!collapsed ? <div className="min-w-0"><div className="truncate text-sm font-semibold">Apboa Next</div><div className="truncate text-[11px] text-sidebar-muted">React workspace</div></div> : null}
         </button>
 
-        {renderNavigation(primaryNavigation, '主导航', '工作空间')}
-        {renderNavigation(resourceNavigation, '资源管理', '资源管理')}
-        {renderNavigation(assetNavigation, '资产配置', '资产配置')}
-        {renderNavigation(integrationNavigation, '分析与集成', '分析与集成')}
+        <div
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1"
+          data-testid="sidebar-navigation-scroll"
+        >
+          {renderNavigation(primaryNavigation, '主导航', '工作空间')}
+          {renderNavigation(resourceNavigation, '资源管理', '资源管理')}
+          {renderNavigation(assetNavigation, '资产配置', '资产配置')}
+          {renderNavigation(integrationNavigation, '分析与集成', '分析与集成')}
+        </div>
 
-        <div className="mt-auto">
+        <div className="mt-3 shrink-0 border-t border-sidebar-border pt-3">
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
               <Button variant="ghost" className={cn('h-auto w-full justify-start gap-3 p-2 text-sidebar-foreground hover:bg-sidebar-accent', collapsed && 'justify-center')}>

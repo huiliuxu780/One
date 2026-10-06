@@ -57,7 +57,7 @@
 | 消息标签渲染 | 用户消息还原标签徽标 | 无 | `tagged-text.tsx` | 已验证 | 等价 Vue `TaggedContentRenderer`；未注册标签退化纯文本；真实消息渲染通过 |
 | 消息内文件标签点击预览 | 打开文件预览弹层 | workspace download | `file-preview-dialog.tsx`、`tagged-text.tsx` | 已验证 | 真实工作空间 README 经消息标签点击后下载 Blob，并在弹层显示文本；支持图片、PDF、音视频，未知格式诚实提示下载 |
 | 附件点击预览 | MediaPreview 弹层 | attach download | `file-preview-dialog.tsx`、`chat-page.tsx`、`chat-history-page.tsx` | 已验证 | 输入区、已发送消息、历史消息三处均用真实附件 ID 下载并预览；README 上传→解析→发送→历史恢复全链路通过 |
-| 上下文压缩指示 | 圆环+分级变色+tooltip | AG-UI state | `ContextBadge`（简化） | 已迁移未验证 | 百分比与压缩中状态已有；分级变色/tooltip 简化 |
+| 上下文压缩指示 | 圆环+分级变色+tooltip | AG-UI state | `ContextUsageIndicator` | 已验证 | 对齐 Vue 绿/黄/橙/红四档水位、压缩中琥珀色脉冲与旋转图标；tooltip 完整展示 Token、消息、上限和触发因素，阈值与文案有单测 |
 | 大文件分片上传 | — | `/api/attach/chunk-upload` | 无 | **死代码** | 证据：`ui/src/chunkfile/index.ts` 完整实现但全仓库零引用；`uploadChunk`（`ui/src/api/attach.ts:66-76`）仅被该死代码调用；聊天附件实际走单文件 `/api/attach/upload`。不迁移 |
 | `views/ChatHistory/` | 历史会话/消息树/分支切换/编辑当前消息 | session page/messages | `chat-history-page.tsx` | 已验证 | — |
 | `views/ChatHistory/:agentId` | 按智能体过滤 | pageSessions `agentId` | `chat-history-page.tsx` | 已验证 | Vue 原路径 `/chat/history/:agentId` 与 React 别名 `/chat-history/:agentId` 均转为查询参数；生产显示过滤条 |
