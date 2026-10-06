@@ -37,13 +37,14 @@ import * as workflowApi from '@/api/workflows'
 import { nodeMetadata } from '@/api/workflows'
 import { pageWorkflowResources } from '@/api/workflowResources'
 import { mcpServers, modelConfigs, skills, tools } from '@/api/resources'
-import type { McpServerVO, McpToolVO, ModelConfigVO, NodeMetadata, SkillPackageVO, ToolVO, WorkflowInputConfig, WorkflowManagedResource, WorkflowNodeExecution, WorkflowNodeRunResult, WorkflowRun, WorkflowRunResult, WorkflowVersion, WorkflowValidationResult } from '@/types'
+import type { McpServerVO, McpToolVO, ModelConfigVO, NodeMetadata, SkillPackageVO, ToolVO, VariableType, WorkflowInputConfig, WorkflowManagedResource, WorkflowNodeExecution, WorkflowNodeRunResult, WorkflowRun, WorkflowRunResult, WorkflowVariable, WorkflowVersion, WorkflowValidationResult } from '@/types'
 import { fromBackendDefinition, toBackendDefinition, toBackendNode } from '@/features/workflow/protocol'
 import { cloneWorkflowNodeDefaults, workflowNodeSchemaMap, workflowNodeSchemas } from '@/features/workflow/node-schemas'
 import { MultiSelectField, type SelectOption } from '@/features/agents/multi-select-field'
 import { mcpInputConfigs, toolInputConfigs } from '@/features/workflow/resource-bindings'
 import { validateWorkflowConnection } from '@/features/workflow/edge-rules'
 import { layoutWorkflowNodes } from '@/features/workflow/layout'
+import { buildWorkflowRunRequest, defaultRunValue, initialRunParamValues, initialRunVariables, parseWorkflowRunRequest, type WorkflowStartParam } from '@/features/workflow/run-inputs'
 import { sessionStorageAdapter } from '@/lib/storage'
 
 // 知识库节点不在节点库中（明确排除）；旧含 KNOWLEDGE 节点的流程加载后只读提示。
@@ -64,11 +65,20 @@ function WorkflowCanvasNode({ data, selected }: { data: Record<string, unknown>;
 
 const nodeTypes = { workflow: WorkflowCanvasNode }
 
-type FlowSnapshot = { nodes: Node[]; edges: Edge[] }
+type FlowSnapshot = { nodes: Node[]; edges: Edge[]; variables: WorkflowVariable[] }
 
-function cloneSnapshot(nodes: Node[], edges: Edge[]): FlowSnapshot {
-  return structuredClone({ nodes, edges })
+function cloneSnapshot(nodes: Node[], edges: Edge[], variables: WorkflowVariable[]): FlowSnapshot {
+  return structuredClone({ nodes, edges, variables })
 }
+
+const systemWorkflowVariables: WorkflowVariable[] = [
+  { id: 'sys_1', name: 'tenantId', type: 'Long', source: 'system', description: '当前租户 ID' },
+  { id: 'sys_2', name: 'tenantCode', type: 'String', source: 'system', description: '当前租户编号' },
+  { id: 'sys_3', name: 'userId', type: 'Long', source: 'system', description: '当前用户 ID' },
+  { id: 'sys_4', name: 'userName', type: 'String', source: 'system', description: '当前用户名称' },
+]
+
+const workflowVariableTypes: VariableType[] = ['String', 'Long', 'Integer', 'Float', 'Double', 'Boolean', 'Array', 'Object']
 
 function validationItem(item: WorkflowValidationResult['errors'][number]) {
   return typeof item === 'string' ? { message: item } : item
@@ -86,6 +96,9 @@ export function WorkflowEditorPage() {
   const [runsOpen, setRunsOpen] = useState(false)
   const [runResult, setRunResult] = useState<WorkflowRunResult | null>(null)
   const [runInputs, setRunInputs] = useState('{}')
+  const [runInputSource, setRunInputSource] = useState<'structured' | 'advanced'>('structured')
+  const [runParamValues, setRunParamValues] = useState<Record<string, unknown>>({})
+  const [runVariablesText, setRunVariablesText] = useState('{}')
   const [nodeRunInputs, setNodeRunInputs] = useState('{}')
   const [nodeRunResult, setNodeRunResult] = useState<WorkflowNodeRunResult | null>(null)
   const [runDialogMode, setRunDialogMode] = useState<'debug' | 'run' | null>(null)
@@ -94,6 +107,8 @@ export function WorkflowEditorPage() {
   const [dirty, setDirty] = useState(false)
   const [validationResult, setValidationResult] = useState<WorkflowValidationResult | null>(null)
   const [validationOpen, setValidationOpen] = useState(false)
+  const [variablesOpen, setVariablesOpen] = useState(false)
+  const [workflowVariables, setWorkflowVariables] = useState<WorkflowVariable[]>([])
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null)
   const [, setHistoryRevision] = useState(0)
   const [subWorkflowStack, setSubWorkflowStack] = useState<Array<{ loopNodeId: string; parentNodes: Node[]; parentEdges: Edge[] }>>([])
@@ -135,6 +150,7 @@ export function WorkflowEditorPage() {
     const { nodes: flowNodes, edges: flowEdges } = fromBackendDefinition(detail.workflow.config)
     setNodes(flowNodes)
     setEdges(flowEdges)
+    setWorkflowVariables(detail.workflow.config.variables ?? [])
     undoStackRef.current = []
     redoStackRef.current = []
     setHistoryRevision((value) => value + 1)
@@ -202,15 +218,16 @@ export function WorkflowEditorPage() {
       historyGroupRef.current = { key: group, at: now }
       return
     }
-    undoStackRef.current = [...undoStackRef.current.slice(-49), cloneSnapshot(nodes, edges)]
+    undoStackRef.current = [...undoStackRef.current.slice(-49), cloneSnapshot(nodes, edges, workflowVariables)]
     redoStackRef.current = []
     historyGroupRef.current = { key: group, at: now }
     setHistoryRevision((value) => value + 1)
-  }, [edges, nodes])
+  }, [edges, nodes, workflowVariables])
 
   const restoreSnapshot = useCallback((snapshot: FlowSnapshot) => {
     setNodes(snapshot.nodes)
     setEdges(snapshot.edges)
+    setWorkflowVariables(snapshot.variables)
     setSelectedId(null)
     setConfigText('{}')
     setConfigDirty(false)
@@ -221,7 +238,7 @@ export function WorkflowEditorPage() {
   function undo() {
     const snapshot = undoStackRef.current.pop()
     if (!snapshot) return
-    redoStackRef.current.push(cloneSnapshot(nodes, edges))
+    redoStackRef.current.push(cloneSnapshot(nodes, edges, workflowVariables))
     historyGroupRef.current = null
     restoreSnapshot(snapshot)
     setHistoryRevision((value) => value + 1)
@@ -230,10 +247,43 @@ export function WorkflowEditorPage() {
   function redo() {
     const snapshot = redoStackRef.current.pop()
     if (!snapshot) return
-    undoStackRef.current.push(cloneSnapshot(nodes, edges))
+    undoStackRef.current.push(cloneSnapshot(nodes, edges, workflowVariables))
     historyGroupRef.current = null
     restoreSnapshot(snapshot)
     setHistoryRevision((value) => value + 1)
+  }
+
+  const startParams = useMemo<WorkflowStartParam[]>(() => {
+    const start = nodes.find((node) => String(node.data.type) === 'START')
+    const params = (start?.data.config as Record<string, unknown> | undefined)?.params
+    return Array.isArray(params) ? params as WorkflowStartParam[] : []
+  }, [nodes])
+
+  function openRunDialog(mode: 'debug' | 'run') {
+    const values = initialRunParamValues(startParams)
+    const variables = initialRunVariables(workflowVariables)
+    setRunParamValues(values)
+    setRunVariablesText(JSON.stringify(variables, null, 2))
+    setRunInputs(JSON.stringify(buildWorkflowRunRequest(startParams, values, JSON.stringify(variables)), null, 2))
+    setRunInputSource('structured')
+    setRunDialogMode(mode)
+  }
+
+  function updateRunParam(name: string, value: unknown) {
+    const next = { ...runParamValues, [name]: value }
+    setRunParamValues(next)
+    try {
+      setRunInputs(JSON.stringify(buildWorkflowRunRequest(startParams, next, runVariablesText), null, 2))
+    } catch {
+      // 输入尚未完成时保留编辑值，提交时给出精确字段错误。
+    }
+    setRunInputSource('structured')
+  }
+
+  function updateRunVariables(value: string) {
+    setRunVariablesText(value)
+    try { setRunInputs(JSON.stringify(buildWorkflowRunRequest(startParams, runParamValues, value), null, 2)) } catch { /* 提交时校验 */ }
+    setRunInputSource('structured')
   }
 
   useEffect(() => {
@@ -453,7 +503,7 @@ export function WorkflowEditorPage() {
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('高级 JSON 配置必须是对象')
         nodesToSave = nodes.map((node) => node.id === selectedNode.id ? { ...node, data: { ...node.data, config: parsed as Record<string, unknown> } } : node)
       }
-      const definition = toBackendDefinition(nodesToSave, edges, detailQuery.data?.workflow.config?.variables, detailQuery.data?.workflow.config?.viewport)
+      const definition = toBackendDefinition(nodesToSave, edges, workflowVariables, detailQuery.data?.workflow.config?.viewport)
       return workflowApi.updateWorkflow({ id, name: detailQuery.data?.workflow.name, config: definition })
     },
     onSuccess: () => {
@@ -492,8 +542,8 @@ export function WorkflowEditorPage() {
 
   const runMutation = useMutation({
     mutationFn: async (mode: 'debug' | 'run') => {
-      const inputs = parseInputObject(runInputs)
-      return mode === 'debug' ? (await workflowApi.debugRun(String(id), { inputs } as never)).data.data : (await workflowApi.formalRun(String(id), { inputs } as never)).data.data
+      const request = runInputSource === 'advanced' ? parseWorkflowRunRequest(runInputs) : buildWorkflowRunRequest(startParams, runParamValues, runVariablesText)
+      return mode === 'debug' ? (await workflowApi.debugRun(String(id), request)).data.data : (await workflowApi.formalRun(String(id), request)).data.data
     },
     onSuccess: (result: WorkflowRunResult) => {
       setRunResult(result)
@@ -540,6 +590,7 @@ export function WorkflowEditorPage() {
           <Button variant="ghost" size="sm" onClick={redo} disabled={readOnly || !redoStackRef.current.length || Boolean(subWorkflowStack.length)}>重做</Button>
           <Button variant="ghost" size="sm" onClick={autoLayout} disabled={readOnly || !nodes.length}>整理布局</Button>
           <Button variant="ghost" size="sm" className="text-destructive" onClick={clearCanvas} disabled={readOnly || !nodes.length}>清空</Button>
+          <Button variant="outline" size="sm" onClick={() => setVariablesOpen(true)} disabled={Boolean(subWorkflowStack.length)}>变量</Button>
           <Button variant="outline" size="sm" onClick={() => setVersionsOpen(true)}>版本</Button>
           <Button variant="outline" size="sm" onClick={() => setRunsOpen(true)}><ClockCounterClockwise size={14} /> 运行记录</Button>
           {lockState === 'checking' ? <Badge variant="outline">正在取得编辑锁…</Badge> : lockState === 'readonly' ? <Badge variant="outline">只读</Badge> : null}
@@ -549,10 +600,10 @@ export function WorkflowEditorPage() {
           <Button variant="outline" size="sm" onClick={() => setPublishOpen(true)} disabled={readOnly || Boolean(subWorkflowStack.length) || publishMutation.isPending}>
             发布
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setRunDialogMode('debug')} disabled={readOnly || Boolean(subWorkflowStack.length) || runMutation.isPending}>
+          <Button variant="outline" size="sm" onClick={() => openRunDialog('debug')} disabled={readOnly || Boolean(subWorkflowStack.length) || runMutation.isPending}>
             <Bug size={14} /> 调试运行
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setRunDialogMode('run')} disabled={readOnly || Boolean(subWorkflowStack.length) || runMutation.isPending}>
+          <Button variant="outline" size="sm" onClick={() => openRunDialog('run')} disabled={readOnly || Boolean(subWorkflowStack.length) || runMutation.isPending}>
             <Play size={14} /> 正式运行
           </Button>
           <Button size="sm" onClick={() => saveMutation.mutate()} disabled={readOnly || Boolean(subWorkflowStack.length) || saveMutation.isPending}>
@@ -722,10 +773,25 @@ export function WorkflowEditorPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={variablesOpen} onOpenChange={setVariablesOpen}>
+        <DialogContent className="max-h-[85dvh] max-w-xl overflow-y-auto">
+          <DialogHeader><DialogTitle>工作流变量</DialogTitle><DialogDescription>系统变量只读；自定义变量随工作流定义保存，并可用于节点输入绑定和运行输入。</DialogDescription></DialogHeader>
+          <div className="space-y-2">
+            {systemWorkflowVariables.map((variable) => <div key={variable.id} className="grid grid-cols-[minmax(0,1fr)_120px] gap-2 rounded-lg bg-muted px-3 py-2 text-sm"><div><div className="font-medium">{variable.name}</div><div className="text-xs text-muted-foreground">{variable.description}</div></div><Badge variant="outline" className="self-center justify-self-end">{variable.type}</Badge></div>)}
+            {workflowVariables.length ? <div className="pt-2 text-xs font-medium text-muted-foreground">自定义变量</div> : null}
+            {workflowVariables.map((variable, index) => <div key={variable.id} className="grid grid-cols-[minmax(0,1fr)_130px_36px] gap-2"><Input aria-label={`变量 ${index + 1} 名称`} value={variable.name} disabled={readOnly} placeholder="变量名" onChange={(event) => { recordHistory('workflow-variables'); setWorkflowVariables((items) => items.map((item) => item.id === variable.id ? { ...item, name: event.target.value } : item)); setDirty(true) }} /><Select value={variable.type} disabled={readOnly} onValueChange={(type) => { recordHistory('workflow-variables'); setWorkflowVariables((items) => items.map((item) => item.id === variable.id ? { ...item, type: type as VariableType } : item)); setDirty(true) }}><SelectTrigger aria-label={`变量 ${index + 1} 类型`}><SelectValue /></SelectTrigger><SelectContent>{workflowVariableTypes.map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}</SelectContent></Select><Button type="button" variant="ghost" size="icon" className="text-destructive" disabled={readOnly} aria-label={`删除变量 ${variable.name || index + 1}`} onClick={() => { recordHistory('workflow-variables-delete'); setWorkflowVariables((items) => items.filter((item) => item.id !== variable.id)); setDirty(true) }}><Trash size={13} /></Button></div>)}
+            <Button type="button" variant="outline" className="w-full" disabled={readOnly} onClick={() => { recordHistory('workflow-variables-add'); setWorkflowVariables((items) => [...items, { id: `cust_${Date.now()}`, name: '', type: 'String', source: 'custom' }]); setDirty(true) }}><Plus size={14} /> 添加变量</Button>
+          </div>
+          <DialogFooter><Button onClick={() => { const names = workflowVariables.map((item) => item.name.trim()); if (names.some((name) => !name)) { toast.error('变量名不能为空'); return } if (new Set(names).size !== names.length || names.some((name) => systemWorkflowVariables.some((system) => system.name === name))) { toast.error('变量名不能重复或覆盖系统变量'); return } setVariablesOpen(false) }}>完成</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={Boolean(runDialogMode)} onOpenChange={(open) => !open && setRunDialogMode(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{runDialogMode === 'debug' ? '调试运行' : '正式运行'}</DialogTitle><DialogDescription>输入会原样作为后端工作流 inputs 对象提交；这里不使用模拟结果。</DialogDescription></DialogHeader>
-          <div><Label>运行输入（JSON 对象）</Label><Textarea aria-label="运行输入（JSON 对象）" className="mt-2 min-h-52 font-mono text-xs" value={runInputs} onChange={(event) => setRunInputs(event.target.value)} /></div>
+        <DialogContent className="max-h-[85dvh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{runDialogMode === 'debug' ? '调试运行' : '正式运行'}</DialogTitle><DialogDescription>按 Java DTO 提交 params 与 variables；不会再发送后端忽略的 inputs 字段。</DialogDescription></DialogHeader>
+          {startParams.length ? <div className="space-y-3"><Label>开始节点参数</Label>{startParams.filter((param) => param.name).map((param) => { const name = String(param.name); const type = param.type || 'String'; const value = runParamValues[name] ?? defaultRunValue(type, param.value); return <div key={name}><Label className="text-xs">{name} · {type}{param.required ? ' · 必填' : ''}</Label>{type === 'Boolean' ? <div className="mt-1"><Switch checked={Boolean(value)} onCheckedChange={(checked) => updateRunParam(name, checked)} /></div> : type === 'Array' || type === 'Object' ? <Textarea className="mt-1 min-h-20 font-mono text-xs" value={String(value)} onChange={(event) => updateRunParam(name, event.target.value)} /> : <Input className="mt-1" type={['Integer', 'Float', 'Double'].includes(type) ? 'number' : 'text'} value={String(value)} onChange={(event) => updateRunParam(name, event.target.value)} />}</div> })}</div> : <p className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">开始节点没有声明参数。</p>}
+          {workflowVariables.length ? <div><Label>自定义变量（JSON 对象）</Label><Textarea className="mt-2 min-h-28 font-mono text-xs" value={runVariablesText} onChange={(event) => updateRunVariables(event.target.value)} /></div> : null}
+          <details className="rounded-lg border border-border p-3"><summary className="cursor-pointer text-sm font-medium">高级请求 JSON</summary><Textarea aria-label="运行输入（JSON 对象）" className="mt-2 min-h-44 font-mono text-xs" value={runInputs} onChange={(event) => { setRunInputs(event.target.value); setRunInputSource('advanced') }} /><p className="mt-1 text-xs text-muted-foreground">格式：{'{ "params": [{ "name": "...", "value": ... }], "variables": {} }'}</p></details>
           <DialogFooter><Button variant="outline" onClick={() => setRunDialogMode(null)}>取消</Button><Button onClick={() => runDialogMode && runMutation.mutate(runDialogMode)} disabled={runMutation.isPending}>{runMutation.isPending ? '执行中…' : '开始执行'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
