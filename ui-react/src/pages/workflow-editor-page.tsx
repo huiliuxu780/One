@@ -17,6 +17,7 @@ import {
   type Node,
   type NodeChange,
   type NodeMouseHandler,
+  type ReactFlowInstance,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { ArrowLeft, Bug, ClockCounterClockwise, FloppyDisk, Play, Plus, ShieldCheck, Trash } from '@phosphor-icons/react'
@@ -42,6 +43,7 @@ import { cloneWorkflowNodeDefaults, workflowNodeSchemaMap, workflowNodeSchemas }
 import { MultiSelectField, type SelectOption } from '@/features/agents/multi-select-field'
 import { mcpInputConfigs, toolInputConfigs } from '@/features/workflow/resource-bindings'
 import { validateWorkflowConnection } from '@/features/workflow/edge-rules'
+import { layoutWorkflowNodes } from '@/features/workflow/layout'
 import { sessionStorageAdapter } from '@/lib/storage'
 
 // 知识库节点不在节点库中（明确排除）；旧含 KNOWLEDGE 节点的流程加载后只读提示。
@@ -62,6 +64,16 @@ function WorkflowCanvasNode({ data, selected }: { data: Record<string, unknown>;
 
 const nodeTypes = { workflow: WorkflowCanvasNode }
 
+type FlowSnapshot = { nodes: Node[]; edges: Edge[] }
+
+function cloneSnapshot(nodes: Node[], edges: Edge[]): FlowSnapshot {
+  return structuredClone({ nodes, edges })
+}
+
+function validationItem(item: WorkflowValidationResult['errors'][number]) {
+  return typeof item === 'string' ? { message: item } : item
+}
+
 export function WorkflowEditorPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -80,10 +92,19 @@ export function WorkflowEditorPage() {
   const [publishOpen, setPublishOpen] = useState(false)
   const [publishRemark, setPublishRemark] = useState('')
   const [dirty, setDirty] = useState(false)
+  const [validationResult, setValidationResult] = useState<WorkflowValidationResult | null>(null)
+  const [validationOpen, setValidationOpen] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null)
+  const [, setHistoryRevision] = useState(0)
   const [subWorkflowStack, setSubWorkflowStack] = useState<Array<{ loopNodeId: string; parentNodes: Node[]; parentEdges: Edge[] }>>([])
   const [lockState, setLockState] = useState<'checking' | 'owned' | 'readonly'>('checking')
   const lockOwnedRef = useRef(false)
   const lockWorkflowIdRef = useRef('')
+  const flowRef = useRef<ReactFlowInstance<Node, Edge> | null>(null)
+  const undoStackRef = useRef<FlowSnapshot[]>([])
+  const redoStackRef = useRef<FlowSnapshot[]>([])
+  const historyGroupRef = useRef<{ key: string; at: number } | null>(null)
+  const dragHistoryCapturedRef = useRef(false)
 
   const detailQuery = useQuery({
     queryKey: ['detail', 'workflow', String(id)],
@@ -114,6 +135,9 @@ export function WorkflowEditorPage() {
     const { nodes: flowNodes, edges: flowEdges } = fromBackendDefinition(detail.workflow.config)
     setNodes(flowNodes)
     setEdges(flowEdges)
+    undoStackRef.current = []
+    redoStackRef.current = []
+    setHistoryRevision((value) => value + 1)
     setDirty(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detailQuery.data])
@@ -171,6 +195,47 @@ export function WorkflowEditorPage() {
   const readOnly = legacyKnowledgeReadOnly || lockState !== 'owned'
   const navigationBlocker = useBlocker(dirty && !readOnly)
 
+  const recordHistory = useCallback((group = 'change') => {
+    const now = Date.now()
+    const previousGroup = historyGroupRef.current
+    if (previousGroup?.key === group && now - previousGroup.at < 600) {
+      historyGroupRef.current = { key: group, at: now }
+      return
+    }
+    undoStackRef.current = [...undoStackRef.current.slice(-49), cloneSnapshot(nodes, edges)]
+    redoStackRef.current = []
+    historyGroupRef.current = { key: group, at: now }
+    setHistoryRevision((value) => value + 1)
+  }, [edges, nodes])
+
+  const restoreSnapshot = useCallback((snapshot: FlowSnapshot) => {
+    setNodes(snapshot.nodes)
+    setEdges(snapshot.edges)
+    setSelectedId(null)
+    setConfigText('{}')
+    setConfigDirty(false)
+    setContextMenu(null)
+    setDirty(true)
+  }, [setEdges, setNodes])
+
+  function undo() {
+    const snapshot = undoStackRef.current.pop()
+    if (!snapshot) return
+    redoStackRef.current.push(cloneSnapshot(nodes, edges))
+    historyGroupRef.current = null
+    restoreSnapshot(snapshot)
+    setHistoryRevision((value) => value + 1)
+  }
+
+  function redo() {
+    const snapshot = redoStackRef.current.pop()
+    if (!snapshot) return
+    undoStackRef.current.push(cloneSnapshot(nodes, edges))
+    historyGroupRef.current = null
+    restoreSnapshot(snapshot)
+    setHistoryRevision((value) => value + 1)
+  }
+
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
       if (!dirty || readOnly) return
@@ -182,14 +247,25 @@ export function WorkflowEditorPage() {
   }, [dirty, readOnly])
 
   const handleNodesChange = useCallback((changes: NodeChange<Node>[]) => {
-    if (changes.some((change) => ['position', 'add', 'remove', 'replace'].includes(change.type))) setDirty(true)
+    const structural = changes.some((change) => ['add', 'remove', 'replace'].includes(change.type))
+    const dragging = changes.some((change) => change.type === 'position' && change.dragging)
+    if (structural) recordHistory('canvas-structure')
+    if (dragging && !dragHistoryCapturedRef.current) {
+      recordHistory('node-drag')
+      dragHistoryCapturedRef.current = true
+    }
+    if (!dragging && changes.some((change) => change.type === 'position')) dragHistoryCapturedRef.current = false
+    if (structural || changes.some((change) => change.type === 'position')) setDirty(true)
     onNodesChange(changes)
-  }, [onNodesChange])
+  }, [onNodesChange, recordHistory])
 
   const handleEdgesChange = useCallback((changes: EdgeChange<Edge>[]) => {
-    if (changes.some((change) => ['add', 'remove', 'replace'].includes(change.type))) setDirty(true)
+    if (changes.some((change) => ['add', 'remove', 'replace'].includes(change.type))) {
+      recordHistory('edge-change')
+      setDirty(true)
+    }
     onEdgesChange(changes)
-  }, [onEdgesChange])
+  }, [onEdgesChange, recordHistory])
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -199,10 +275,11 @@ export function WorkflowEditorPage() {
         toast.warning(result.reason)
         return
       }
+      recordHistory('edge-connect')
       setDirty(true)
       setEdges((existing) => addEdge({ ...connection, id: `e_${connection.source}_${connection.target}_${Date.now()}` }, existing))
     },
-    [edges, nodes, readOnly, setEdges],
+    [edges, nodes, readOnly, recordHistory, setEdges],
   )
 
   const onNodeClick: NodeMouseHandler = useCallback((_event, node) => {
@@ -215,6 +292,7 @@ export function WorkflowEditorPage() {
     if (!selectedNode || readOnly) return
     try {
       const parsed = JSON.parse(configText) as Record<string, unknown>
+      recordHistory('advanced-config')
       setNodes((existing) => existing.map((node) => (node.id === selectedNode.id ? { ...node, data: { ...node.data, config: parsed } } : node)))
       setConfigDirty(false)
       setDirty(true)
@@ -230,6 +308,7 @@ export function WorkflowEditorPage() {
 
   function updateConfigPatch(patch: Record<string, unknown>) {
     if (!selectedNode || readOnly) return
+    recordHistory(`config-${selectedNode.id}`)
     const nodeId = selectedNode.id
     let nextConfig: Record<string, unknown> = {}
     setNodes((existing) => existing.map((node) => {
@@ -244,17 +323,24 @@ export function WorkflowEditorPage() {
 
   function updateNodeData(key: string, value: unknown) {
     if (!selectedNode || readOnly) return
+    recordHistory(`node-data-${selectedNode.id}`)
     setNodes((existing) => existing.map((node) => (node.id === selectedNode.id ? { ...node, data: { ...node.data, [key]: value } } : node)))
     setDirty(true)
   }
 
-  function removeSelectedNode() {
-    if (!selectedNode || readOnly) return
-    setNodes((existing) => existing.filter((node) => node.id !== selectedNode.id))
-    setEdges((existing) => existing.filter((edge) => edge.source !== selectedNode.id && edge.target !== selectedNode.id))
+  function removeNode(nodeId: string) {
+    if (readOnly) return
+    recordHistory('remove-node')
+    setNodes((existing) => existing.filter((node) => node.id !== nodeId))
+    setEdges((existing) => existing.filter((edge) => edge.source !== nodeId && edge.target !== nodeId))
     setSelectedId(null)
     setConfigText('{}')
     setDirty(true)
+  }
+
+  function removeSelectedNode() {
+    if (!selectedNode) return
+    removeNode(selectedNode.id)
   }
 
   function addNode(type: string) {
@@ -269,6 +355,7 @@ export function WorkflowEditorPage() {
       position: { x: 120 + Math.random() * 300, y: 120 + Math.random() * 200 },
       data: { type, name: schema?.title ?? meta?.title ?? type, ...defaults },
     }
+    recordHistory('add-node')
     setNodes((existing) => [...existing, newNode])
     setSelectedId(newNode.id)
     setConfigText(JSON.stringify(defaults.config, null, 2))
@@ -288,6 +375,9 @@ export function WorkflowEditorPage() {
     setEdges(child.edges)
     setSelectedId(null)
     setConfigText('{}')
+    undoStackRef.current = []
+    redoStackRef.current = []
+    setHistoryRevision((value) => value + 1)
   }
 
   function exitSubWorkflow() {
@@ -304,6 +394,53 @@ export function WorkflowEditorPage() {
     setSelectedId(loopNode?.id ?? null)
     setConfigText(JSON.stringify((loopNode?.data.config as Record<string, unknown>) ?? {}, null, 2))
     setSubWorkflowStack((stack) => stack.slice(0, -1))
+    undoStackRef.current = []
+    redoStackRef.current = []
+    setHistoryRevision((value) => value + 1)
+    setDirty(true)
+  }
+
+  function autoLayout() {
+    if (readOnly || !nodes.length) return
+    recordHistory('layout')
+    setNodes(layoutWorkflowNodes(nodes, edges))
+    setDirty(true)
+    window.setTimeout(() => void flowRef.current?.fitView({ padding: 0.2, duration: 250 }), 0)
+  }
+
+  function clearCanvas() {
+    if (readOnly || !nodes.length || !window.confirm('确认清空画布中的全部节点和连线？可使用“撤销”恢复。')) return
+    recordHistory('clear-canvas')
+    setNodes([])
+    setEdges([])
+    setSelectedId(null)
+    setDirty(true)
+  }
+
+  function focusNode(nodeId: string) {
+    const node = nodes.find((item) => item.id === nodeId)
+    if (!node) return
+    setSelectedId(node.id)
+    setConfigText(JSON.stringify((node.data.config as Record<string, unknown>) ?? {}, null, 2))
+    setConfigDirty(false)
+    setValidationOpen(false)
+    window.setTimeout(() => void flowRef.current?.fitView({ nodes: [{ id: node.id }], padding: 1.6, duration: 250 }), 0)
+  }
+
+  function duplicateNode(nodeId: string) {
+    if (readOnly) return
+    const source = nodes.find((node) => node.id === nodeId)
+    if (!source) return
+    recordHistory('duplicate-node')
+    const copy = structuredClone(source)
+    copy.id = `${source.id}_copy_${Date.now()}`
+    copy.position = { x: source.position.x + 36, y: source.position.y + 36 }
+    copy.selected = false
+    copy.data = { ...copy.data, name: `${String(copy.data.name ?? '节点')} 副本` }
+    setNodes((existing) => [...existing, copy])
+    setContextMenu(null)
+    setSelectedId(copy.id)
+    setConfigText(JSON.stringify((copy.data.config as Record<string, unknown>) ?? {}, null, 2))
     setDirty(true)
   }
 
@@ -334,6 +471,8 @@ export function WorkflowEditorPage() {
       return (await workflowApi.validateWorkflow(String(id))).data.data
     },
     onSuccess: (result: WorkflowValidationResult) => {
+      setValidationResult(result)
+      setValidationOpen(true)
       const valid = (result as { valid?: boolean }).valid
       const errors = (result as { errors?: Array<{ message?: string }> }).errors
       if (valid) toast.success('校验通过')
@@ -368,11 +507,12 @@ export function WorkflowEditorPage() {
   })
 
   const nodeRunMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedNode) throw new Error('请先选择节点')
+    mutationFn: async (nodeId?: string) => {
+      const node = nodes.find((item) => item.id === nodeId) ?? selectedNode
+      if (!node) throw new Error('请先选择节点')
       const inputs = parseInputObject(nodeRunInputs)
       return (await workflowApi.debugNode({
-        node: toBackendNode(selectedNode) as unknown as Record<string, unknown>,
+        node: toBackendNode(node) as unknown as Record<string, unknown>,
         inputs,
       })).data.data
     },
@@ -396,6 +536,10 @@ export function WorkflowEditorPage() {
         {subWorkflowStack.length ? <Badge variant="outline">循环子流程 · 第 {subWorkflowStack.length} 层</Badge> : null}
         <Badge variant="secondary" className="ml-1">{detailQuery.data?.workflow.version ?? '草稿'}</Badge>
         <div className="ml-auto flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={undo} disabled={readOnly || !undoStackRef.current.length || Boolean(subWorkflowStack.length)}>撤销</Button>
+          <Button variant="ghost" size="sm" onClick={redo} disabled={readOnly || !redoStackRef.current.length || Boolean(subWorkflowStack.length)}>重做</Button>
+          <Button variant="ghost" size="sm" onClick={autoLayout} disabled={readOnly || !nodes.length}>整理布局</Button>
+          <Button variant="ghost" size="sm" className="text-destructive" onClick={clearCanvas} disabled={readOnly || !nodes.length}>清空</Button>
           <Button variant="outline" size="sm" onClick={() => setVersionsOpen(true)}>版本</Button>
           <Button variant="outline" size="sm" onClick={() => setRunsOpen(true)}><ClockCounterClockwise size={14} /> 运行记录</Button>
           {lockState === 'checking' ? <Badge variant="outline">正在取得编辑锁…</Badge> : lockState === 'readonly' ? <Badge variant="outline">只读</Badge> : null}
@@ -443,6 +587,15 @@ export function WorkflowEditorPage() {
             onEdgesChange={handleEdgesChange}
             onConnect={onConnect}
             onNodeClick={onNodeClick}
+            onNodeContextMenu={(event, node) => {
+              event.preventDefault()
+              setSelectedId(node.id)
+              setConfigText(JSON.stringify((node.data.config as Record<string, unknown>) ?? {}, null, 2))
+              setConfigDirty(false)
+              setContextMenu({ x: event.clientX, y: event.clientY, nodeId: node.id })
+            }}
+            onPaneClick={() => { setSelectedId(null); setContextMenu(null) }}
+            onInit={(instance) => { flowRef.current = instance }}
             nodesDraggable={!readOnly}
             nodesConnectable={!readOnly}
             edgesReconnectable={!readOnly}
@@ -452,6 +605,13 @@ export function WorkflowEditorPage() {
             <Controls />
             <MiniMap pannable />
           </ReactFlow>
+          {contextMenu ? <div className="fixed z-50 w-44 rounded-lg border border-border bg-popover p-1 text-sm shadow-dialog" style={{ left: contextMenu.x, top: contextMenu.y }}>
+            <button className="w-full rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { focusNode(contextMenu.nodeId); setContextMenu(null) }}>编辑配置</button>
+            <button className="w-full rounded px-3 py-2 text-left hover:bg-muted" onClick={() => duplicateNode(contextMenu.nodeId)}>复制节点</button>
+            <button className="w-full rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { void flowRef.current?.fitView({ nodes: [{ id: contextMenu.nodeId }], padding: 1.6, duration: 250 }); setContextMenu(null) }}>适配到节点</button>
+            <button className="w-full rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { nodeRunMutation.mutate(contextMenu.nodeId); setContextMenu(null) }}>运行此节点</button>
+            <button className="w-full rounded px-3 py-2 text-left text-destructive hover:bg-muted" onClick={() => { removeNode(contextMenu.nodeId); setContextMenu(null) }}>删除节点</button>
+          </div> : null}
         </div>
 
         {/* 选中节点配置 */}
@@ -470,6 +630,7 @@ export function WorkflowEditorPage() {
                 onChange={(event) => {
                   const name = event.target.value
                   setNodes((existing) => existing.map((node) => (node.id === selectedNode.id ? { ...node, data: { ...node.data, name } } : node)))
+                  recordHistory(`node-name-${selectedNode.id}`)
                   setDirty(true)
                 }}
               />
@@ -530,6 +691,16 @@ export function WorkflowEditorPage() {
             <SheetDescription>已发布版本可查看与删除。</SheetDescription>
           </SheetHeader>
           <VersionList workflowId={String(id)} />
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={validationOpen} onOpenChange={setValidationOpen}>
+        <SheetContent side="right" className="w-full overflow-auto sm:max-w-lg">
+          <SheetHeader><SheetTitle>校验结果</SheetTitle><SheetDescription>{validationResult ? `${validationResult.errors.length} 个错误 · ${validationResult.warnings?.length ?? 0} 个提醒` : '尚未执行校验'}</SheetDescription></SheetHeader>
+          {validationResult?.valid && !validationResult.warnings?.length ? <div className="m-4 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm text-emerald-700">校验通过：当前流程结构与配置可用于发布或调试。</div> : null}
+          {validationResult ? <div className="space-y-5 p-4">
+            {[{ title: '必须修复', items: validationResult.errors, tone: 'text-destructive' }, { title: '建议关注', items: validationResult.warnings ?? [], tone: 'text-amber-600' }].map((section) => section.items.length ? <section key={section.title}><h3 className={`mb-2 text-sm font-semibold ${section.tone}`}>{section.title}</h3><div className="space-y-2">{section.items.map((raw, index) => { const item = validationItem(raw); return <button key={`${section.title}-${index}`} type="button" className="w-full rounded-lg border border-border p-3 text-left hover:bg-muted" onClick={() => item.nodeId && focusNode(item.nodeId)}><div className="text-sm font-medium">{item.nodeId ? String(nodes.find((node) => node.id === item.nodeId)?.data.name ?? item.nodeId) : '工作流'}</div><div className="mt-1 text-xs text-muted-foreground">{item.field ? `${item.field}：` : ''}{item.message || '配置需要检查'}</div></button> })}</div></section> : null)}
+          </div> : null}
         </SheetContent>
       </Sheet>
 
