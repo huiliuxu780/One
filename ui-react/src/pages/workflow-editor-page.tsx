@@ -32,9 +32,12 @@ import { readableError } from '@/lib/utils'
 import * as workflowApi from '@/api/workflows'
 import { nodeMetadata } from '@/api/workflows'
 import { pageWorkflowResources } from '@/api/workflowResources'
-import type { NodeMetadata, WorkflowInputConfig, WorkflowManagedResource, WorkflowNodeExecution, WorkflowNodeRunResult, WorkflowRun, WorkflowRunResult, WorkflowVersion, WorkflowValidationResult } from '@/types'
+import { mcpServers, modelConfigs, skills, tools } from '@/api/resources'
+import type { McpServerVO, McpToolVO, ModelConfigVO, NodeMetadata, SkillPackageVO, ToolVO, WorkflowInputConfig, WorkflowManagedResource, WorkflowNodeExecution, WorkflowNodeRunResult, WorkflowRun, WorkflowRunResult, WorkflowVersion, WorkflowValidationResult } from '@/types'
 import { fromBackendDefinition, toBackendDefinition, toBackendNode } from '@/features/workflow/protocol'
 import { cloneWorkflowNodeDefaults, workflowNodeSchemaMap, workflowNodeSchemas } from '@/features/workflow/node-schemas'
+import { MultiSelectField, type SelectOption } from '@/features/agents/multi-select-field'
+import { mcpInputConfigs, toolInputConfigs } from '@/features/workflow/resource-bindings'
 
 // 知识库节点不在节点库中（明确排除）；旧含 KNOWLEDGE 节点的流程加载后只读提示。
 
@@ -81,6 +84,10 @@ export function WorkflowEditorPage() {
     cache: useQuery({ queryKey: ['list', 'workflow-resource-options', 'cache'], queryFn: async () => (await pageWorkflowResources('cache', { page: 1, size: 100, enabled: true })).data.data.records }),
     mq: useQuery({ queryKey: ['list', 'workflow-resource-options', 'mq'], queryFn: async () => (await pageWorkflowResources('mq', { page: 1, size: 100, enabled: true })).data.data.records }),
     channel: useQuery({ queryKey: ['list', 'workflow-resource-options', 'channel'], queryFn: async () => (await pageWorkflowResources('channel', { page: 1, size: 100, enabled: true })).data.data.records }),
+    model: useQuery({ queryKey: ['list', 'workflow-resource-options', 'model'], queryFn: async () => (await modelConfigs.page({ page: 1, size: 1000, enabled: true })).data.data.records }),
+    tool: useQuery({ queryKey: ['list', 'workflow-resource-options', 'tool'], queryFn: async () => (await tools.page({ page: 1, size: 1000, enabled: true })).data.data.records }),
+    skill: useQuery({ queryKey: ['list', 'workflow-resource-options', 'skill'], queryFn: async () => (await skills.page({ page: 1, size: 1000, enabled: true })).data.data.records }),
+    mcp: useQuery({ queryKey: ['list', 'workflow-resource-options', 'mcp'], queryFn: async () => (await mcpServers.page({ page: 1, size: 1000, enabled: true })).data.data.records }),
   }
 
   useEffect(() => {
@@ -129,10 +136,19 @@ export function WorkflowEditorPage() {
   }
 
   function updateConfigField(key: string, value: unknown) {
+    updateConfigPatch({ [key]: value })
+  }
+
+  function updateConfigPatch(patch: Record<string, unknown>) {
     if (!selectedNode || legacyReadOnly) return
-    const next = { ...((selectedNode.data.config as Record<string, unknown>) ?? {}), [key]: value }
-    setNodes((existing) => existing.map((node) => (node.id === selectedNode.id ? { ...node, data: { ...node.data, config: next } } : node)))
-    setConfigText(JSON.stringify(next, null, 2))
+    const nodeId = selectedNode.id
+    let nextConfig: Record<string, unknown> = {}
+    setNodes((existing) => existing.map((node) => {
+      if (node.id !== nodeId) return node
+      nextConfig = { ...((node.data.config as Record<string, unknown>) ?? {}), ...patch }
+      return { ...node, data: { ...node.data, config: nextConfig } }
+    }))
+    setConfigText(JSON.stringify({ ...((selectedNode.data.config as Record<string, unknown>) ?? {}), ...patch }, null, 2))
     setConfigDirty(false)
   }
 
@@ -325,8 +341,14 @@ export function WorkflowEditorPage() {
                   cache: resourceQueries.cache.data ?? [],
                   mq: resourceQueries.mq.data ?? [],
                   channel: resourceQueries.channel.data ?? [],
+                  model: resourceQueries.model.data ?? [],
+                  tool: resourceQueries.tool.data ?? [],
+                  skill: resourceQueries.skill.data ?? [],
+                  mcp: resourceQueries.mcp.data ?? [],
                 }}
                 onChange={updateConfigField}
+                onPatch={updateConfigPatch}
+                onInputConfigsChange={(value) => updateNodeData('inputConfigs', value)}
               />
               <InputConfigEditor
                 value={(selectedNode.data.inputConfigs as WorkflowInputConfig[] | undefined) ?? []}
@@ -433,9 +455,20 @@ function VersionList({ workflowId }: { workflowId: string }) {
   )
 }
 
-type ResourceOptions = Record<'datasource' | 'cache' | 'mq' | 'channel', WorkflowManagedResource[]>
+type ResourceOptions = {
+  datasource: WorkflowManagedResource[]
+  cache: WorkflowManagedResource[]
+  mq: WorkflowManagedResource[]
+  channel: WorkflowManagedResource[]
+  model: ModelConfigVO[]
+  tool: ToolVO[]
+  skill: SkillPackageVO[]
+  mcp: McpServerVO[]
+}
 
-const resourceFieldKinds: Record<string, keyof ResourceOptions> = {
+type ManagedResourceKind = 'datasource' | 'cache' | 'mq' | 'channel'
+
+const resourceFieldKinds: Record<string, ManagedResourceKind> = {
   datasourceId: 'datasource',
   cacheId: 'cache',
   mqId: 'mq',
@@ -444,12 +477,14 @@ const resourceFieldKinds: Record<string, keyof ResourceOptions> = {
 
 const multilineFieldPattern = /(prompt|template|code|script|sql|expression|body|content|schema|headers|mapping|condition)/i
 
-function StructuredConfigEditor({ config, defaults, disabled, resources, onChange }: {
+function StructuredConfigEditor({ config, defaults, disabled, resources, onChange, onPatch, onInputConfigsChange }: {
   config: Record<string, unknown>
   defaults: Record<string, unknown>
   disabled: boolean
   resources: ResourceOptions
   onChange: (key: string, value: unknown) => void
+  onPatch: (patch: Record<string, unknown>) => void
+  onInputConfigsChange: (value: WorkflowInputConfig[]) => void
 }) {
   const keys = Array.from(new Set([...Object.keys(defaults), ...Object.keys(config)]))
   if (!keys.length) return <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">此节点没有可配置参数。</p>
@@ -458,6 +493,40 @@ function StructuredConfigEditor({ config, defaults, disabled, resources, onChang
       {keys.map((key) => {
         const value = config[key] ?? defaults[key]
         const resourceKind = resourceFieldKinds[key]
+        if (key === 'modelConfigId') {
+          return <SingleOptionSelect key={key} label="模型配置" value={value} disabled={disabled} placeholder="选择模型" options={resources.model.map((model) => ({ label: `${model.name} (${model.modelId})`, value: String(model.id) }))} onChange={(next) => onChange(key, next)} />
+        }
+        if (key === 'toolId') {
+          const options = resources.tool.map((tool) => ({ label: tool.name, value: String(tool.id), description: tool.description }))
+          return <SingleOptionSelect key={key} label="工具" value={value} disabled={disabled} placeholder="选择工具" options={options} onChange={(next) => {
+            const tool = resources.tool.find((item) => String(item.id) === next)
+            onPatch({ toolId: next, toolName: tool?.name ?? '' })
+            onInputConfigsChange(toolInputConfigs(tool?.inputSchema))
+          }} />
+        }
+        if (key === 'mcpServerId') {
+          return <SingleOptionSelect key={key} label="MCP 服务" value={value} disabled={disabled} placeholder="选择 MCP 服务" options={resources.mcp.map((server) => ({ label: server.name, value: String(server.id), description: server.description }))} onChange={(next) => {
+            const server = resources.mcp.find((item) => String(item.id) === next)
+            onPatch({ mcpServerId: next, mcpServerName: server?.name ?? '', mcpToolId: '', mcpToolName: '' })
+            onInputConfigsChange([])
+          }} />
+        }
+        if (key === 'mcpToolId') {
+          return <McpToolSelector key={key} serverId={String(config.mcpServerId ?? '')} value={value} disabled={disabled} onChange={(tool) => {
+            onPatch({ mcpToolId: tool ? String(tool.id) : '', mcpToolName: tool?.toolName ?? '' })
+            onInputConfigsChange(mcpInputConfigs(tool?.inputSchema))
+          }} />
+        }
+        if (key === 'skillPackageIds') {
+          return <MultiOptionSelect key={key} label="技能包" value={value} disabled={disabled} options={resources.skill.map((skill) => ({ label: skill.alias || skill.name, value: String(skill.id), description: skill.description }))} onChange={(next) => onChange(key, next)} />
+        }
+        if (key === 'toolIds') {
+          return <MultiOptionSelect key={key} label="工具能力" value={value} disabled={disabled} options={resources.tool.map((tool) => ({ label: tool.name, value: String(tool.id), description: tool.description }))} onChange={(next) => onChange(key, next)} />
+        }
+        if (key === 'mcps') {
+          const selected = Array.isArray(value) ? value.map((item) => String((item as { mcpServerId?: unknown }).mcpServerId ?? '')).filter(Boolean) : []
+          return <MultiOptionSelect key={key} label="MCP 能力" value={selected} disabled={disabled} options={resources.mcp.map((server) => ({ label: server.name, value: String(server.id), description: server.description }))} onChange={(next) => onChange(key, next.map((mcpServerId) => ({ mcpServerId, exposureMode: 'ALL_GLOBAL', mcpToolIds: [] })))} />
+        }
         return (
           <div key={key}>
             <Label className="mb-1.5 block text-xs">{key}</Label>
@@ -465,7 +534,7 @@ function StructuredConfigEditor({ config, defaults, disabled, resources, onChang
               <Select value={value === undefined || value === null ? '' : String(value)} onValueChange={(next) => onChange(key, next)} disabled={disabled}>
                 <SelectTrigger><SelectValue placeholder={`选择${resourceKind}`} /></SelectTrigger>
                 <SelectContent>
-                  {resources[resourceKind].map((resource) => resource.id ? <SelectItem key={resource.id} value={resource.id}>{resource.name || resource.id}</SelectItem> : null)}
+                  {resources[resourceKind].map((resource) => resource.id ? <SelectItem key={resource.id} value={String(resource.id)}>{resource.name || resource.id}</SelectItem> : null)}
                 </SelectContent>
               </Select>
             ) : typeof value === 'boolean' ? (
@@ -482,6 +551,51 @@ function StructuredConfigEditor({ config, defaults, disabled, resources, onChang
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function SingleOptionSelect({ label, value, disabled, placeholder, options, onChange }: { label: string; value: unknown; disabled: boolean; placeholder: string; options: SelectOption[]; onChange: (value: string) => void }) {
+  return (
+    <div>
+      <Label className="mb-1.5 block text-xs">{label}</Label>
+      <Select value={value == null ? '' : String(value)} onValueChange={onChange} disabled={disabled}>
+        <SelectTrigger><SelectValue placeholder={placeholder} /></SelectTrigger>
+        <SelectContent>{options.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+      </Select>
+      {!options.length ? <p className="mt-1 text-[11px] text-muted-foreground">暂无可用项，请先在资源管理中配置并启用。</p> : null}
+    </div>
+  )
+}
+
+function MultiOptionSelect({ label, value, disabled, options, onChange }: { label: string; value: unknown; disabled: boolean; options: SelectOption[]; onChange: (value: string[]) => void }) {
+  const selected = Array.isArray(value) ? value.map(String) : []
+  return (
+    <div>
+      <Label className="mb-1.5 block text-xs">{label}</Label>
+      <fieldset disabled={disabled}>
+        <MultiSelectField options={options} value={selected} onChange={onChange} placeholder={`选择${label}`} />
+      </fieldset>
+      {!options.length ? <p className="mt-1 text-[11px] text-muted-foreground">暂无可用项，请先在资源管理中配置并启用。</p> : null}
+    </div>
+  )
+}
+
+function McpToolSelector({ serverId, value, disabled, onChange }: { serverId: string; value: unknown; disabled: boolean; onChange: (tool: McpToolVO | null) => void }) {
+  const toolsQuery = useQuery({
+    queryKey: ['list', 'workflow-mcp-tools', serverId],
+    queryFn: async () => (await mcpServers.tools(serverId)).data.data,
+    enabled: Boolean(serverId),
+  })
+  const toolList = (toolsQuery.data ?? []).filter((tool) => tool.enabled && !tool.missing)
+  return (
+    <div>
+      <Label className="mb-1.5 block text-xs">MCP 工具</Label>
+      <Select value={value == null ? '' : String(value)} onValueChange={(next) => onChange(toolList.find((tool) => String(tool.id) === next) ?? null)} disabled={disabled || !serverId || toolsQuery.isLoading}>
+        <SelectTrigger><SelectValue placeholder={!serverId ? '请先选择 MCP 服务' : toolsQuery.isLoading ? '工具加载中…' : '选择 MCP 工具'} /></SelectTrigger>
+        <SelectContent>{toolList.map((tool) => <SelectItem key={tool.id} value={String(tool.id)}>{tool.toolName}</SelectItem>)}</SelectContent>
+      </Select>
+      {toolsQuery.error ? <p className="mt-1 text-[11px] text-destructive">MCP 工具加载失败</p> : null}
     </div>
   )
 }
