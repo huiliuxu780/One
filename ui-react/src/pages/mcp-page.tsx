@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Pagination } from '@/components/ui/pagination'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
@@ -19,8 +18,9 @@ import { EmptyState, ErrorState, TableSkeleton } from '@/components/states'
 import { readableError } from '@/lib/utils'
 import { mcpServers } from '@/api/resources'
 import type { McpServerVO, McpToolVO } from '@/types'
-import { HealthStatus, McpActivationStatus, McpMode, McpProtocol } from '@/types'
+import { HealthStatus, McpActivationStatus } from '@/types'
 import { usePagedList } from '@/features/data/paged'
+import { McpServerFormDialog } from '@/features/resources/mcp-server-form'
 
 function statusBadge(server: McpServerVO) {
   if (server.activationStatus === McpActivationStatus.ACTIVE) return <Badge>已激活</Badge>
@@ -195,114 +195,12 @@ export function McpPage() {
         </CardContent>
       </Card>
 
-      <ServerFormDialog open={formOpen} onOpenChange={setFormOpen} editing={editing} onSaved={() => void paged.refetch()} />
+      <McpServerFormDialog open={formOpen} onOpenChange={setFormOpen} editing={editing} onSaved={() => void paged.refetch()} />
       <AlertDialog open={pendingDisable != null} onOpenChange={(open) => !open && setPendingDisable(null)}>
         <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>确认停用 MCP Server</AlertDialogTitle><AlertDialogDescription>该 Server 仍被 {pendingDisable?.usageCount} 处引用，停用后相关 Agent 可能无法正常使用。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction disabled={busy} onClick={() => pendingDisable && void setServerEnabled(pendingDisable.server, false)}>确认停用</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
       </AlertDialog>
       {toolsServer ? <ToolsDialog server={toolsServer} onClose={() => setToolsServer(null)} /> : null}
     </div>
-  )
-}
-
-function ServerFormDialog({
-  open,
-  onOpenChange,
-  editing,
-  onSaved,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  editing: McpServerVO | null
-  onSaved: () => void
-}) {
-  const [values, setValues] = useState<Record<string, unknown>>(() => ({
-    name: editing?.name ?? '',
-    protocol: editing?.protocol ?? McpProtocol.HTTP,
-    mode: editing?.mode ?? McpMode.SYNC,
-    timeout: editing?.timeout ?? 30,
-    description: editing?.description ?? '',
-    // MCP 配置可能含 token/API key；编辑时不回显，留空表示保持原值。
-    protocolConfig: '',
-    enabled: editing?.enabled ?? true,
-  }))
-  const [busy, setBusy] = useState(false)
-
-  function set(name: string, value: unknown) {
-    setValues((previous) => ({ ...previous, [name]: value }))
-  }
-
-  async function submit() {
-    setBusy(true)
-    try {
-      let protocolConfig: unknown = null
-      const raw = values.protocolConfig
-      if (typeof raw === 'string' && raw.trim()) protocolConfig = JSON.parse(raw)
-      else if (raw && typeof raw !== 'string') protocolConfig = raw
-      const payload = { ...(editing ?? {}), ...values, timeout: Number(values.timeout ?? 30), protocolConfig }
-      if (editing && typeof raw === 'string' && !raw.trim()) delete (payload as Record<string, unknown>).protocolConfig
-      if (editing) await mcpServers.update(payload as Partial<McpServerVO>)
-      else await mcpServers.save(payload as Partial<McpServerVO>)
-      toast.success('已保存')
-      onOpenChange(false)
-      onSaved()
-    } catch (cause) {
-      toast.error(readableError(cause, cause instanceof SyntaxError ? 'protocolConfig 不是合法 JSON' : '保存失败'))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
-        <DialogHeader>
-          <DialogTitle>{editing ? '编辑 MCP Server' : '新建 MCP Server'}</DialogTitle>
-          <DialogDescription>连接凭据写入 protocolConfig；提交后不回显密文。</DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4">
-          <div>
-            <Label htmlFor="mcp-name">名称</Label>
-            <Input id="mcp-name" className="mt-1.5" value={String(values.name ?? '')} onChange={(event) => set('name', event.target.value)} />
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <Label>协议</Label>
-              <Select value={String(values.protocol)} onValueChange={(value) => set('protocol', value)}>
-                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.values(McpProtocol).map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>模式</Label>
-              <Select value={String(values.mode)} onValueChange={(value) => set('mode', value)}>
-                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.values(McpMode).map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>超时 (秒)</Label>
-              <Input className="mt-1.5" type="number" value={String(values.timeout ?? '')} onChange={(event) => set('timeout', Number(event.target.value))} />
-            </div>
-          </div>
-          <div>
-            <Label htmlFor="mcp-config">连接配置 (JSON)</Label>
-            <Textarea id="mcp-config" className="mt-1.5 min-h-28 font-mono text-xs" placeholder='如 {"endpoint":"https://...","apiKey":"..."} 或 {"command":"npx","args":[...]}' value={String(values.protocolConfig ?? '')} onChange={(event) => set('protocolConfig', event.target.value)} />
-          </div>
-          <div>
-            <Label htmlFor="mcp-desc">描述</Label>
-            <Textarea id="mcp-desc" className="mt-1.5 min-h-16" value={String(values.description ?? '')} onChange={(event) => set('description', event.target.value)} />
-          </div>
-          <div className="flex items-center gap-2">
-            <Switch checked={Boolean(values.enabled)} onCheckedChange={(checked) => set('enabled', checked)} aria-label="启用" />
-            <Label>启用</Label>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-          <Button onClick={() => void submit()} disabled={busy}>{busy ? '提交中…' : '保存'}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { FieldDef } from './types'
-import { requiredFieldMissing, resourceEditFieldValue, validateResourceSemantics } from './resource-page'
+import { numericFieldError, requiredFieldMissing, resourceEditFieldValue, validateResourceSemantics } from './resource-page'
 
 function field(overrides: Partial<FieldDef>): FieldDef {
   return { name: 'value', label: '值', type: 'text', ...overrides }
@@ -33,6 +33,16 @@ describe('resource form conditional validation', () => {
     expect(validateResourceSemantics('sensitive', { action: 'REPLACE' })).toContain('替换文本')
     expect(validateResourceSemantics('tool', { toolType: 'CUSTOM', toolId: 'Bad-ID', code: 'code' })).toContain('工具 ID')
     expect(validateResourceSemantics('tool', { toolType: 'CUSTOM', toolId: 'good_id', code: '' })).toContain('工具代码')
+  })
+})
+
+describe('numeric resource fields', () => {
+  it('rejects missing and out-of-range model parameters before backend submission', () => {
+    const tokens = field({ label: '上下文窗口', type: 'number', required: true, min: 1, max: 1000000, integer: true })
+    expect(requiredFieldMissing(tokens, undefined)).toBe(true)
+    expect(numericFieldError(tokens, 0)).toContain('不能小于')
+    expect(numericFieldError(tokens, 1.5)).toContain('整数')
+    expect(numericFieldError(tokens, 200000)).toBeNull()
   })
 })
 

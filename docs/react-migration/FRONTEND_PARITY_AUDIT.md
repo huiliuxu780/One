@@ -74,14 +74,14 @@
 
 | Vue 入口 | 用户操作 | Vue 接口 | React 目标 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| `views/Model/` | 供应商/模型 CRUD、连通性测试、密钥留空不修改 | model API | `model-page.tsx` | 已迁移未验证 | DashScope OpenAI 兼容模式两模型曾连接成功；补齐供应商类型选择与默认 URL、模型类型枚举选择、Vue 新建默认参数及鉴权模式的条件校验，保存行为待回归 |
+| `views/Model/` | 供应商/模型 CRUD、连通性测试、密钥留空不修改 | model API | `model-page.tsx` | 已迁移未验证 | DashScope OpenAI 兼容模式两模型曾连接成功；补齐供应商类型选择与默认 URL、模型类型枚举选择、Vue 新建默认参数及鉴权模式的条件校验。本轮再补必填数值、Vue 数值范围和 Seed 数字输入的提交前校验；保存行为待回归 |
 | `/model/:providerId/config` 深链 | 打开供应商下的模型配置 | — | `?providerId=` | 已验证 | 旧重定向误入供应商页签已修复；部署后的页面确认显示该供应商下两条真实模型，本地新建表单预选该供应商；模型保存仍属上一行未验证范围 |
 | `views/Skill/` | 新建/导入（本地/Git/ZIP）/文件树编辑/工具关联/下载/同步/分类筛选/启停 | skill API | `skill-page.tsx` | 已迁移未验证 | 本轮补齐搜索、分类筛选与引用提醒后的启停；真实后端当前技能列表为空，未形成启停回归证据 |
 | `/skill/new` 深链 | 打开新建弹窗 | — | `?action=new` | 已验证 | 生产深链打开新建技能弹窗；Vue 是整页+弹窗，React 等价为弹窗 |
 | `/skill/hub` 深链 | 打开 SkillHub | — | `?hub=1` | 已验证 | 生产深链打开真实 SkillHub 列表；React 为 Sheet，搜索/导入一致 |
 | `/skill/:id/edit` 深链 | 打开指定技能编辑 | `/api/skill/{id}`、`/tree` | `?edit=ID` → 文件管理 Sheet | 已验证 | Vue 为整页文件树+Monaco；React 为文件树+CodeMirror Sheet，无效 ID 显示后端明确错误而非静默空壳 |
 | `views/Tool/` | CRUD、代码编辑、调试、分类/类型筛选、启停 | tool API | `resource-pages.tsx` | 已迁移未验证 | 调试和分类筛选已在真实 Tool 验证，本地启停往返并恢复原状态。本轮补齐输入参数结构化编辑、排序、版本号与代码模板；部署后的真实 Tool 编辑表单已加载 Schema 和版本号，新增/编辑提交尚待真实后端回归 |
-| `views/Mcp/` | CRUD、激活、同步、工具治理、调试、协议筛选、启停 | mcp API | `mcp-page.tsx` | 已迁移未验证 | 本轮补齐分页搜索、协议筛选与引用提醒后的启停；调试展示原始错误，新增操作待真实数据回归 |
+| `views/Mcp/` | CRUD、激活、同步、工具治理、调试、协议筛选、启停 | mcp API | `mcp-page.tsx` | 已迁移未验证 | 补齐分页搜索、协议筛选与引用提醒后的启停；调试展示原始错误。本轮将只有原始 JSON 的表单改为按 HTTP/SSE、STDIO 协议配置 URL/查询参数/Header 或命令/参数/环境变量/工作目录/编码，并补自动降级失败次数、打开时重置状态及编辑时敏感值留空保留。浏览器只验证表单切换和重开，真实创建/连接仍待验收。Vue 把 timeout 标为毫秒、默认 30000；后端三个客户端均用 `Duration.ofSeconds(timeout)`，React 因此以秒标注并默认 30，属于源实现矛盾而非照搬差异 |
 | `/mcp/:serverId/tools` 深链 | 打开指定 Server 工具治理 | `/api/mcp/server/{id}`、`/tools` | `?tools=ID` | 已验证 | 生产深链已回归；无效 ID 显示后端明确错误（Vue 静默空态） |
 | `views/Hook/`、`views/Prompt/`、`views/Sensitive/` 等 | CRUD/占用检查/筛选/启停 | 对应 API | `resource-pages.tsx` | 已迁移未验证 | 已加占用二次确认和详情加载；本轮补齐 Vue 必填字段、敏感词替换文本校验和多值输入。本地浏览器确认 `alpha,beta` 成为两枚独立词项且未提交；部署后 Hook/Prompt/Sensitive 各自对未占用演示记录启停往返成功并恢复原状态，逐资源保存待回归 |
 | 长期记忆配置 | MEM0/ReMe/百炼专属字段、记忆控制模式、保存 | long-term-memory API | `memory-form.tsx` | 已迁移未验证 | 旧 React 仅提供原始 JSON，现按 Vue 协议构建 `config`；真实后端已打开现有 MEM0 编辑表单并验证密钥不回显，三个类型的字段和序列化单测通过，保存及外部连接未验证 |
@@ -155,6 +155,7 @@
 1. 继续逐页检查保存协议、表单字段、页面内动作和旧深链。已发现并修复的筛选、启停和资源表单缺口仍需覆盖各资源的真实浏览器回归，不能据此宣布全部迁移完毕。特别是 Tool/模型/长期记忆写入、工作流资源四类连接、账号管理和无现有数据的 Skill/MCP。
 2. 高级工作流节点成功运行矩阵、外部 A2A/第三方 MCP 集成凭据验收（REMAINING_SPEC §8）仍缺证据。
 3. 非 Chromium 浏览器兼容性与并发容量仍未形成证据，不能从单浏览器、单用户开发验收外推。
+4. MCP 服务配置现已按后端秒数单位输入，Vue 页面默认值 30000 若照原样提交会被后端解释成 30000 秒。上线前应确认现存 MCP 数据是否受该旧默认值影响；当前 ECS 列表为空，无存量记录可验。
 
 ## 12. 本轮部署与回归记录
 

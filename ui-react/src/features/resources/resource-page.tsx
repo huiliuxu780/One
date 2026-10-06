@@ -65,6 +65,16 @@ export function requiredFieldMissing(field: FieldDef, raw: unknown) {
   return Boolean(field.required && (raw === undefined || raw === null || (typeof raw === 'string' && !raw.trim()) || (Array.isArray(raw) && raw.length === 0)))
 }
 
+export function numericFieldError(field: FieldDef, raw: unknown): string | null {
+  if (field.type !== 'number' || raw === '' || raw === undefined || raw === null) return null
+  const value = Number(raw)
+  if (!Number.isFinite(value)) return `${field.label}必须是数字`
+  if (field.integer && !Number.isInteger(value)) return `${field.label}必须是整数`
+  if (field.min !== undefined && value < field.min) return `${field.label}不能小于 ${field.min}`
+  if (field.max !== undefined && value > field.max) return `${field.label}不能大于 ${field.max}`
+  return null
+}
+
 export function validateResourceSemantics(key: string, payload: Record<string, unknown>, previous?: Record<string, unknown> | null): string | null {
   if (key === 'tool' && payload.toolType !== 'BUILTIN') {
     if (!/^[a-z_]+$/.test(String(payload.toolId ?? ''))) return '工具 ID 只能使用小写字母和下划线'
@@ -108,6 +118,9 @@ export function FormFieldRenderer({
         <Input
           {...common}
           type="number"
+          min={field.min}
+          max={field.max}
+          step={field.integer ? 1 : 'any'}
           placeholder={field.placeholder}
           value={value === undefined || value === null ? '' : String(value)}
           onChange={(event) => onChange(event.target.value === '' ? undefined : Number(event.target.value))}
@@ -211,6 +224,8 @@ function ResourceFormDialog<T extends { id?: string | number }>({
           toast.error(`请填写${field.label}`)
           return
         }
+        const numberError = numericFieldError(field, raw)
+        if (numberError) { toast.error(numberError); return }
         if (field.type === 'json') {
           if (typeof raw === 'string') {
             const text = raw.trim()

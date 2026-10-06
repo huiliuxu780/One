@@ -36,6 +36,9 @@ export interface FieldDef {
   /** 表单里占整行 */
   wide?: boolean
   defaultValue?: unknown
+  min?: number
+  max?: number
+  integer?: boolean
 }
 
 export interface ColumnDef<T> {
