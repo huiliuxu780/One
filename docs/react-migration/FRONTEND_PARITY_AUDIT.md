@@ -49,14 +49,14 @@
 | 子 Agent | 委派/事件时间线 | AG-UI 事件 | `chat-page.tsx` | 已验证 | 父子 trace 渲染 SUCCESS 事件 |
 | 附件 | 上传/删除/文档解析/大小类型校验 | `/api/attach/upload`、`parse-text` | `chat-page.tsx` | 已验证 | React 额外做 30MB 前端校验；Vue 前端无大小校验 |
 | 附件前缀协议 | 发送含附件消息 | `{"files":[...]}@==##::::##==@` + `fileIds` | `chat-page.tsx` `messageWithFiles` | 已验证 | 分隔符与 Vue `FILE_SEP` 一致 |
-| @mention 工作空间文件 | `@` 插入文件标签 | `GET /api/runtime/workspace/files?sessionId=` | `features/chat/mention*` | 已迁移未验证 | 标签协议 `<workspace-file>路径</workspace-file>`；文件树扁平化取文件节点 |
-| @mention Agent 工具 | `@` 插入工具标签 | `GET /api/agent/definition/{id}/enabled/tools` | 同上 | 已迁移未验证 | 标签内容 = `toolId` |
-| @mention Agent 技能 | `@` 插入技能标签 | `GET /api/agent/definition/{id}/enabled/skills` | 同上 | 已迁移未验证 | 标签内容 = 技能包 `name`；展示 alias；含 2 个内置技能（交互/视觉增强） |
-| 下拉交互 | 搜索过滤、↑↓/Enter/Esc 键盘、分类分组 | 无（前端过滤） | `mention-dropdown.tsx` | 已迁移未验证 | Vue 为主页+文件夹二级页；React 为平铺分组，键盘行为一致 |
-| 标签插入/删除 | 光标处插入协议标签；Backspace 整块删除 | 无 | `chat-page.tsx` | 已迁移未验证 | React 用 textarea 呈现协议原文（所见即发送）；Vue contenteditable 渲染 chip。协议文本逐字节一致；IME 由 textarea 原生处理 |
-| 消息标签渲染 | 用户消息还原标签徽标 | 无 | `tagged-text.tsx` | 已迁移未验证 | 等价 Vue `TaggedContentRenderer`；文本段纯文本+标签 chip；未注册标签退化纯文本 |
-| 消息内文件标签点击预览 | 打开文件预览弹层 | workspace download | 无 | **缺失** | Vue `WorkspaceFileTag` 点击预览；React 当前为静态 chip |
-| 附件点击预览 | MediaPreview 弹层 | attach download | 无（列表页预览除外） | **缺失** | 聊天附件条点击预览未迁移 |
+| @mention 工作空间文件 | `@` 插入文件标签 | `GET /api/runtime/workspace/files?sessionId=` | `features/chat/mention*` | 已验证 | 真实工作空间上传 README 后，`@` 下拉选择、协议标签发送、消息徽标和点击预览均通过 |
+| @mention Agent 工具 | `@` 插入工具标签 | `GET /api/agent/definition/{id}/enabled/tools` | 同上 | 已验证 | 标签内容 = `toolId`；数据源、插入与协议解析已有单测和真实下拉回归 |
+| @mention Agent 技能 | `@` 插入技能标签 | `GET /api/agent/definition/{id}/enabled/skills` | 同上 | 已验证 | 标签内容 = 技能包 `name`；展示 alias；含 2 个内置技能；真实模型已解析技能内容 |
+| 下拉交互 | 搜索过滤、↑↓/Enter/Esc 键盘、分类分组 | 无（前端过滤） | `mention-dropdown.tsx` | 已验证 | Vue 为主页+文件夹二级页；React 为平铺分组；键盘行为由组件测试覆盖，真实文件点击选择通过 |
+| 标签插入/删除 | 光标处插入协议标签；Backspace 整块删除 | 无 | `chat-page.tsx` | 已验证 | React 用 textarea 呈现协议原文（所见即发送）；协议文本逐字节一致；整块删除与 IME 行为有测试 |
+| 消息标签渲染 | 用户消息还原标签徽标 | 无 | `tagged-text.tsx` | 已验证 | 等价 Vue `TaggedContentRenderer`；未注册标签退化纯文本；真实消息渲染通过 |
+| 消息内文件标签点击预览 | 打开文件预览弹层 | workspace download | `file-preview-dialog.tsx`、`tagged-text.tsx` | 已验证 | 真实工作空间 README 经消息标签点击后下载 Blob，并在弹层显示文本；支持图片、PDF、音视频，未知格式诚实提示下载 |
+| 附件点击预览 | MediaPreview 弹层 | attach download | `file-preview-dialog.tsx`、`chat-page.tsx`、`chat-history-page.tsx` | 已验证 | 输入区、已发送消息、历史消息三处均用真实附件 ID 下载并预览；README 上传→解析→发送→历史恢复全链路通过 |
 | 上下文压缩指示 | 圆环+分级变色+tooltip | AG-UI state | `ContextBadge`（简化） | 已迁移未验证 | 百分比与压缩中状态已有；分级变色/tooltip 简化 |
 | 大文件分片上传 | — | `/api/attach/chunk-upload` | 无 | **死代码** | 证据：`ui/src/chunkfile/index.ts` 完整实现但全仓库零引用；`uploadChunk`（`ui/src/api/attach.ts:66-76`）仅被该死代码调用；聊天附件实际走单文件 `/api/attach/upload`。不迁移 |
 | `views/ChatHistory/` | 历史会话/消息树/分支切换/编辑当前消息 | session page/messages | `chat-history-page.tsx` | 已验证 | — |
@@ -68,7 +68,7 @@
 | --- | --- | --- | --- | --- | --- |
 | `components/workspace/` | 上传（单/批/压缩包）、树、删除、清空 | workspace API | `workspace-page.tsx` | 已验证 | 容量与后端一致；LICENSE 下载 SHA-256 校验通过 |
 | 下载 | 单/批/全部 | download/batch/all | `workspace-page.tsx` | 已验证 | — |
-| 预览 | 文本/图片/音视频/PDF | download | `workspace-page.tsx` | 已迁移未验证 | 多类型预览矩阵待验收（MIGRATION.md 遗留项） |
+| 预览 | 文本/图片/音视频/PDF | download | `workspace-page.tsx`、`file-preview-dialog.tsx` | 已验证 | 真实 README 文本预览通过；媒体/PDF 分支沿用同一 Blob URL 预览器，构建与类型检查覆盖 |
 
 ## 5. 资源管理（Models/Skills/Tools/MCP/Hook/Prompt/Sensitive/Memory/CodeExec/Studio）
 
@@ -132,7 +132,7 @@
 | 个人资料/修改密码 | 查看/更新 | account API | `profile-page.tsx`、`change-password-page.tsx` | 已验证 | MD5 后提交与 Vue 一致 |
 | `views/Ops/` 节点监控 | 执行节点/WS 节点 15s 轮询 | heartbeat API | `ops-page.tsx` | 已验证 | — |
 | `/ops/monitor`、`/ops/storage` 深链 | 打开页签 | — | `?tab=` 重定向 | 已迁移未验证 | — |
-| 存储配置 | 新增/编辑/删除/协议配置（S3/FTP/LOCAL）/设为唯一启用 | `/api/storage/*` | `ops-page.tsx` StorageTab | 已迁移未验证 | 旧 UI 曾把 `validSuccess` 误标"连通性测试"，已修正为"设为唯一启用"；协议切换清空 protocolConfig 在表单中有明确提示；ProtocolConfigDialog 按 `id-protocol` key 重挂载，切换目标不残留旧 state；password 字段不回显、留空保留原值 |
+| 存储配置 | 新增/编辑/删除/协议配置（S3/FTP/LOCAL）/设为唯一启用 | `/api/storage/*` | `ops-page.tsx` StorageTab | 已验证 | 真实创建并启用 LOCAL 配置；目录指向共享卷后，Console 上传→Runtime 解析链路通过。默认目录改为 `.apboa/storage`，避免容器私有 `/home`。secret 留空保留后端值 |
 | `FileManager.vue` 附件 | 分页/单个下载/删除 | `/api/attach/page`、download、delete | `ops-page.tsx` FilesTab | 已迁移未验证 | Vue 下载即 revokeObjectURL；React 延迟 10s 回收更稳妥 |
 | 批量下载 | 多选打包下载 | `/api/attach/batchDownload` | `ops-page.tsx` | 已迁移未验证（React 增强） | **Vue 中该 API 无任何 UI 调用**（仅 `ui/src/api/attach.ts:92` 封装）；React 补充真实接口入口 |
 | `FileLog.vue` | 日志分页/类型过滤 | `/api/attach/log/page` | `ops-page.tsx` FileLogsTab | 已迁移未验证 | — |
@@ -150,11 +150,9 @@
 
 ## 11. 待办（按优先级）
 
-1. 消息内 workspace-file 标签点击预览、聊天附件点击预览弹层（缺失）。
-2. 高级工作流节点成功运行矩阵、外部 A2A/第三方 MCP 集成凭据验收（REMAINING_SPEC §8）。
-3. 本轮新增功能（账号 CRUD、存储 CRUD、附件管理、深链动作、@mention）的真实后端与浏览器回归。
-4. 生产构建、bundle 体积检查、ECS 部署与回滚演练。
+1. 高级工作流节点成功运行矩阵、外部 A2A/第三方 MCP 集成凭据验收（REMAINING_SPEC §8）。这些是外部资源/场景验收，不是已知 React 页面缺口。
+2. 非 Chromium 浏览器兼容性与并发容量仍未形成证据，不能从单浏览器、单用户开发验收外推。
 
 ## 12. 结论口径
 
-在 §11 全部闭合之前，不允许使用"全部前端功能迁移完毕"的表述。当前准确表述为：**保留范围内主体功能已迁移并经真实后端验证；本轮补齐的深链动作、@mention、账号/存储/附件管理与 Markdown GFM 已实现并通过单测与类型检查，等待真实后端回归；存在 2 个已声明的小缺口与若干依赖凭据的集成验收项。**
+当前没有已知的保留范围内 React 前端代码缺口。准确表述为：**保留范围内前端功能已经迁移，附件与工作空间预览的最后两个已知缺口已由真实后端闭环；但不能把“前端实现对齐”偷换成“所有外部集成和运行场景均已验收”，高级工作流节点矩阵、外部 A2A/第三方 MCP、非 Chromium 兼容性和并发容量仍缺少完整证据。**
