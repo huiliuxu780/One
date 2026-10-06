@@ -22,13 +22,15 @@ export interface ToolInputSchemaItem {
   type?: string
   defaultValue?: unknown
   required?: boolean
+  enum?: unknown[]
 }
 
 function convertPrimitive(type: string, value: unknown) {
   if (type === 'integer' || type === 'number') {
     const converted = Number(value)
     if (!Number.isFinite(converted)) throw new Error('必须是有效数字')
-    return type === 'integer' ? Math.trunc(converted) : converted
+    if (type === 'integer' && !Number.isInteger(converted)) throw new Error('必须是整数')
+    return converted
   }
   if (type === 'boolean') {
     if (typeof value === 'boolean') return value

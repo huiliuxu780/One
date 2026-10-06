@@ -18,9 +18,20 @@ import { EmptyState, ErrorState, TableSkeleton } from '@/components/states'
 import { readableError } from '@/lib/utils'
 import { mcpServers } from '@/api/resources'
 import type { McpServerVO, McpToolVO } from '@/types'
-import { HealthStatus, McpActivationStatus } from '@/types'
+import { HealthStatus, McpActivationStatus, McpFailureSource } from '@/types'
 import { usePagedList } from '@/features/data/paged'
 import { McpServerFormDialog } from '@/features/resources/mcp-server-form'
+import { buildToolDebugArguments, toolDebugInitialValues, type ToolInputSchemaItem } from '@/features/resources/tool-debug-dialog'
+
+export function mcpDebugFields(schema: Record<string, unknown> | null): ToolInputSchemaItem[] {
+  const properties = schema?.properties
+  if (!properties || typeof properties !== 'object' || Array.isArray(properties)) return []
+  const required = Array.isArray(schema?.required) ? schema.required : []
+  return Object.entries(properties).map(([name, value]) => {
+    const field = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+    return { name, type: typeof field.type === 'string' ? field.type : 'string', description: typeof field.description === 'string' ? field.description : '', defaultValue: field.default, required: required.includes(name), enum: Array.isArray(field.enum) ? field.enum : undefined }
+  }).sort((a, b) => Number(Boolean(b.required)) - Number(Boolean(a.required)))
+}
 
 function statusBadge(server: McpServerVO) {
   if (server.activationStatus === McpActivationStatus.ACTIVE) return <Badge>已激活</Badge>
@@ -204,22 +215,29 @@ export function McpPage() {
   )
 }
 
-function ToolsDialog({ server, onClose }: { server: McpServerVO; onClose: () => void }) {
+export function ToolsDialog({ server, onClose }: { server: McpServerVO; onClose: () => void }) {
   const toolsQuery = useQuery({
     queryKey: ['detail', 'mcp-tools', String(server.id)],
     queryFn: async () => (await mcpServers.tools(String(server.id))).data.data,
   })
   const [debugTool, setDebugTool] = useState<McpToolVO | null>(null)
-  const rows = toolsQuery.data ?? []
+  const [search, setSearch] = useState('')
+  const [pendingTool, setPendingTool] = useState<string | null>(null)
+  const readOnly = server.activationStatus === McpActivationStatus.FAILED && server.failureSource === McpFailureSource.RUNTIME_AUTO_DEGRADE
+  const rows = (toolsQuery.data ?? []).filter((tool) => `${tool.toolName} ${tool.description ?? ''}`.toLowerCase().includes(search.trim().toLowerCase()))
 
   async function toggleGlobal(tool: McpToolVO, field: 'enabled' | 'needConfirm', value: boolean) {
+    if (readOnly || pendingTool) return
+    setPendingTool(String(tool.id))
     try {
-      if (field === 'enabled') await mcpServers.setGlobalEnabled(String(server.id), [tool.toolName], value)
-      else await mcpServers.setGlobalNeedConfirm(String(server.id), [tool.toolName], value)
+      if (field === 'enabled') await mcpServers.setGlobalEnabled(String(server.id), [String(tool.id)], value)
+      else await mcpServers.setGlobalNeedConfirm(String(server.id), [String(tool.id)], value)
       toast.success('已更新')
-      void toolsQuery.refetch()
+      await toolsQuery.refetch()
     } catch (cause) {
       toast.error(readableError(cause, '更新失败'))
+    } finally {
+      setPendingTool(null)
     }
   }
 
@@ -230,8 +248,14 @@ function ToolsDialog({ server, onClose }: { server: McpServerVO; onClose: () => 
           <DialogTitle>{server.name} · 工具治理</DialogTitle>
           <DialogDescription>全局启用与人工确认开关立即生效；调试直接调用真实后端并展示原始结果。</DialogDescription>
         </DialogHeader>
+        {readOnly ? <p role="alert" className="rounded-md border border-amber-300 p-3 text-sm text-amber-800">该 MCP 因运行时自动降级处于只读状态；重新连接成功前不能修改工具或调试。</p> : null}
+        <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索工具名称或描述" aria-label="搜索 MCP 工具" />
         {toolsQuery.isLoading ? (
           <TableSkeleton rows={3} />
+        ) : toolsQuery.error ? (
+          <ErrorState error={toolsQuery.error} onRetry={() => void toolsQuery.refetch()} />
+        ) : rows.length === 0 ? (
+          <EmptyState title={search ? '未找到匹配的工具' : '暂无工具目录'} />
         ) : (
           <Table>
             <TableHeader>
@@ -245,42 +269,76 @@ function ToolsDialog({ server, onClose }: { server: McpServerVO; onClose: () => 
             </TableHeader>
             <TableBody>
               {rows.map((tool) => (
-                <TableRow key={tool.toolName}>
+                <TableRow key={String(tool.id)}>
                   <TableCell className="font-mono text-xs">{tool.toolName}</TableCell>
                   <TableCell className="line-clamp-1 max-w-64 text-xs text-muted-foreground">{tool.description}</TableCell>
-                  <TableCell><Switch checked={tool.enabled} onCheckedChange={(checked) => void toggleGlobal(tool, 'enabled', checked)} aria-label={`${tool.toolName} 启用`} /></TableCell>
-                  <TableCell><Switch checked={tool.needConfirm} onCheckedChange={(checked) => void toggleGlobal(tool, 'needConfirm', checked)} aria-label={`${tool.toolName} 确认`} /></TableCell>
+                  <TableCell><Switch checked={tool.enabled} disabled={readOnly || pendingTool !== null || tool.missing} onCheckedChange={(checked) => void toggleGlobal(tool, 'enabled', checked)} aria-label={`${tool.toolName} 启用`} /></TableCell>
+                  <TableCell><Switch checked={tool.needConfirm} disabled={readOnly || pendingTool !== null || tool.missing || !tool.enabled} onCheckedChange={(checked) => void toggleGlobal(tool, 'needConfirm', checked)} aria-label={`${tool.toolName} 确认`} /></TableCell>
                   <TableCell className="text-right">
-                    <Button variant="outline" size="sm" onClick={() => setDebugTool(tool)}>调试</Button>
+                    <Button variant="outline" size="sm" disabled={readOnly || tool.missing || !tool.enabled} onClick={() => setDebugTool(tool)}>调试</Button>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         )}
-        {debugTool ? <DebugDialog server={server} tool={debugTool} onClose={() => setDebugTool(null)} /> : null}
+        {debugTool ? <DebugDialog tool={debugTool} onClose={() => setDebugTool(null)} /> : null}
       </DialogContent>
     </Dialog>
   )
 }
 
-function DebugDialog({ server, tool, onClose }: { server: McpServerVO; tool: McpToolVO; onClose: () => void }) {
-  const [args, setArgs] = useState('{}')
+export function DebugDialog({ tool, onClose }: { tool: McpToolVO; onClose: () => void }) {
+  const fields = mcpDebugFields(tool.inputSchema)
+  const [values, setValues] = useState<Record<string, unknown>>(() => toolDebugInitialValues(fields))
+  const [rawMode, setRawMode] = useState(false)
+  const [rawJson, setRawJson] = useState('{}')
   const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState<string | null>(null)
+  const [result, setResult] = useState<{ success: boolean; text: string; durationMs?: number } | null>(null)
+
+  function setValue(name: string, value: unknown) {
+    setValues((previous) => ({ ...previous, [name]: value }))
+  }
+
+  function toggleRawMode() {
+    if (!rawMode) {
+      setRawJson(JSON.stringify(values, null, 2))
+      setRawMode(true)
+      return
+    }
+    try {
+      const parsed: unknown = JSON.parse(rawJson)
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('参数必须是 JSON 对象')
+      setValues(parsed as Record<string, unknown>)
+      setRawMode(false)
+    } catch (cause) {
+      toast.error(readableError(cause, 'JSON 格式错误'))
+    }
+  }
 
   async function run() {
+    let input: Record<string, unknown>
+    try {
+      if (rawMode) {
+        const parsed: unknown = JSON.parse(rawJson)
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('参数必须是 JSON 对象')
+        input = parsed as Record<string, unknown>
+      } else {
+        input = buildToolDebugArguments(fields, values)
+      }
+    } catch (cause) {
+      toast.error(readableError(cause, '参数无效'))
+      return
+    }
     setBusy(true)
     setResult(null)
     try {
-      const argumentsJson = JSON.parse(args) as Record<string, unknown>
-      const response = await mcpServers.debugTool({ serverId: String(server.id), toolName: tool.toolName, arguments: argumentsJson })
-      setResult(JSON.stringify(response.data.data ?? response.data, null, 2))
-      toast.success('调试完成')
+      const response = await mcpServers.debugTool(String(tool.id), input)
+      const result = response.data.data
+      setResult({ success: result.success, text: result.success ? JSON.stringify(result.content, null, 2) : (result.errorMessage || '调用失败'), durationMs: result.durationMs })
+      if (result.success) toast.success('调试完成')
     } catch (cause) {
-      // 原始错误直接展示，不包装为成功
-      setResult(`调试失败：${readableError(cause, '无返回')}`)
-      toast.error('调试失败（原始错误见结果区）')
+      setResult({ success: false, text: readableError(cause, '调试失败') })
     } finally {
       setBusy(false)
     }
@@ -291,10 +349,38 @@ function DebugDialog({ server, tool, onClose }: { server: McpServerVO; tool: Mcp
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>调试 {tool.toolName}</DialogTitle>
-          <DialogDescription>参数为 JSON 对象；调用真实后端执行。</DialogDescription>
+          <DialogDescription>按输入 Schema 填写参数；调用真实后端执行。</DialogDescription>
         </DialogHeader>
-        <Textarea className="min-h-24 font-mono text-xs" value={args} onChange={(event) => setArgs(event.target.value)} />
-        {result ? <pre className="max-h-64 overflow-auto rounded-lg bg-muted p-3 font-mono text-xs">{result}</pre> : null}
+        {fields.length === 0 ? <p className="text-sm text-muted-foreground">此工具无需输入参数。</p> : <Button variant="ghost" size="sm" onClick={toggleRawMode}>{rawMode ? '表单模式' : 'JSON 编辑'}</Button>}
+        {rawMode ? <Textarea aria-label="MCP 调试 JSON" className="min-h-32 font-mono text-xs" value={rawJson} onChange={(event) => setRawJson(event.target.value)} /> : (
+          <div className="grid max-h-80 gap-3 overflow-auto">
+            {fields.map((field) => {
+              const name = field.name!
+              const type = field.type || 'string'
+              const value = values[name]
+              return <div key={name}>
+                <label htmlFor={`mcp-debug-${name}`} className="mb-1 block text-sm font-medium">{name}{field.required ? <span className="text-destructive"> *</span> : null} <span className="font-normal text-muted-foreground">{type}</span></label>
+                {field.enum?.length ? (
+                  <Select value={value == null ? '' : String(value)} onValueChange={(selected) => setValue(name, field.enum?.find((item) => String(item) === selected))}>
+                    <SelectTrigger id={`mcp-debug-${name}`} aria-label={name}><SelectValue placeholder="请选择" /></SelectTrigger>
+                    <SelectContent>{field.enum.map((item) => <SelectItem key={String(item)} value={String(item)}>{String(item)}</SelectItem>)}</SelectContent>
+                  </Select>
+                ) : type === 'boolean' ? (
+                  <Select value={value == null ? '' : String(value)} onValueChange={(selected) => setValue(name, selected === 'true')}>
+                    <SelectTrigger id={`mcp-debug-${name}`} aria-label={name}><SelectValue placeholder="请选择" /></SelectTrigger>
+                    <SelectContent><SelectItem value="true">true</SelectItem><SelectItem value="false">false</SelectItem></SelectContent>
+                  </Select>
+                ) : type === 'object' || type === 'array' ? (
+                  <Textarea id={`mcp-debug-${name}`} aria-label={name} className="min-h-24 font-mono text-xs" value={typeof value === 'string' ? value : JSON.stringify(value ?? field.defaultValue ?? (type === 'array' ? [] : {}), null, 2)} onChange={(event) => setValue(name, event.target.value)} />
+                ) : (
+                  <Input id={`mcp-debug-${name}`} type={type === 'integer' || type === 'number' ? 'number' : 'text'} step={type === 'integer' ? '1' : type === 'number' ? 'any' : undefined} value={value == null ? '' : String(value)} onChange={(event) => setValue(name, event.target.value)} />
+                )}
+                {field.description ? <p className="mt-1 text-xs text-muted-foreground">{field.description}</p> : null}
+              </div>
+            })}
+          </div>
+        )}
+        {result ? <div><p className={result.success ? 'text-sm text-emerald-700' : 'text-sm text-destructive'}>{result.success ? '成功' : '失败'}{result.durationMs != null ? ` · ${result.durationMs} ms` : ''}</p><pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-3 font-mono text-xs">{result.text}</pre></div> : null}
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>关闭</Button>
           <Button onClick={() => void run()} disabled={busy}>{busy ? '执行中…' : '执行调试'}</Button>

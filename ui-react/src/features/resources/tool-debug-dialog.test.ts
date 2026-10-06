@@ -14,6 +14,10 @@ describe('tool debug arguments', () => {
     expect(toolDebugInitialValues(schema)).toEqual({ query: 'hello', count: 2, enabled: false })
   })
 
+  it('rejects fractional values for integer parameters', () => {
+    expect(() => buildToolDebugArguments([{ name: 'limit', type: 'integer', required: true }], { limit: '1.5' })).toThrow('必须是整数')
+  })
+
   it('validates required fields and parses typed inputs', () => {
     expect(buildToolDebugArguments(schema, {
       query: 'run',

@@ -2,11 +2,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SkillFileTreeNode, SkillPackageVO } from '@/types'
-import { SkillFilesDialog, SkillToolsDialog } from './skill-page'
+import { SkillFilesDialog, SkillToolsDialog, updateSkillPreservingTools } from './skill-page'
 
 const detail = vi.fn()
 const page = vi.fn()
 const updateTools = vi.fn()
+const update = vi.fn()
 const tree = vi.fn()
 const allowedExtensions = vi.fn()
 const createFile = vi.fn()
@@ -16,6 +17,7 @@ vi.mock('@/api/resources', () => ({
   skills: {
     detail: (...args: unknown[]) => detail(...args),
     updateTools: (...args: unknown[]) => updateTools(...args),
+    update: (...args: unknown[]) => update(...args),
     tree: (...args: unknown[]) => tree(...args),
     allowedExtensions: (...args: unknown[]) => allowedExtensions(...args),
     createFile: (...args: unknown[]) => createFile(...args),
@@ -44,10 +46,11 @@ describe('Skill 关联工具协议', () => {
     detail.mockReset().mockResolvedValue({ data: { data: { id: '7', tools: [] } } })
     page.mockReset().mockResolvedValue({ data: { data: { records: [{ id: '42', toolId: 'search_tool', name: '搜索工具' }] } } })
     updateTools.mockReset().mockResolvedValue({ data: { data: true } })
+    update.mockReset().mockResolvedValue({ data: { data: true } })
   })
 
   it('提交工具记录 ID，而非业务 toolId', async () => {
-    renderDialog(<SkillToolsDialog skill={skill} onClose={vi.fn()} />)
+    renderDialog(<SkillToolsDialog skill={skill} onClose={vi.fn()} onSaved={vi.fn()} />)
 
     const checkbox = await screen.findByRole('checkbox')
     fireEvent.click(checkbox)
@@ -55,6 +58,17 @@ describe('Skill 关联工具协议', () => {
 
     await waitFor(() => expect(updateTools).toHaveBeenCalledWith('7', ['42']))
     expect(page).toHaveBeenCalledWith({ page: 1, size: 1000, enabled: true })
+  })
+
+  it('更新元数据或启停前读取现有关联并保留工具记录 ID', async () => {
+    detail.mockResolvedValue({ data: { data: { ...skill, tools: ['42'], description: '原描述' } } })
+
+    await updateSkillPreservingTools('7', { enabled: false })
+    await updateSkillPreservingTools('7', { description: '新描述' })
+
+    expect(update).toHaveBeenNthCalledWith(1, expect.objectContaining({ id: '7', enabled: false, tools: ['42'], description: '原描述' }))
+    expect(update).toHaveBeenNthCalledWith(2, expect.objectContaining({ id: '7', enabled: true, tools: ['42'], description: '新描述' }))
+    expect(detail).toHaveBeenCalledTimes(2)
   })
 })
 

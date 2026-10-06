@@ -25,6 +25,13 @@ import type { McpServerVO, SkillFileTreeNode, SkillPackageVO, ToolVO } from '@/t
 import { usePagedList } from '@/features/data/paged'
 import { SkillHubSheet } from '@/features/skills/skill-hub-sheet'
 
+/** PUT /api/skill replaces tool links even when tools is omitted. */
+export async function updateSkillPreservingTools(id: string | number, changes: Partial<SkillPackageVO>) {
+  const detail = (await skills.detail(String(id))).data.data
+  if (!detail) throw new Error('技能不存在或已被删除')
+  return skills.update({ ...detail, ...changes, id: detail.id, tools: detail.tools ?? [] })
+}
+
 export function SkillPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [search, setSearch] = useState('')
@@ -88,7 +95,7 @@ export function SkillPage() {
   async function setSkillEnabled(skill: SkillPackageVO, enabled: boolean) {
     setBusy(true)
     try {
-      await skills.update({ id: skill.id, enabled })
+      await updateSkillPreservingTools(skill.id, { enabled })
       toast.success(enabled ? '已启用' : '已停用')
       setPendingDisable(null)
       void paged.refetch()
@@ -193,7 +200,7 @@ export function SkillPage() {
       <ImportDialog open={importOpen} onOpenChange={setImportOpen} onImported={() => void paged.refetch()} />
       {hubOpen ? <SkillHubSheet onClose={() => setHubOpen(false)} onImported={() => void paged.refetch()} /> : null}
       {treeSkill ? <SkillFilesDialog skill={treeSkill} onClose={() => setTreeSkill(null)} /> : null}
-      {toolsSkill ? <SkillToolsDialog skill={toolsSkill} onClose={() => setToolsSkill(null)} /> : null}
+      {toolsSkill ? <SkillToolsDialog skill={toolsSkill} onClose={() => setToolsSkill(null)} onSaved={() => void paged.refetch()} /> : null}
     </div>
   )
 }
@@ -222,7 +229,7 @@ function SkillFormDialog({ open, onOpenChange, editing, onSaved }: {
     setBusy(true)
     try {
       const payload = { ...values, name: values.name.trim(), alias: values.alias.trim(), category: values.category.trim() }
-      if (editing) await skills.update({ id: editing.id, ...payload } as Partial<SkillPackageVO>)
+      if (editing) await updateSkillPreservingTools(editing.id, payload)
       else await skills.save(payload as Partial<SkillPackageVO>)
       toast.success('已保存')
       onOpenChange(false)
@@ -374,7 +381,7 @@ function ImportDialog({ open, onOpenChange, onImported }: { open: boolean; onOpe
   )
 }
 
-export function SkillToolsDialog({ skill, onClose }: { skill: SkillPackageVO; onClose: () => void }) {
+export function SkillToolsDialog({ skill, onClose, onSaved }: { skill: SkillPackageVO; onClose: () => void; onSaved: () => void }) {
   const detailQuery = useQuery({
     queryKey: ['detail', 'skill', String(skill.id)],
     queryFn: async () => (await skills.detail(String(skill.id))).data.data,
@@ -399,6 +406,7 @@ export function SkillToolsDialog({ skill, onClose }: { skill: SkillPackageVO; on
     try {
       await skills.updateTools(String(skill.id), selected)
       toast.success('工具关联已更新')
+      onSaved()
       onClose()
     } catch (cause) {
       toast.error(readableError(cause, '保存失败'))

@@ -141,7 +141,8 @@ export const mcpServers = {
     put<McpServerVO>(`/api/mcp/server/${id}/tools/global-need-confirm`, { toolIds, needConfirm }),
   remove: (ids: string[]) => del('/api/mcp/server', ids),
   usedWithAgent: (ids: string[]) => post<unknown[]>('/api/mcp/server/used-with-agent', ids),
-  debugTool: (payload: Record<string, unknown>) => post<McpToolDebugResultVO>('/api/mcp/server/tools/debug', payload),
+  debugTool: (toolId: string, input: Record<string, unknown>) =>
+    post<McpToolDebugResultVO>('/api/mcp/server/tools/debug', { toolId, input }),
 }
 
 /** Hook */
