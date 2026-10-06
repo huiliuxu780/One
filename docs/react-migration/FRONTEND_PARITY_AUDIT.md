@@ -194,3 +194,11 @@
 - **可访问性与控制台**：工作流资源/运维/Agent 详情的 icon-only 编辑、删除、复制按钮补 `aria-label`；资源表单 `invalid` 属性改为 `aria-invalid`，消除 React 非布尔属性控制台警告（复测 0 警告）。
 
 仍待验收（不阻塞本轮提交）：工作流资源连接检查**成功**路径（需真实 DB/MQ/Redis 凭据）、附件与日志第 2 页（真实数据不足 20 条）、编辑角色真实账号回归、高级工作流节点矩阵、外部 A2A/第三方 MCP、非 Chromium 浏览器与并发容量。
+
+### 本轮部署记录（944f027）
+
+- 本地 `tsc -b`、Vitest 37 文件 119 项、生产构建、`size:check` 全部通过；提交 `897df4d`（V7 迁移）、`0ede012`（可访问性与 aria-invalid）、`944f027`（矩阵）推送至 origin。
+- ECS `/opt/apboa-next` 快进到 `944f027`；本地构建 dist 以 rsync 合并同步（保留旧哈希资源）；frontend 镜像 `5459cb1cfdad` 重建并 force-recreate，回滚镜像 `rollback-276e55b-pre-944f027`。
+- Console 镜像 `032a6b520fab` 经 Maven（`-pl runner-console -am`）重建；Flyway 执行 `V7 secret key value widen`（history success=1）。此前 ECS 已手动应用同义 ALTER 并清理 4 条 `value=NULL` 僵尸行。
+- 生产验证：`/react/` 200；`?kind=channel` 深链直达通知渠道页签并显示真实渠道记录；settings/ops/skill/automation 四页巡检控制台 0 错误；生产环境创建 API Key 成功（一次性弹窗+脱敏列表，V7 端到端生效）后删除清理。
+- 资源采样：全部 8 容器 restarts=0；主机内存已用 2751MB/可用 4461MB；磁盘 23G/40G（61%）。
