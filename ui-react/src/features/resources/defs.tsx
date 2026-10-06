@@ -16,6 +16,7 @@ import {
 import type { CodeExecutionConfig, HookConfigVO, LongTermMemoryConfig, ModelConfigVO, ModelProviderVO, SensitiveWordConfigVO, StudioConfig, SystemPromptTemplateVO, ToolVO } from '@/types'
 import { AuthType, CodeLanguage, HookType, ModelType, SensitiveWordAction, ToolType } from '@/types'
 import type { ColumnDef, FieldDef, ResourceDef } from './types'
+import { ToolDebugDialog } from './tool-debug-dialog'
 
 function enabledColumn<T extends { enabled?: boolean }>(onChange?: (row: T, enabled: boolean) => void): ColumnDef<T> {
   return {
@@ -76,16 +77,7 @@ export const toolDef: ResourceDef<ToolVO> = {
     { name: 'code', label: '工具代码', type: 'textarea', wide: true, placeholder: '自定义工具代码' },
     { name: 'enabled', label: '启用', type: 'switch', defaultValue: true },
   ],
-  rowActions: [{ label: '调试', action: async (row) => {
-    const raw = window.prompt(`输入 ${row.toolId} 的参数 JSON`, '{}')
-    if (raw == null) return
-    try {
-      const response = await tools.debug(row.toolId, JSON.parse(raw) as Record<string, unknown>)
-      toast.success('工具调试完成', { description: JSON.stringify(response.data.data ?? response.data).slice(0, 500) })
-    } catch (cause) {
-      toast.error(readableError(cause, '工具调试失败'))
-    }
-  } }],
+  rowActions: [{ label: '调试', renderDialog: (row, onClose) => <ToolDebugDialog tool={row} onClose={onClose} /> }],
 }
 
 export const hookDef: ResourceDef<HookRow> = {

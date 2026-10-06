@@ -307,6 +307,7 @@ const deleteDialog = (
 export function ResourcePage<T extends { id?: string | number }>({ def }: { def: ResourceDef<T> }) {
   const [search, setSearch] = useState('')
   const [filterValues, setFilterValues] = useState<Record<string, unknown>>({})
+  const [activeAction, setActiveAction] = useState<{ row: T; index: number } | null>(null)
   const invalidate = useInvalidateResource()
 
   const listQuery = useQuery({
@@ -448,8 +449,16 @@ export function ResourcePage<T extends { id?: string | number }>({ def }: { def:
                       ))}
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          {def.rowActions?.map((action) => (
-                            <Button key={action.label} variant="ghost" size="sm" onClick={() => void action.action(row)}>
+                          {def.rowActions?.map((action, index) => (
+                            <Button
+                              key={action.label}
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                if (action.renderDialog) setActiveAction({ row, index })
+                                else if (action.action) void action.action(row)
+                              }}
+                            >
                               {action.label}
                             </Button>
                           ))}
@@ -481,6 +490,10 @@ export function ResourcePage<T extends { id?: string | number }>({ def }: { def:
       </Card>
 
       <ResourceFormDialog def={def} form={form.form} editing={form.editing} open={form.open} onOpenChange={form.setOpen} onSaved={refresh} />
+
+      {activeAction
+        ? def.rowActions?.[activeAction.index]?.renderDialog?.(activeAction.row, () => setActiveAction(null))
+        : null}
 
       <AlertDialog open={deletion.pending != null} onOpenChange={(open) => !open && deletion.setPending(null)}>
         <AlertDialogContent>

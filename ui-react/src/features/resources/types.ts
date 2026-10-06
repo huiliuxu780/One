@@ -62,6 +62,8 @@ export interface ResourceDef<T extends { id?: string | number }> {
   /** 行级额外动作 */
   rowActions?: {
     label: string
-    action: (row: T) => Promise<void> | void
+    action?: (row: T) => Promise<void> | void
+    /** 需要持续交互或展示结果的动作使用受控对话框，避免浏览器 prompt/alert。 */
+    renderDialog?: (row: T, onClose: () => void) => React.ReactNode
   }[]
 }
