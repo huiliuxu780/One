@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowSquareOut, Copy, Key, Link, Trash } from '@phosphor-icons/react'
 import { addAgentJob, deleteAgentJob, getAgent, getAgentChatKey, getAgentJob, getAgentTrends, updateAgentJob } from '@/api/agents'
-import { getCurrentMessages, pageSessions } from '@/api/chatSession'
+import { getCurrentMessages, pageSessions, deleteSession } from '@/api/chatSession'
 import { hooks, mcpServers, modelConfigs, prompts, sensitiveWords, skills, tools } from '@/api/resources'
 import { getWorkflow } from '@/api/workflows'
+import { agentEndpoints, workspaceEndpoints, type ApiDocEndpoint } from './api-doc-data'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/sonner'
 import { EmptyState, ErrorState, PageLoading } from '@/components/states'
 import { readableError } from '@/lib/utils'
-import type { AgentDefinitionVO, ChatMessageVO, JobInfo, TrendItem } from '@/types'
+import type { AgentDefinitionVO, ChatMessageVO, ChatSessionVO, JobInfo, TrendItem } from '@/types'
 
 export function AgentDetails({ agent, onClose }: { agent: AgentDefinitionVO; onClose: () => void }) {
   return (
@@ -124,12 +125,86 @@ function ArchitecturePanel({ agentId }: { agentId: string }) {
 
 function ApiPanel({ agent }: { agent: AgentDefinitionVO }) {
   const [refresh, setRefresh] = useState(false)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const query = useQuery({ queryKey: ['detail', 'agent-chat-key', String(agent.id), refresh], queryFn: async () => (await getAgentChatKey(String(agent.id), refresh)).data.data })
   useEffect(() => { if (refresh && query.isSuccess) setRefresh(false) }, [refresh, query.isSuccess])
   const chatUrl = query.data ? `${window.location.origin}${import.meta.env.BASE_URL}communication/${query.data}` : ''
   const runtimeUrl = `${window.location.origin}/api/runtime/agui/run/${agent.agentCode}`
   async function copy(value: string) { await navigator.clipboard.writeText(value); toast.success('已复制') }
-  return <div className="mt-4 space-y-4"><div className="rounded-lg border border-border p-4"><div className="mb-2 flex items-center gap-2 font-medium"><Key size={17} />外部对话链接</div>{query.isLoading ? <PageLoading /> : query.error ? <ErrorState error={query.error} onRetry={() => void query.refetch()} /> : <><div className="flex gap-2"><Input readOnly value={chatUrl} className="font-mono text-xs" /><Button size="icon" variant="outline" aria-label="复制外部对话链接" onClick={() => void copy(chatUrl)}><Copy size={14} /></Button><Button size="icon" variant="outline" asChild><a href={chatUrl} target="_blank" rel="noreferrer" aria-label="打开外部对话链接"><ArrowSquareOut size={14} /></a></Button></div><Button className="mt-3" variant="outline" size="sm" onClick={() => { if (window.confirm('刷新后旧链接立即失效，确认继续？')) setRefresh(true) }}>刷新 Chat Key</Button></>}</div><div className="rounded-lg border border-border p-4"><div className="mb-2 flex items-center gap-2 font-medium"><Link size={17} />AG-UI 运行接口</div><div className="flex gap-2"><Input readOnly value={runtimeUrl} className="font-mono text-xs" /><Button size="icon" variant="outline" aria-label="复制运行接口地址" onClick={() => void copy(runtimeUrl)}><Copy size={14} /></Button></div><pre className="mt-3 overflow-auto rounded-lg bg-muted p-3 text-xs">{JSON.stringify({ threadId: 'string', runId: 'string', messages: [{ id: 'string', role: 'user', content: '你好' }], forwardedProps: { agentId: String(agent.id), memoryActive: false, planActive: false, fileIds: [] } }, null, 2)}</pre></div></div>
+  function toggle(id: string) {
+    setExpanded((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  return (
+    <div className="mt-4 space-y-4">
+      <div className="rounded-lg border border-border p-4">
+        <div className="mb-2 flex items-center gap-2 font-medium"><Key size={17} />外部对话链接</div>
+        {query.isLoading ? <PageLoading /> : query.error ? <ErrorState error={query.error} onRetry={() => void query.refetch()} /> : (
+          <>
+            <div className="flex gap-2">
+              <Input readOnly value={chatUrl} className="font-mono text-xs" />
+              <Button size="icon" variant="outline" aria-label="复制外部对话链接" onClick={() => void copy(chatUrl)}><Copy size={14} /></Button>
+              <Button size="icon" variant="outline" asChild><a href={chatUrl} target="_blank" rel="noreferrer" aria-label="打开外部对话链接"><ArrowSquareOut size={14} /></a></Button>
+            </div>
+            <Button className="mt-3" variant="outline" size="sm" onClick={() => { if (window.confirm('刷新后旧链接立即失效，确认继续？')) setRefresh(true) }}>刷新 Chat Key</Button>
+          </>
+        )}
+      </div>
+      <div className="rounded-lg border border-border p-4">
+        <div className="mb-2 flex items-center gap-2 font-medium"><Link size={17} />AG-UI 运行接口</div>
+        <div className="flex gap-2">
+          <Input readOnly value={runtimeUrl} className="font-mono text-xs" />
+          <Button size="icon" variant="outline" aria-label="复制运行接口地址" onClick={() => void copy(runtimeUrl)}><Copy size={14} /></Button>
+        </div>
+        <pre className="mt-3 overflow-auto rounded-lg bg-muted p-3 text-xs">{JSON.stringify({ threadId: 'string', runId: 'string', messages: [{ id: 'string', role: 'user', content: '你好' }], forwardedProps: { agentId: String(agent.id), memoryActive: false, planActive: false, fileIds: [] } }, null, 2)}</pre>
+      </div>
+      <EndpointDocGroup title="智能体对话接口" endpoints={agentEndpoints} expanded={expanded} onToggle={toggle} />
+      <EndpointDocGroup title="工作空间接口" endpoints={workspaceEndpoints} expanded={expanded} onToggle={toggle} />
+    </div>
+  )
+}
+
+function EndpointDocGroup({ title, endpoints, expanded, onToggle }: {
+  title: string
+  endpoints: ApiDocEndpoint[]
+  expanded: Set<string>
+  onToggle: (id: string) => void
+}) {
+  return (
+    <div className="rounded-lg border border-border p-4">
+      <div className="mb-2 font-medium">{title}</div>
+      <div className="space-y-1">
+        {endpoints.map((endpoint) => (
+          <div key={endpoint.id} className="rounded-lg border border-border/60">
+            <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm" onClick={() => onToggle(endpoint.id)} aria-expanded={expanded.has(endpoint.id)}>
+              <Badge variant="outline" className="font-mono">{endpoint.method}</Badge>
+              <span className="truncate font-mono text-xs">{endpoint.path}</span>
+              <span className="ml-auto shrink-0 text-xs text-muted-foreground">{endpoint.desc}</span>
+            </button>
+            {expanded.has(endpoint.id) ? (
+              <div className="space-y-2 border-t border-border/60 px-3 py-2 text-xs">
+                {endpoint.note ? <p className="text-muted-foreground">{endpoint.note}</p> : null}
+                {endpoint.params.length ? (
+                  <div>
+                    <div className="mb-1 font-medium">参数</div>
+                    <ul className="space-y-0.5 text-muted-foreground">
+                      {endpoint.params.map((param) => <li key={param.name}><span className="font-mono">{param.name}</span>（{param.type}{param.required ? '，必填' : '，可选'}）：{param.desc}</li>)}
+                    </ul>
+                  </div>
+                ) : null}
+                {endpoint.bodyExample ? <div><div className="mb-1 font-medium">请求体示例</div><pre className="overflow-auto rounded bg-muted p-2 font-mono">{endpoint.bodyExample}</pre></div> : null}
+                {endpoint.responseExample ? <div><div className="mb-1 font-medium">响应示例</div><pre className="overflow-auto rounded bg-muted p-2 font-mono">{endpoint.responseExample}</pre></div> : null}
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function StatisticsPanel({ agentId }: { agentId: string }) {
@@ -148,13 +223,27 @@ function Sparkline({ items }: { items: TrendItem[] }) {
 
 function HistoryPanel({ agentId }: { agentId: string }) {
   const [sessionId, setSessionId] = useState('')
+  const queryClient = useQueryClient()
   const sessionsQuery = useQuery({ queryKey: ['list', 'agent-session-history', agentId], queryFn: async () => (await pageSessions({ page: 1, size: 100, agentId })).data.data.records })
   const messagesQuery = useQuery({ queryKey: ['list', 'agent-session-messages', sessionId], queryFn: async () => (await getCurrentMessages(sessionId)).data.data, enabled: Boolean(sessionId) })
+
+  async function removeSession(session: ChatSessionVO) {
+    if (!window.confirm(`确定要删除会话「${session.title || '未命名会话'}」吗？删除后不可恢复。`)) return
+    try {
+      await deleteSession(String(session.id))
+      toast.success('会话已删除')
+      if (sessionId === String(session.id)) setSessionId('')
+      void queryClient.invalidateQueries({ queryKey: ['list', 'agent-session-history', agentId] })
+    } catch (cause) {
+      toast.error(readableError(cause, '删除失败'))
+    }
+  }
+
   if (sessionsQuery.isLoading) return <PageLoading />
   if (sessionsQuery.error) return <ErrorState error={sessionsQuery.error} onRetry={() => void sessionsQuery.refetch()} />
   const sessions = sessionsQuery.data ?? []
   if (!sessions.length) return <EmptyState title="暂无对话历史" description="该 Agent 尚未产生会话。" />
-  return <div className="mt-4 grid gap-3 md:grid-cols-[240px_minmax(0,1fr)]"><div className="space-y-2">{sessions.map((session) => <button key={String(session.id)} className={`w-full rounded-lg border p-3 text-left ${sessionId === String(session.id) ? 'border-primary bg-primary/5' : 'border-border'}`} onClick={() => setSessionId(String(session.id))}><div className="truncate text-sm font-medium">{session.title || '未命名会话'}</div><div className="mt-1 text-xs text-muted-foreground">{session.updatedAt || session.createdAt}</div></button>)}</div><div className="space-y-2">{!sessionId ? <p className="text-sm text-muted-foreground">选择会话查看消息。</p> : messagesQuery.isLoading ? <PageLoading /> : messagesQuery.error ? <ErrorState error={messagesQuery.error} onRetry={() => void messagesQuery.refetch()} /> : (messagesQuery.data ?? []).filter((message) => !(message.role === 'system' && message.depth === 0)).map((message: ChatMessageVO) => <div key={String(message.id)} className={`rounded-lg p-3 text-sm ${message.role === 'user' ? 'ml-8 bg-primary/10' : 'mr-8 bg-muted'}`}><div className="mb-1 text-[10px] uppercase text-muted-foreground">{message.role}</div><div className="whitespace-pre-wrap break-words">{message.content}</div></div>)}</div></div>
+  return <div className="mt-4 grid gap-3 md:grid-cols-[240px_minmax(0,1fr)]"><div className="space-y-2">{sessions.map((session) => <div key={String(session.id)} role="button" tabIndex={0} className={`w-full cursor-pointer rounded-lg border p-3 text-left ${sessionId === String(session.id) ? 'border-primary bg-primary/5' : 'border-border'}`} onClick={() => setSessionId(String(session.id))} onKeyDown={(event) => { if (event.key === 'Enter') setSessionId(String(session.id)) }}><div className="flex items-center gap-1"><span className="min-w-0 flex-1 truncate text-sm font-medium">{session.title || '未命名会话'}</span><button aria-label={`删除会话 ${session.title || '未命名会话'}`} className="shrink-0 text-muted-foreground hover:text-destructive" onClick={(event) => { event.stopPropagation(); void removeSession(session) }}><Trash size={13} /></button></div><div className="mt-1 text-xs text-muted-foreground">{session.updatedAt || session.createdAt}</div></div>)}</div><div className="space-y-2">{!sessionId ? <p className="text-sm text-muted-foreground">选择会话查看消息。</p> : messagesQuery.isLoading ? <PageLoading /> : messagesQuery.error ? <ErrorState error={messagesQuery.error} onRetry={() => void messagesQuery.refetch()} /> : (messagesQuery.data ?? []).filter((message) => !(message.role === 'system' && message.depth === 0)).map((message: ChatMessageVO) => <div key={String(message.id)} className={`rounded-lg p-3 text-sm ${message.role === 'user' ? 'ml-8 bg-primary/10' : 'mr-8 bg-muted'}`}><div className="mb-1 text-[10px] uppercase text-muted-foreground">{message.role}</div><div className="whitespace-pre-wrap break-words">{message.content}</div></div>)}</div></div>
 }
 
 function SchedulePanel({ agentId }: { agentId: string }) {
