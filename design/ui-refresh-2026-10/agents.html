@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>原型 · 智能体 · 02 纸墨编辑</title>
+<link rel="stylesheet" href="proto.css">
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="8" width="14" height="10" rx="3"/><path d="M12 8V5M9.5 12.5h.01M14.5 12.5h.01"/></svg></span><b>Apboa</b></div>
+    <div class="ws"><span class="dot"></span>林悦的工作空间</div>
+    <nav class="nav">
+      <div class="group"><div class="group-t">对 话</div>
+        <a class="on" href="agents.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="7" width="14" height="11" rx="3"/><path d="M12 7V4M9 12h.01M15 12h.01"/></svg>智能体<span class="n">24</span></a>
+        <a href="chat.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8Z"/></svg>对话</a>
+        <a href="#cluster"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z"/></svg>对话广场</a>
+        <a href="#history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>会话历史</a>
+      </div>
+      <div class="group"><div class="group-t">编 排</div>
+        <a href="#workflow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="6" height="5" rx="1.5"/><rect x="15" y="15" width="6" height="5" rx="1.5"/><path d="M9 6.5h6a3 3 0 0 1 3 3v5.5"/></svg>工作流<span class="n">9</span></a>
+        <a href="#auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 9v3l2 2M4 4l2 2"/></svg>自动化<span class="n">3</span></a>
+      </div>
+      <div class="group"><div class="group-t">资 源</div>
+        <a href="#model"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 7V4m6 3V4M7 7h10v5a5 5 0 0 1-10 0Zm5 10v3"/></svg>模型<span class="n">6</span></a>
+        <a href="#skill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="8" width="16" height="11" rx="2"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>技能<span class="n">12</span></a>
+        <a href="#mcp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l2-5 3 10 2-5h7"/></svg>MCP<span class="n">4</span></a>
+      </div>
+      <div class="group"><div class="group-t">系 统</div>
+        <a href="dashboard.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="8" height="7" rx="1.5"/><rect x="13" y="4" width="8" height="4" rx="1.5"/><rect x="13" y="10" width="8" height="10" rx="1.5"/><rect x="3" y="13" width="8" height="7" rx="1.5"/></svg>工作台</a>
+        <a href="#settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="9" r="3.2"/><path d="M5 19a7 7 0 0 1 14 0"/></svg>设置</a>
+      </div>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <span class="crumb">工作空间 / <b>智能体</b></span>
+      <span class="date">10 月 6 日，周二</span>
+    </div>
+    <div class="scroll">
+      <div class="pagehead">
+        <h1>智能体</h1>
+        <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>新建智能体<span class="kbd">⌘N</span></button>
+      </div>
+      <p class="sub">24 张智能体卡 · 已启用 18 · <span class="mono">最近更新 今天 14:32</span></p>
+      <div class="toolbar">
+        <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="6"/><path d="m20 20-4-4"/></svg><input placeholder="搜索智能体　⌘K"></div>
+        <span class="chip on">全部</span><span class="chip">客服</span><span class="chip">数据分析</span><span class="chip">法务合规</span><span class="chip">运维</span>
+        <span class="sort">按更新时间<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 6v12M7 18l-3-3m3 3 3-3M17 18V6m0 0-3 3m3-3 3 3"/></svg></span>
+      </div>
+
+      <section class="grid">
+        <article class="acard sel">
+          <div class="atop"><span class="acode">AGT-0042</span><span class="atype">自定义</span><span class="star on"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 3 2.6 5.6 6 .7-4.5 4.1 1.2 5.9L12 16.4 6.7 19.3l1.2-5.9L3.4 9.3l6-.7Z"/></svg></span></div>
+          <div class="aname">客服助手 · 小一</div>
+          <p class="adesc">处理售前售后咨询，接入订单与物流知识库，复杂问题自动转人工并附会话摘要。</p>
+          <div class="afoot"><span class="tag">客服</span><span class="stat"><i></i>已启用</span><span class="link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 14a4 4 0 0 0 6 .5l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6-.5l-3 3a4 4 0 0 0 6 6l1-1"/></svg>2</span><button class="act">对话</button></div>
+        </article>
+
+        <article class="acard">
+          <div class="atop"><span class="acode">AGT-0057</span><span class="atype">自定义</span><span class="star"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 2.6 5.6 6 .7-4.5 4.1 1.2 5.9L12 16.4 6.7 19.3l1.2-5.9L3.4 9.3l6-.7Z"/></svg></span></div>
+          <div class="aname">SQL 分析师</div>
+          <p class="adesc">按自然语言生成并执行只读查询，输出图表与结论，自动校验数据集权限。</p>
+          <div class="afoot"><span class="tag">数据分析</span><span class="stat"><i></i>已启用</span><span class="link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 14a4 4 0 0 0 6 .5l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6-.5l-3 3a4 4 0 0 0 6 6l1-1"/></svg>5</span><button class="act">对话</button></div>
+        </article>
+
+        <article class="acard">
+          <div class="atop"><span class="acode">AGT-0063</span><span class="atype">自定义</span><span class="star on"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 3 2.6 5.6 6 .7-4.5 4.1 1.2 5.9L12 16.4 6.7 19.3l1.2-5.9L3.4 9.3l6-.7Z"/></svg></span></div>
+          <div class="aname">合同审查</div>
+          <p class="adesc">抽取采购合同关键条款，标注风险点并给出修订建议，输出审查意见书。</p>
+          <div class="afoot"><span class="tag">法务合规</span><span class="stat"><i></i>已启用</span><span class="link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 14a4 4 0 0 0 6 .5l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6-.5l-3 3a4 4 0 0 0 6 6l1-1"/></svg>3</span><button class="act">对话</button></div>
+        </article>
+
+        <article class="acard">
+          <div class="atop"><span class="acode">AGT-0071</span><span class="atype">自定义</span><span class="star"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 2.6 5.6 6 .7-4.5 4.1 1.2 5.9L12 16.4 6.7 19.3l1.2-5.9L3.4 9.3l6-.7Z"/></svg></span></div>
+          <div class="aname">运维值班助手</div>
+          <p class="adesc">聚合告警信息，生成初步排查建议与变更摘要，值班交接一键归档。</p>
+          <div class="afoot"><span class="tag">运维</span><span class="stat off"><i></i>已停用</span><span class="link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 14a4 4 0 0 0 6 .5l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6-.5l-3 3a4 4 0 0 0 6 6l1-1"/></svg>1</span><button class="act">对话</button></div>
+        </article>
+
+        <article class="acard">
+          <div class="atop"><span class="acode">AGT-0088</span><span class="atype">自定义</span><span class="star"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 2.6 5.6 6 .7-4.5 4.1 1.2 5.9L12 16.4 6.7 19.3l1.2-5.9L3.4 9.3l6-.7Z"/></svg></span></div>
+          <div class="aname">内容审校</div>
+          <p class="adesc">审校公众号稿件，检查错别字、术语一致性与合规表述，保留修改痕迹。</p>
+          <div class="afoot"><span class="tag">内容</span><span class="stat"><i></i>已启用</span><span class="link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 14a4 4 0 0 0 6 .5l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6-.5l-3 3a4 4 0 0 0 6 6l1-1"/></svg>4</span><button class="act">对话</button></div>
+        </article>
+
+        <article class="acard">
+          <div class="atop"><span class="acode">AGT-0094</span><span class="atype">A2A</span><span class="star"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 2.6 5.6 6 .7-4.5 4.1 1.2 5.9L12 16.4 6.7 19.3l1.2-5.9L3.4 9.3l6-.7Z"/></svg></span></div>
+          <div class="aname">面试助理</div>
+          <p class="adesc">根据简历生成提问提纲，记录面试要点并产出结构化评价草稿。</p>
+          <div class="afoot"><span class="tag">人事</span><span class="stat off"><i></i>已停用</span><span class="link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 14a4 4 0 0 0 6 .5l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6-.5l-3 3a4 4 0 0 0 6 6l1-1"/></svg>0</span><button class="act">对话</button></div>
+        </article>
+      </section>
+
+      <div class="foot"><span>24 张卡片 · 8 条双向链接</span><span>⌘K 快速查找</span></div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

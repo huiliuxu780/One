@@ -1,0 +1,17 @@
+用法: start-simple.sh <操作>
+
+Apboa 单机版 管理脚本
+
+操作：
+  build    构建镜像并启动所有服务
+  rebuild  停止并删除容器，然后重新构建并启动
+  start    启动已创建的服务
+  stop     停止正在运行的服务
+  restart  重启服务
+  down     停止并删除容器和网络
+  status   查看服务运行状态
+
+示例：
+  start-simple.sh build     # 首次部署或更新代码后使用
+  start-simple.sh rebuild   # 需要完全重建时使用
+  start-simple.sh status    # 查看当前运行状态

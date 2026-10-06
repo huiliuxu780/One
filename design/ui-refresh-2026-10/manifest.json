@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "project": "Apboa Next 控制台",
+  "brief": "智能体列表页：浏览与筛选智能体、查看状态与标签、发起对话或新建智能体。四个候选表达同一内容、同一主动作，仅视觉语言与信息结构不同。",
+  "round": "01",
+  "candidates": [
+    {
+      "id": "baseline",
+      "name": "现状",
+      "concept": "忠实复刻当前线上版本：shadcn 默认灰阶 + 品牌蓝 #1769e0，白底卡片表格化后台。",
+      "typography": "SF Pro / PingFang 无衬线；标题 20px semibold，正文 14px，等宽仅用于编码",
+      "palette": ["#fbfcfd", "#1769e0", "#687287"],
+      "traits": ["12px 圆角白卡 + 浅阴影", "蓝色实心主按钮", "胶囊状态徽章", "蓝色底头像块"],
+      "kind": "html",
+      "source": "baseline.html",
+      "baseline": true
+    },
+    {
+      "id": "tidy",
+      "name": "01 整理",
+      "concept": "不换气质，只收拢：页头与主动作同行、工具条单基线、卡片统一度量、页脚发丝线分隔、悬停去位移。",
+      "typography": "沿用 SF Pro / PingFang；标题 20px，正文 13px，数字 tabular-nums",
+      "palette": ["#fbfcfd", "#1769e0", "#687287"],
+      "traits": ["层级与对齐修正", "计数进页头、筛选进工具条", "卡片页脚发丝线", "悬停只动边框与阴影"],
+      "kind": "html",
+      "source": "c1-tidy.html"
+    },
+    {
+      "id": "upgrade",
+      "name": "02 升级 · 纸墨编辑",
+      "concept": "参考绎卡的纸墨编辑语言：暖纸底、衬线标题、朱色单重点、发丝线与 6px 小圆角，让后台读起来像一份刊物。",
+      "typography": "宋体/Noto Serif SC 衬线做标题与卡名（16.5–27px），PingFang 做正文 12.5px，等宽做编码与计数",
+      "palette": ["#f2efe9", "#b23a2c", "#26231e"],
+      "traits": ["暖纸背景 + 白纸卡片 + 发丝边", "朱红单重点色（主按钮/激活/选中）", "状态改为圆点 + 文字", "标签用 # 前缀文字而非胶囊"],
+      "kind": "html",
+      "source": "c2-upgrade.html"
+    },
+    {
+      "id": "reshape",
+      "name": "03 重塑 · 三栏工作区",
+      "concept": "结构重排为选择驱动的工作区：窄导航 + 卡片流 + 右侧检视面板，选中即见配置、挂载与最近会话，无需打开详情弹窗。",
+      "typography": "同 02 的衬线/无衬线/等宽三层关系；检视面板标题 21px 衬线",
+      "palette": ["#f2efe9", "#b23a2c", "#26231e"],
+      "traits": ["三栏：导航 / 卡片流 / 检视", "选中卡片红框联动右栏", "顶栏全局搜索 ⌘K", "配置与最近会话常驻可见"],
+      "kind": "html",
+      "source": "c3-reshape.html"
+    }
+  ]
+}

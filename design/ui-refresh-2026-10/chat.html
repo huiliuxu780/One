@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>原型 · 对话 · 02 纸墨编辑</title>
+<link rel="stylesheet" href="proto.css">
+<style>
+/* 会话侧栏 */
+.side.chat{width:260px}
+.new{margin:0 4px 14px;width:calc(100% - 8px);justify-content:center}
+.sess-g{font-size:10.5px;letter-spacing:.14em;color:var(--ink-3);padding:14px 10px 6px}
+.sess{display:block;padding:8px 10px;border-radius:var(--r-ctl);text-decoration:none}
+.sess b{display:block;font-size:12.5px;font-weight:500;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sess span{display:block;margin-top:2px;font-family:var(--mono);font-size:10px;color:var(--ink-3)}
+.sess.on{background:var(--accent-soft)}
+.sess.on b{color:var(--accent-deep);font-weight:600}
+/* 会话头 */
+.chat-head{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 24px;border-bottom:1px solid var(--line)}
+.chat-head .who{font-family:var(--serif);font-size:16.5px;font-weight:700}
+.chat-head .mdl{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);border:1px solid var(--line);border-radius:var(--r-sm);padding:2px 7px}
+.chat-head .ops{margin-left:auto;display:flex;gap:14px;color:var(--ink-3)}
+.chat-head .ops svg{width:15px;height:15px}
+/* 消息流：编辑式转录 */
+.stream{flex:1;overflow:auto;padding:10px 24px 24px}
+.msg{display:grid;grid-template-columns:86px minmax(0,1fr);gap:16px;padding:16px 0;border-top:1px solid var(--line)}
+.msg:first-child{border-top:none}
+.gut{text-align:right;padding-top:2px}
+.gut b{display:block;font-size:11.5px;font-weight:600;color:var(--ink-2)}
+.gut span{display:block;margin-top:2px;font-family:var(--mono);font-size:10px;color:var(--ink-3)}
+.ububble{display:inline-block;background:var(--card);border:1px solid var(--line);border-radius:var(--r-card);padding:10px 14px;font-size:13px;line-height:21px;color:var(--ink);max-width:68ch}
+.atext{font-size:13.5px;line-height:22px;color:var(--ink);max-width:72ch}
+.atext p+p{margin-top:10px}
+.atext ol{margin:8px 0 0 1.4em}
+.atext li+li{margin-top:5px}
+.code{margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-ctl);padding:10px 12px;font-family:var(--mono);font-size:11.5px;line-height:18px;color:var(--ink-2);overflow:auto;white-space:pre}
+.tool{margin-top:10px;max-width:72ch;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card)}
+.tool-h{display:flex;align-items:center;gap:8px;padding:8px 12px;font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+.tool-h .meta{margin-left:auto;color:var(--ink-3)}
+.tool-b{border-top:1px solid var(--line);padding:10px 12px;font-family:var(--mono);font-size:11px;line-height:18px;color:var(--ink-2);white-space:pre-wrap}
+.think{margin-top:10px;max-width:72ch;border:1px dashed var(--line-2);border-radius:var(--r-ctl);padding:8px 12px;font-size:11.5px;line-height:18px;color:var(--ink-3)}
+.think b{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.08em}
+.caret{display:inline-block;width:7px;height:14px;background:var(--accent);vertical-align:-2px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.errbox{margin-top:10px;max-width:72ch}
+.errbox .row{margin-top:10px;display:flex;gap:8px}
+/* 输入区 */
+.composer{flex:none;border-top:1px solid var(--line);padding:14px 24px 16px}
+.cbox{border:1px solid var(--line-2);border-radius:var(--r-card);background:var(--card)}
+.cbox:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.cbox textarea{display:block;width:100%;border:none;background:none;resize:none;padding:12px 14px 8px;font:inherit;font-size:13px;line-height:21px;color:var(--ink);min-height:62px}
+.cbox textarea:focus{outline:none}
+.cbox textarea::placeholder{color:var(--ink-3)}
+.cbar{display:flex;align-items:center;gap:10px;padding:8px 10px;border-top:1px solid var(--line)}
+.cbar .hint{font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+.cbar .grow{flex:1}
+/* 空态 */
+.empty .sugg{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+</style>
+</head>
+<body x-data="{ state: new URLSearchParams(location.search).get('state') || 'done' }">
+<div class="app">
+  <aside class="side chat">
+    <div class="brand"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="8" width="14" height="10" rx="3"/><path d="M12 8V5M9.5 12.5h.01M14.5 12.5h.01"/></svg></span><b>Apboa</b></div>
+    <button class="btn ghost new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>新建对话</button>
+    <div class="sess-g">今 天</div>
+    <a class="sess on" href="#s1"><b>订单 8842 的物流异常咨询</b><span>14:32 · 客服助手 · 小一</span></a>
+    <a class="sess" href="#s2"><b>退款流程与时效说明</b><span>11:07 · 客服助手 · 小一</span></a>
+    <a class="sess" href="#s3"><b>Q3 客服会话质量摘要</b><span>09:41 · SQL 分析师</span></a>
+    <div class="sess-g">昨 天</div>
+    <a class="sess" href="#s4"><b>采购合同风险点初筛</b><span>18:44 · 合同审查</span></a>
+    <a class="sess" href="#s5"><b>公众号稿件审校 · 十月刊</b><span>16:20 · 内容审校</span></a>
+    <a class="sess" href="#s6"><b>告警聚合与值班交接</b><span>10:05 · 运维值班助手</span></a>
+    <div class="side-foot"><span class="av">悦</span>林悦 · 管理员</div>
+  </aside>
+
+  <main class="main">
+    <div class="chat-head">
+      <span class="who">客服助手 · 小一</span>
+      <span class="stat"><i></i>已启用</span>
+      <span class="mdl">qwen-max · 0.7</span>
+      <span class="ops">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14m0 0-4-4m4 4 4-4M5 3h14"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="2.5"/><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="12" r="2.5"/></svg>
+      </span>
+    </div>
+
+    <div class="stream">
+      <!-- 空态 -->
+      <div class="empty" x-show="state === 'idle'">
+        <div class="e-t">开始一段对话</div>
+        <p class="e-d">小一已接入订单、物流与话术三个知识库；复杂问题会自动转人工并附上会话摘要。</p>
+        <div class="sugg">
+          <span class="chip">订单 8842 为什么还没发货？</span>
+          <span class="chip">退款时效是几天？</span>
+          <span class="chip">把今天的咨询按原因归类</span>
+        </div>
+      </div>
+
+      <template x-if="state !== 'idle'">
+        <div>
+          <div class="msg">
+            <div class="gut"><b>林悦</b><span>14:31</span></div>
+            <div><span class="ububble">订单 8842 客户催了两次，查一下物流卡在哪里，给客户一个可以回复的说法。</span></div>
+          </div>
+
+          <div class="msg">
+            <div class="gut"><b>小一</b><span>14:31</span></div>
+            <div>
+              <div class="think"><b>推 理</b><br>需要先取订单与物流轨迹，再对照时效承诺；若超出承诺时效，回复里要给出补偿口径。</div>
+              <div class="tool">
+                <div class="tool-h"><span class="stat"><i></i></span>order-api.query<span class="meta">成功 · 212 ms</span></div>
+                <div class="tool-b">参数：{ "orderId": "8842" }
+结果：承运商 SF · 10-03 揽收 · 10-04 起滞留杭州转运中心 46 小时</div>
+              </div>
+              <div class="atext" style="margin-top:12px">
+                <p>订单 8842 卡在杭州转运中心，已滞留 46 小时，超出我们承诺的 24 小时转运时效。可以直接这样回复客户：</p>
+                <ol>
+                  <li>承认延误并致歉，说明包裹目前在杭州转运中心加急处理；</li>
+                  <li>给出新的预计送达时间：10 月 8 日前；</li>
+                  <li>按话术库「延误补偿」口径附 10 元无门槛券，无需客户主动索要。</li>
+                </ol>
+                <p>若客户今天 18:00 前再次催促，建议直接转人工，避免二次延误投诉。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="msg">
+            <div class="gut"><b>林悦</b><span>14:32</span></div>
+            <div><span class="ububble">把最近七天同类延误的订单也拉出来，看看是不是杭州线路的普遍问题。</span></div>
+          </div>
+
+          <!-- 进行中 -->
+          <div class="msg" x-show="state === 'running' || state === 'error'">
+            <div class="gut"><b>小一</b><span>14:32</span></div>
+            <div>
+              <div class="tool" x-show="state === 'error'">
+                <div class="tool-h"><span class="stat off"><i></i></span>dataset.query<span class="meta">失败 · 30004 ms</span></div>
+              </div>
+              <div class="errbox" x-show="state === 'error'">
+                <div class="e-h"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v5m0 3h.01M10.3 3.9 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>数据集查询超时</div>
+                <pre>dataset: delay_orders_7d · timeout after 30000ms
+上游数据源无响应；已保留你的提问与上下文，重试不会重复计费。</pre>
+                <div class="row"><button class="btn sm">重试</button><button class="btn sm ghost">换用会话样本估算</button></div>
+              </div>
+              <div class="tool" x-show="state === 'running'">
+                <div class="tool-h"><span class="stat run"><i></i></span>dataset.query<span class="meta">执行中 · 4.2 s</span></div>
+              </div>
+              <div class="atext" style="margin-top:12px" x-show="state === 'running'">
+                <p>正在按「杭州转运中心 · 滞留 &gt; 24h」过滤最近七天的订单，先给你已经确认的部分：七天里共 37 单延误，其中 29 单经过杭州转运中心<span class="caret"></span></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 完成 -->
+          <div class="msg" x-show="state === 'done'">
+            <div class="gut"><b>小一</b><span>14:33</span></div>
+            <div>
+              <div class="tool">
+                <div class="tool-h"><span class="stat"><i></i></span>dataset.query<span class="meta">成功 · 1843 ms · 37 行</span></div>
+              </div>
+              <div class="atext" style="margin-top:12px">
+                <p>是普遍问题，不是个案。最近七天 37 单延误里 29 单经过杭州转运中心，平均滞留 39 小时；其余 8 单分散在 5 个节点，均低于 12 小时。</p>
+                <div class="code">节点            延误单   平均滞留
+杭州转运中心      29      39.2 h
+广州转运中心       3       9.6 h
+其他（5 节点）     5       7.1 h</div>
+                <p>建议把杭州线路的承运商预警阈值从 24 小时调到 18 小时，并在今日值班交接里标注；需要的话我可以起草给承运商的工单。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <div class="composer">
+      <div class="cbox">
+        <textarea placeholder="问小一点什么，或粘贴订单号…"></textarea>
+        <div class="cbar">
+          <span class="hint">Enter 发送 · Shift+Enter 换行</span>
+          <span class="chip">订单 8842</span>
+          <span class="grow"></span>
+          <button class="btn ghost sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>附件</button>
+          <button class="btn sm">发送</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script defer src="vendor/alpine.min.js"></script>
+</body>
+</html>

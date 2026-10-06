@@ -1,0 +1,32 @@
+[
+  {
+    "file": "idle.png",
+    "state": "idle",
+    "size": "1280x900",
+    "zoom": 1,
+    "issues": [
+      "加载错误：Failed to load resource: the server responded with a status of 404 (Not Found) http://127.0.0.1:50055/favicon.ico"
+    ]
+  },
+  {
+    "file": "done.png",
+    "state": "done",
+    "size": "1280x900",
+    "zoom": 1,
+    "issues": []
+  },
+  {
+    "file": "running.png",
+    "state": "running",
+    "size": "1280x900",
+    "zoom": 1,
+    "issues": []
+  },
+  {
+    "file": "error.png",
+    "state": "error",
+    "size": "1280x900",
+    "zoom": 1,
+    "issues": []
+  }
+]

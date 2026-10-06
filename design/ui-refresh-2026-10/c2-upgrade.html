@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>02 升级 · 纸墨编辑 · 智能体</title>
+<style>
+:root{
+  --paper:#f2efe9; --paper-deep:#eae6dd; --card:#fcfbf8; --ink:#26231e; --ink-2:#57534a; --ink-3:#8a857a;
+  --line:#ded8cb; --line-2:#cbc4b4; --accent:#b23a2c; --accent-deep:#8f2d22; --accent-soft:#f3e3de;
+  --green:#567d5e; --green-soft:#e6ede4;
+  --serif:"Songti SC","Noto Serif SC","STSong","SimSun",serif;
+  --sans:"PingFang SC",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:13px;-webkit-font-smoothing:antialiased}
+button{font:inherit;cursor:pointer}
+.app{display:flex;min-height:100vh}
+/* 侧栏：纸色，组名小字距，激活为朱色 */
+.side{width:216px;flex:none;background:var(--paper-deep);border-right:1px solid var(--line);padding:18px 12px;display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:9px;padding:2px 8px 16px}
+.brand .mark{width:26px;height:26px;border:1.5px solid var(--ink);border-radius:6px;display:grid;place-items:center}
+.brand .mark svg{width:15px;height:15px}
+.brand b{font-family:var(--serif);font-size:17px;font-weight:700;letter-spacing:.02em}
+.ws{display:flex;align-items:center;gap:7px;margin:0 4px 18px;font-size:11.5px;color:var(--ink-2)}
+.ws .dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+.group{margin-top:20px}
+.group:first-of-type{margin-top:0}
+.group-t{font-size:10.5px;letter-spacing:.14em;color:var(--ink-3);padding:0 10px 7px}
+.nav a{display:flex;align-items:center;gap:9px;height:32px;padding:0 10px;border-radius:5px;color:var(--ink-2);text-decoration:none;font-size:13px}
+.nav a svg{width:15px;height:15px;flex:none;color:var(--ink-3)}
+.nav a .n{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+.nav a.on{background:var(--accent-soft);color:var(--accent-deep);font-weight:600}
+.nav a.on svg{color:var(--accent)}
+.nav a.on .n{color:var(--accent)}
+/* 主区 */
+.main{flex:1;min-width:0;padding:26px 30px}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:22px}
+.crumb{font-size:12px;color:var(--ink-3);display:flex;align-items:center;gap:7px}
+.crumb b{color:var(--ink-2);font-weight:500}
+.date{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.pagehead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:6px}
+h1{font-family:var(--serif);font-size:27px;font-weight:700;letter-spacing:.01em}
+.sub{margin:6px 0 20px;font-size:12.5px;color:var(--ink-2)}
+.sub .mono{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.btn{height:32px;padding:0 14px;border:none;border-radius:5px;background:var(--accent);color:#fdf9f7;font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;gap:7px}
+.btn svg{width:13px;height:13px}
+.btn .kbd{font-family:var(--mono);font-size:10px;opacity:.75;border-left:1px solid rgb(255 255 255 / .35);padding-left:7px}
+/* 工具条：发丝线输入与纸面筛选 */
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:18px}
+.search{position:relative;width:230px}
+.search svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:var(--ink-3)}
+.search input{width:100%;height:31px;border:1px solid var(--line-2);border-radius:5px;background:var(--card);padding:0 10px 0 29px;font:inherit;font-size:12.5px;color:var(--ink)}
+.chip{height:26px;padding:0 10px;border:1px solid var(--line);border-radius:4px;background:transparent;font-size:11.5px;color:var(--ink-2)}
+.chip.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.sort{margin-left:auto;font-size:11.5px;color:var(--ink-3);display:flex;align-items:center;gap:5px}
+.sort svg{width:13px;height:13px}
+/* 卡片：白纸、发丝边、小圆角、衬线标题 */
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.acard{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:16px 16px 13px;display:flex;flex-direction:column;min-height:196px;position:relative}
+.acard:hover{border-color:var(--line-2)}
+.acard.sel{border-color:var(--accent);background:linear-gradient(0deg,var(--accent-soft),var(--accent-soft)) no-repeat,var(--card);background-size:100% 100%}
+.acard.sel .star{color:var(--accent)}
+.atop{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.acode{font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+.atype{font-size:10.5px;color:var(--ink-3)}
+.star{margin-left:auto;color:var(--line-2)}
+.star svg{width:13px;height:13px}
+.aname{font-family:var(--serif);font-size:16.5px;font-weight:700;line-height:1.35;letter-spacing:.01em}
+.adesc{margin-top:8px;font-size:12.5px;line-height:20px;color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;height:40px}
+.afoot{margin-top:auto;padding-top:11px;border-top:1px solid var(--line);display:flex;align-items:center;gap:8px}
+.tag{font-size:11px;color:var(--ink-2)}
+.tag::before{content:"# ";color:var(--ink-3)}
+.link{margin-left:auto;display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+.link svg{width:12px;height:12px}
+.act{margin-left:10px;height:26px;padding:0 11px;border:1px solid var(--accent);border-radius:4px;background:transparent;color:var(--accent-deep);font-size:11.5px;font-weight:500}
+.acard.sel .act{background:var(--accent);color:#fdf9f7}
+/* 状态点 */
+.stat{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--ink-3)}
+.stat i{width:6px;height:6px;border-radius:50%;background:var(--green)}
+.stat.off i{background:var(--line-2)}
+.foot{margin-top:20px;padding-top:12px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="8" width="14" height="10" rx="3"/><path d="M12 8V5M9.5 12.5h.01M14.5 12.5h.01"/></svg></span><b>Apboa</b></div>
+    <div class="ws"><span class="dot"></span>林悦的工作空间</div>
+    <nav class="nav">
+      <div class="group"><div class="group-t">对 话</div>
+        <a class="on" href="#agent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="7" width="14" height="11" rx="3"/><path d="M12 7V4M9 12h.01M15 12h.01"/></svg>智能体<span class="n">24</span></a>
+        <a href="#chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8Z"/></svg>对话</a>
+        <a href="#cluster"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z"/></svg>对话广场</a>
+        <a href="#history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>会话历史</a>
+      </div>
+      <div class="group"><div class="group-t">编 排</div>
+        <a href="#workflow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="6" height="5" rx="1.5"/><rect x="15" y="15" width="6" height="5" rx="1.5"/><path d="M9 6.5h6a3 3 0 0 1 3 3v5.5"/></svg>工作流<span class="n">9</span></a>
+        <a href="#auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 9v3l2 2M4 4l2 2"/></svg>自动化<span class="n">3</span></a>
+      </div>
+      <div class="group"><div class="group-t">资 源</div>
+        <a href="#model"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 7V4m6 3V4M7 7h10v5a5 5 0 0 1-10 0Zm5 10v3"/></svg>模型<span class="n">6</span></a>
+        <a href="#skill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="8" width="16" height="11" rx="2"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>技能<span class="n">12</span></a>
+        <a href="#mcp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l2-5 3 10 2-5h7"/></svg>MCP<span class="n">4</span></a>
+      </div>
+      <div class="group"><div class="group-t">系 统</div>
+        <a href="#settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="9" r="3.2"/><path d="M5 19a7 7 0 0 1 14 0"/></svg>设置</a>
+        <a href="#ops"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M9 21h6"/></svg>运维</a>
+      </div>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <span class="crumb">工作空间 / <b>智能体</b></span>
+      <span class="date">10 月 6 日，周二</span>
+    </div>
+    <div class="pagehead">
+      <h1>智能体</h1>
+      <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>新建智能体<span class="kbd">⌘N</span></button>
+    </div>
+    <p class="sub">24 张智能体卡 · 已启用 18 · <span class="mono">最近更新 今天 14:32</span></p>
+    <div class="toolbar">
+      <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="6"/><path d="m20 20-4-4"/></svg><input placeholder="搜索智能体　⌘K"></div>
+      <span class="chip on">全部</span><span class="chip">客服</span><span class="chip">数据分析</span><span class="chip">法务合规</span><span class="chip">运维</span>
+      <span class="sort">按更新时间<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 6v12M7 18l-3-3m3 3 3-3M17 18V6m0 0-3 3m3-3 3 3"/></svg></span>
+    </div>
+
+    <section class="grid">
+      <article class="acard sel">
+        <div class="atop"><span class="acode">AGT-0042</span><span class="atype">自定义</span><span class="star"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 3 2.6 5.6 6 .7-4.5 4.1 1.2 5.9L12 16.4 6.7 19.3l1.2-5.9L3.4 9.3l6-.7Z"/></svg></span></div>
+        <div class="aname">客服助手 · 小一</div>
+        <p class="adesc">处理售前售后咨询，接入订单与物流知识库，复杂问题自动转人工并附会话摘要。</p>
+        <div class="afoot"><span class="tag">客服</span><span class="stat"><i></i>已启用</span><span class="link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 14a4 4 0 0 0 6 .5l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6-.5l-3 3a4 4 0 0 0 6 6l1-1"/></svg>2</span><button class="act">对话</button></div>
+      </article>
+
+      <article class="acard">
+        <div class="atop"><span class="acode">AGT-0057</span><span class="atype">自定义</span><span class="star"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 2.6 5.6 6 .7-4.5 4.1 1.2 5.9L12 16.4 6.7 19.3l1.2-5.9L3.4 9.3l6-.7Z"/></svg></span></div>
+        <div class="aname">SQL 分析师</div>
+        <p class="adesc">按自然语言生成并执行只读查询，输出图表与结论，自动校验数据集权限。</p>
+        <div class="afoot"><span class="tag">数据分析</span><span class="stat"><i></i>已启用</span><span class="link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 14a4 4 0 0 0 6 .5l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6-.5l-3 3a4 4 0 0 0 6 6l1-1"/></svg>5</span><button class="act">对话</button></div>
+      </article>
+
+      <article class="acard">
+        <div class="atop"><span class="acode">AGT-0063</span><span class="atype">自定义</span><span class="star"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 3 2.6 5.6 6 .7-4.5 4.1 1.2 5.9L12 16.4 6.7 19.3l1.2-5.9L3.4 9.3l6-.7Z"/></svg></span></div>
+        <div class="aname">合同审查</div>
+        <p class="adesc">抽取采购合同关键条款，标注风险点并给出修订建议，输出审查意见书。</p>
+        <div class="afoot"><span class="tag">法务合规</span><span class="stat"><i></i>已启用</span><span class="link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 14a4 4 0 0 0 6 .5l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6-.5l-3 3a4 4 0 0 0 6 6l1-1"/></svg>3</span><button class="act">对话</button></div>
+      </article>
+
+      <article class="acard">
+        <div class="atop"><span class="acode">AGT-0071</span><span class="atype">自定义</span><span class="star"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 2.6 5.6 6 .7-4.5 4.1 1.2 5.9L12 16.4 6.7 19.3l1.2-5.9L3.4 9.3l6-.7Z"/></svg></span></div>
+        <div class="aname">运维值班助手</div>
+        <p class="adesc">聚合告警信息，生成初步排查建议与变更摘要，值班交接一键归档。</p>
+        <div class="afoot"><span class="tag">运维</span><span class="stat off"><i></i>已停用</span><span class="link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 14a4 4 0 0 0 6 .5l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6-.5l-3 3a4 4 0 0 0 6 6l1-1"/></svg>1</span><button class="act">对话</button></div>
+      </article>
+
+      <article class="acard">
+        <div class="atop"><span class="acode">AGT-0088</span><span class="atype">自定义</span><span class="star"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 2.6 5.6 6 .7-4.5 4.1 1.2 5.9L12 16.4 6.7 19.3l1.2-5.9L3.4 9.3l6-.7Z"/></svg></span></div>
+        <div class="aname">内容审校</div>
+        <p class="adesc">审校公众号稿件，检查错别字、术语一致性与合规表述，保留修改痕迹。</p>
+        <div class="afoot"><span class="tag">内容</span><span class="stat"><i></i>已启用</span><span class="link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 14a4 4 0 0 0 6 .5l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6-.5l-3 3a4 4 0 0 0 6 6l1-1"/></svg>4</span><button class="act">对话</button></div>
+      </article>
+
+      <article class="acard">
+        <div class="atop"><span class="acode">AGT-0094</span><span class="atype">A2A</span><span class="star"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 2.6 5.6 6 .7-4.5 4.1 1.2 5.9L12 16.4 6.7 19.3l1.2-5.9L3.4 9.3l6-.7Z"/></svg></span></div>
+        <div class="aname">面试助理</div>
+        <p class="adesc">根据简历生成提问提纲，记录面试要点并产出结构化评价草稿。</p>
+        <div class="afoot"><span class="tag">人事</span><span class="stat off"><i></i>已停用</span><span class="link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 14a4 4 0 0 0 6 .5l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6-.5l-3 3a4 4 0 0 0 6 6l1-1"/></svg>0</span><button class="act">对话</button></div>
+      </article>
+    </section>
+    <div class="foot"><span>24 张卡片 · 8 条双向链接</span><span>⌘K 快速查找</span></div>
+  </main>
+</div>
+</body>
+</html>

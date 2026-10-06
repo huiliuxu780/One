@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>原型 · 工作台 · 02 纸墨编辑</title>
+<link rel="stylesheet" href="proto.css">
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="8" width="14" height="10" rx="3"/><path d="M12 8V5M9.5 12.5h.01M14.5 12.5h.01"/></svg></span><b>Apboa</b></div>
+    <div class="ws"><span class="dot"></span>林悦的工作空间</div>
+    <nav class="nav">
+      <div class="group"><div class="group-t">对 话</div>
+        <a href="agents.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="7" width="14" height="11" rx="3"/><path d="M12 7V4M9 12h.01M15 12h.01"/></svg>智能体<span class="n">24</span></a>
+        <a href="chat.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8Z"/></svg>对话</a>
+        <a href="#cluster"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z"/></svg>对话广场</a>
+        <a href="#history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>会话历史</a>
+      </div>
+      <div class="group"><div class="group-t">编 排</div>
+        <a href="#workflow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="6" height="5" rx="1.5"/><rect x="15" y="15" width="6" height="5" rx="1.5"/><path d="M9 6.5h6a3 3 0 0 1 3 3v5.5"/></svg>工作流<span class="n">9</span></a>
+        <a href="#auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 9v3l2 2M4 4l2 2"/></svg>自动化<span class="n">3</span></a>
+      </div>
+      <div class="group"><div class="group-t">资 源</div>
+        <a href="#model"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 7V4m6 3V4M7 7h10v5a5 5 0 0 1-10 0Zm5 10v3"/></svg>模型<span class="n">6</span></a>
+        <a href="#skill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="8" width="16" height="11" rx="2"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>技能<span class="n">12</span></a>
+        <a href="#mcp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l2-5 3 10 2-5h7"/></svg>MCP<span class="n">4</span></a>
+      </div>
+      <div class="group"><div class="group-t">系 统</div>
+        <a class="on" href="dashboard.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="8" height="7" rx="1.5"/><rect x="13" y="4" width="8" height="4" rx="1.5"/><rect x="13" y="10" width="8" height="10" rx="1.5"/><rect x="3" y="13" width="8" height="7" rx="1.5"/></svg>工作台</a>
+        <a href="#settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="9" r="3.2"/><path d="M5 19a7 7 0 0 1 14 0"/></svg>设置</a>
+      </div>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <span class="crumb">工作空间 / <b>工作台</b></span>
+      <span class="date">10 月 6 日，周二</span>
+    </div>
+    <div class="scroll">
+      <div class="pagehead">
+        <h1>工作台</h1>
+        <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>新建看板</button>
+      </div>
+      <p class="sub">看板模板与数据集；数据集执行真实查询，错误与超时原文可见。</p>
+
+      <div class="tabs">
+        <button class="on">看板</button>
+        <button>数据集</button>
+      </div>
+
+      <div class="panel">
+        <table>
+          <thead>
+            <tr><th style="width:38%">名 称</th><th>版 本</th><th>默 认</th><th>状 态</th><th class="right">操 作</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="t">运营日报</span><span class="d">会话量、转人工率与延误单，每日 08:00 推送值班群</span></td>
+              <td><span class="mono">v3</span></td>
+              <td><span class="star on" style="color:var(--accent)"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="m12 3 2.6 5.6 6 .7-4.5 4.1 1.2 5.9L12 16.4 6.7 19.3l1.2-5.9L3.4 9.3l6-.7Z"/></svg></span></td>
+              <td><span class="stat"><i></i>已启用</span></td>
+              <td class="right"><span class="rowact"><button class="linkbtn">设计</button><button class="linkbtn">编辑</button><button class="linkbtn" style="color:var(--ink-3)">复制</button></span></td>
+            </tr>
+            <tr>
+              <td><span class="t">客服质量周报</span><span class="d">按坐席统计解决率与平均轮次，周一生成</span></td>
+              <td><span class="mono">v2</span></td>
+              <td><span style="color:var(--ink-3)">—</span></td>
+              <td><span class="stat"><i></i>已启用</span></td>
+              <td class="right"><span class="rowact"><button class="linkbtn">设为默认</button><button class="linkbtn">设计</button><button class="linkbtn">编辑</button></span></td>
+            </tr>
+            <tr>
+              <td><span class="t">模型成本月报</span><span class="d">分模型 token 消耗与费用，含环比</span></td>
+              <td><span class="mono">v1</span></td>
+              <td><span style="color:var(--ink-3)">—</span></td>
+              <td><span class="stat off"><i></i>已停用</span></td>
+              <td class="right"><span class="rowact"><button class="linkbtn">设为默认</button><button class="linkbtn">设计</button><button class="linkbtn">编辑</button></span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec" style="border-top:none">
+        <div class="sec-t">面 板 预 览 · 运 营 日 报<span class="mono">数据截至 今天 08:00</span></div>
+        <div class="grid" style="grid-template-columns:repeat(4,minmax(0,1fr));gap:12px">
+          <div class="panel" style="padding:14px 16px">
+            <div class="mono">会话量</div>
+            <div style="font-family:var(--serif);font-size:26px;font-weight:700;margin-top:6px">1,284</div>
+            <div class="stat" style="margin-top:6px"><i></i>较昨日 +6.2%</div>
+          </div>
+          <div class="panel" style="padding:14px 16px">
+            <div class="mono">转人工率</div>
+            <div style="font-family:var(--serif);font-size:26px;font-weight:700;margin-top:6px">8.4%</div>
+            <div class="stat warn" style="margin-top:6px"><i></i>高于阈值 8.0%</div>
+          </div>
+          <div class="panel" style="padding:14px 16px">
+            <div class="mono">延误单</div>
+            <div style="font-family:var(--serif);font-size:26px;font-weight:700;margin-top:6px">37</div>
+            <div class="stat" style="margin-top:6px"><i style="background:var(--accent)"></i>杭州线路 29 单</div>
+          </div>
+          <div class="panel" style="padding:14px 16px">
+            <div class="mono">平均解决轮次</div>
+            <div style="font-family:var(--serif);font-size:26px;font-weight:700;margin-top:6px">3.1</div>
+            <div class="stat" style="margin-top:6px"><i></i>较昨日 −0.2</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="foot"><span>3 个看板模板 · 12 个数据集</span><span>数据集执行真实查询</span></div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
