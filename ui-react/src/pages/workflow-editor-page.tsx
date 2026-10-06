@@ -17,7 +17,7 @@ import {
   type NodeMouseHandler,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { ArrowLeft, Bug, ClockCounterClockwise, FloppyDisk, Play, ShieldCheck, Trash } from '@phosphor-icons/react'
+import { ArrowLeft, Bug, ClockCounterClockwise, FloppyDisk, Play, Plus, ShieldCheck, Trash } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -32,10 +32,10 @@ import { readableError } from '@/lib/utils'
 import * as workflowApi from '@/api/workflows'
 import { nodeMetadata } from '@/api/workflows'
 import { pageWorkflowResources } from '@/api/workflowResources'
-import type { NodeMetadata, WorkflowManagedResource, WorkflowNodeExecution, WorkflowNodeRunResult, WorkflowRun, WorkflowRunResult, WorkflowVersion, WorkflowValidationResult } from '@/types'
+import type { NodeMetadata, WorkflowInputConfig, WorkflowManagedResource, WorkflowNodeExecution, WorkflowNodeRunResult, WorkflowRun, WorkflowRunResult, WorkflowVersion, WorkflowValidationResult } from '@/types'
 import { fromBackendDefinition, toBackendDefinition, toBackendNode } from '@/features/workflow/protocol'
+import { cloneWorkflowNodeDefaults, workflowNodeSchemaMap, workflowNodeSchemas } from '@/features/workflow/node-schemas'
 
-const NODE_PALETTE = ['START', 'END', 'AGENT', 'TOOL', 'MCP', 'CODE', 'HTTP', 'IF_ELSE', 'INTENT', 'LOOP', 'ITERATE', 'DB', 'CACHE', 'MQ', 'CHANNEL', 'CONSTANT', 'VARIABLE_AGG', 'SERIALIZE']
 // 知识库节点不在节点库中（明确排除）；旧含 KNOWLEDGE 节点的流程加载后只读提示。
 
 function WorkflowCanvasNode({ data, selected }: { data: Record<string, unknown>; selected?: boolean }) {
@@ -75,7 +75,7 @@ export function WorkflowEditorPage() {
   })
   const metadataQuery = useQuery({ queryKey: ['list', 'workflow-node-metadata'], queryFn: async () => (await nodeMetadata()).data.data })
   const metadata: NodeMetadata[] = metadataQuery.data ?? []
-  const supportedMetadata = metadata.filter((item) => !item.type.toUpperCase().includes('KNOWLEDGE'))
+  const metadataByType = useMemo(() => Object.fromEntries(metadata.map((item) => [item.type, item])), [metadata])
   const resourceQueries = {
     datasource: useQuery({ queryKey: ['list', 'workflow-resource-options', 'datasource'], queryFn: async () => (await pageWorkflowResources('datasource', { page: 1, size: 100, enabled: true })).data.data.records }),
     cache: useQuery({ queryKey: ['list', 'workflow-resource-options', 'cache'], queryFn: async () => (await pageWorkflowResources('cache', { page: 1, size: 100, enabled: true })).data.data.records }),
@@ -136,6 +136,11 @@ export function WorkflowEditorPage() {
     setConfigDirty(false)
   }
 
+  function updateNodeData(key: string, value: unknown) {
+    if (!selectedNode || legacyReadOnly) return
+    setNodes((existing) => existing.map((node) => (node.id === selectedNode.id ? { ...node, data: { ...node.data, [key]: value } } : node)))
+  }
+
   function removeSelectedNode() {
     if (!selectedNode || legacyReadOnly) return
     setNodes((existing) => existing.filter((node) => node.id !== selectedNode.id))
@@ -146,16 +151,19 @@ export function WorkflowEditorPage() {
 
   function addNode(type: string) {
     if (legacyReadOnly || type.toUpperCase().includes('KNOWLEDGE')) return
-    const meta = supportedMetadata.find((item) => item.type === type)
+    const schema = workflowNodeSchemaMap[type]
+    const meta = metadataByType[type]
+    const nodeId = `node_${type.toLowerCase()}_${Date.now()}`
+    const defaults = cloneWorkflowNodeDefaults(type, nodeId)
     const newNode: Node = {
-      id: `node_${type.toLowerCase()}_${Date.now()}`,
+      id: nodeId,
       type: 'workflow',
       position: { x: 120 + Math.random() * 300, y: 120 + Math.random() * 200 },
-      data: { type, name: meta?.title ?? type, config: { ...(meta?.defaultConfig ?? {}) } },
+      data: { type, name: schema?.title ?? meta?.title ?? type, ...defaults },
     }
     setNodes((existing) => [...existing, newNode])
     setSelectedId(newNode.id)
-    setConfigText(JSON.stringify(meta?.defaultConfig ?? {}, null, 2))
+    setConfigText(JSON.stringify(defaults.config, null, 2))
   }
 
   const saveMutation = useMutation({
@@ -257,16 +265,13 @@ export function WorkflowEditorPage() {
         {/* 节点库 */}
         <aside className="w-48 shrink-0 overflow-auto border-r border-border p-2">
           <div className="mb-1 px-1 text-[11px] font-medium text-muted-foreground">节点库（后端 metadata）</div>
-          {(supportedMetadata.length
-            ? supportedMetadata.map((item) => ({ type: item.type, label: item.title }))
-            : NODE_PALETTE.map((type) => ({ type, label: type }))
-          ).map((item) => (
+          {workflowNodeSchemas.map((item) => (
             <button
               key={item.type}
               className="w-full rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted"
               onClick={() => addNode(item.type)}
             >
-              {item.label}
+              {item.title}
             </button>
           ))}
           <p className="mt-2 px-1 text-[10px] text-muted-foreground">知识库节点不提供；含旧知识库节点的流程仅可查看。</p>
@@ -313,7 +318,7 @@ export function WorkflowEditorPage() {
               />
               <StructuredConfigEditor
                 config={(selectedNode.data.config as Record<string, unknown>) ?? {}}
-                defaults={supportedMetadata.find((item) => item.type === selectedNode.data.type)?.defaultConfig ?? {}}
+                defaults={workflowNodeSchemaMap[String(selectedNode.data.type)]?.defaultConfig ?? metadataByType[String(selectedNode.data.type)]?.defaultConfig ?? {}}
                 disabled={legacyReadOnly}
                 resources={{
                   datasource: resourceQueries.datasource.data ?? [],
@@ -323,6 +328,14 @@ export function WorkflowEditorPage() {
                 }}
                 onChange={updateConfigField}
               />
+              <InputConfigEditor
+                value={(selectedNode.data.inputConfigs as WorkflowInputConfig[] | undefined) ?? []}
+                nodes={nodes}
+                selectedNodeId={selectedNode.id}
+                disabled={legacyReadOnly}
+                onChange={(value) => updateNodeData('inputConfigs', value)}
+              />
+              <OutputConfigDisplay value={(selectedNode.data.outputConfigs as Array<{ name: string; type?: string; description?: string }> | undefined) ?? []} />
               <details className="mt-3 rounded-lg border border-border p-2">
                 <summary className="cursor-pointer text-xs font-medium text-muted-foreground">高级 JSON 配置</summary>
                 <Textarea disabled={legacyReadOnly} className="mt-2 min-h-48 font-mono text-xs" value={configText} onChange={(event) => { setConfigText(event.target.value); setConfigDirty(true) }} />
@@ -469,6 +482,46 @@ function StructuredConfigEditor({ config, defaults, disabled, resources, onChang
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function InputConfigEditor({ value, nodes, selectedNodeId, disabled, onChange }: {
+  value: WorkflowInputConfig[]
+  nodes: Node[]
+  selectedNodeId: string
+  disabled: boolean
+  onChange: (value: WorkflowInputConfig[]) => void
+}) {
+  const patch = (index: number, next: Partial<WorkflowInputConfig>) => onChange(value.map((item, itemIndex) => itemIndex === index ? { ...item, ...next } : item))
+  return (
+    <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <Label className="text-xs">输入映射</Label>
+        <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={() => onChange([...value, { name: `input${value.length + 1}`, sourceType: 'CONSTANT', value: '', type: 'String' }])}><Plus size={13} /> 添加</Button>
+      </div>
+      {value.length === 0 ? <p className="text-xs text-muted-foreground">暂无输入映射。</p> : value.map((item, index) => (
+        <div key={`${item.name}-${index}`} className="space-y-2 rounded-md bg-muted/50 p-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_130px_28px] gap-2">
+            <Input aria-label={`输入 ${index + 1} 名称`} value={item.name} disabled={disabled} placeholder="输入名称" onChange={(event) => patch(index, { name: event.target.value })} />
+            <Select value={item.sourceType} disabled={disabled} onValueChange={(sourceType) => patch(index, { sourceType: sourceType as WorkflowInputConfig['sourceType'] })}><SelectTrigger aria-label={`输入 ${index + 1} 来源`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="CONSTANT">常量</SelectItem><SelectItem value="VARIABLE">变量</SelectItem><SelectItem value="NODE_OUTPUT">节点输出</SelectItem><SelectItem value="EXPRESSION">表达式</SelectItem></SelectContent></Select>
+            <Button type="button" variant="ghost" size="icon" className="text-destructive" disabled={disabled} aria-label={`删除输入 ${index + 1}`} onClick={() => onChange(value.filter((_, itemIndex) => itemIndex !== index))}><Trash size={13} /></Button>
+          </div>
+          {item.sourceType === 'CONSTANT' ? <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2"><Select value={item.type ?? 'String'} disabled={disabled} onValueChange={(type) => patch(index, { type: type as WorkflowInputConfig['type'] })}><SelectTrigger aria-label={`输入 ${index + 1} 类型`}><SelectValue /></SelectTrigger><SelectContent>{['String', 'Long', 'Integer', 'Float', 'Double', 'Boolean', 'Array', 'Object'].map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}</SelectContent></Select><Input aria-label={`输入 ${index + 1} 常量值`} value={item.value == null ? '' : typeof item.value === 'string' ? item.value : JSON.stringify(item.value)} disabled={disabled} placeholder="常量值" onChange={(event) => patch(index, { value: event.target.value })} /></div> : null}
+          {item.sourceType === 'VARIABLE' ? <Input aria-label={`输入 ${index + 1} 变量名`} value={item.variableName ?? ''} disabled={disabled} placeholder="全局变量名" onChange={(event) => patch(index, { variableName: event.target.value })} /> : null}
+          {item.sourceType === 'NODE_OUTPUT' ? <div className="grid grid-cols-2 gap-2"><Select value={item.nodeId ?? ''} disabled={disabled} onValueChange={(nodeId) => patch(index, { nodeId })}><SelectTrigger aria-label={`输入 ${index + 1} 来源节点`}><SelectValue placeholder="选择上游节点" /></SelectTrigger><SelectContent>{nodes.filter((node) => node.id !== selectedNodeId).map((node) => <SelectItem key={node.id} value={node.id}>{String(node.data.name || node.id)}</SelectItem>)}</SelectContent></Select><Input aria-label={`输入 ${index + 1} 输出名`} value={item.outputName ?? 'output'} disabled={disabled} placeholder="输出名" onChange={(event) => patch(index, { outputName: event.target.value })} /></div> : null}
+          {item.sourceType === 'EXPRESSION' ? <Textarea aria-label={`输入 ${index + 1} 表达式`} className="min-h-20 font-mono text-xs" value={item.expression ?? ''} disabled={disabled} placeholder="表达式" onChange={(event) => patch(index, { expression: event.target.value })} /> : null}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function OutputConfigDisplay({ value }: { value: Array<{ name: string; type?: string; description?: string }> }) {
+  return (
+    <div className="mt-3 rounded-lg border border-border p-3">
+      <Label className="text-xs">节点输出</Label>
+      {value.length ? <div className="mt-2 space-y-1">{value.map((item) => <div key={item.name} className="flex items-center gap-2 text-xs"><code className="rounded bg-muted px-1.5 py-0.5">{item.name}</code><span className="text-muted-foreground">{item.type || 'Object'}{item.description ? ` · ${item.description}` : ''}</span></div>)}</div> : <p className="mt-2 text-xs text-muted-foreground">此节点没有声明输出。</p>}
     </div>
   )
 }
