@@ -129,8 +129,8 @@
 | `components/settings/` 账号 | 列表、新建、启用切换、重置密码（MD5）、删除 | `/api/account/*`、`/api/auth/admin/create-account` | `settings-page.tsx` | 已迁移未验证 | 新建加入当前默认租户（后端从 token 注入）；前端禁止删除当前账号，后端另有管理员保护。审计发现重置密码、新建账号弹窗取消后保留草稿（含密码），现已在打开和关闭时清空；真实账号写入回归仍待完成 |
 | `/settings/account` 等深链 | 打开对应页签 | — | `?tab=` 重定向 | 已验证 | 生产矩阵覆盖 account/system-params/api-keys/system-intro |
 | `/settings/tenant*` 深链 | 组织管理 | — | 重定向回设置 | 明确排除 | 多租户操作页排除 |
-| API Key | 创建（名称/过期时间/备注）、一次性展示完整值并复制、改名、删除 | `/api/sk/*` | `settings-page.tsx` | 已迁移未验证 | React 原缺少 Vue 的过期时间和备注，并将完整密钥放入短暂提示；现补齐字段及可手动关闭的一次性弹窗，创建协议有组件测试。真实密钥创建、过期校验及复制尚待回归 |
-| 系统参数 | CRUD | `/api/params/*` | `settings-page.tsx` | 已验证 | — |
+| API Key | 创建（名称/过期时间/备注）、一次性展示完整值并复制、改名、删除 | `/api/sk/*` | `settings-page.tsx` | 已迁移未验证 | React 原缺少 Vue 的过期时间和备注，并将完整密钥放入短暂提示；现补齐字段及可手动关闭的一次性弹窗，创建协议有组件测试。后端允许编辑角色创建，设置页角色入口现已对齐；真实编辑角色与密钥创建、过期校验及复制尚待回归 |
+| 系统参数 | CRUD | `/api/params/*` | `settings-page.tsx` | 已迁移未验证 | 后端允许编辑角色写入，但 React 设置路由此前只允许管理员；现放开设置入口，编辑角色的真实权限回归待验 |
 | 系统介绍 | 查看 | 静态 | `SystemIntroTab` | 已验证 | 生产深链打开；内容适配单默认租户、无知识库/本地 RAG 的真实范围 |
 | 个人资料/修改密码 | 查看/更新 | account API | `profile-page.tsx`、`change-password-page.tsx` | 已验证 | MD5 后提交与 Vue 一致 |
 | `views/Ops/` 节点监控 | 执行节点/WS 节点 15s 轮询 | heartbeat API | `ops-page.tsx` | 已验证 | 后端限管理员；React 运维页现仅向管理员显示此页签，编辑角色落存储页签 |
@@ -169,6 +169,7 @@
 - 2026-10-06：Skill 关联保护和 MCP 工具协议修复提交 `507d532` 已推送并在 ECS 两处仓库部署；只重建 `frontend`。运行镜像 ID `sha256:b11846afca6f34ed5b8dee0f9fc98becb71aac77bc2cdcb6340589b0fee9d213`，回滚镜像 `apboa-dev-frontend:rollback-bae5e95-pre-507d532`，旧产物 `ui-react/dist.pre-507d532/`。`/react/` 与新版 MCP 资源均返回 HTTP 200，Frontend/Console/Runtime 容器运行；本地 Vite `127.0.0.1:3031` 和 SSH 隧道 `127.0.0.1:18080` 在监听。34 个测试文件共 113 项通过，类型检查、生产构建和体积检查通过。浏览器自动化在本次部署后出现 CDP 超时，未取得新版 MCP 页面级回归证据；不能把 HTTP 200 写成浏览器验收。
 - 2026-10-06：工作流列表修复提交 `2a261ea` 已推送并在 ECS 两处仓库部署；只重建 `frontend`。运行镜像 ID `sha256:350aed1574b70bcc6bd8d8fbfce902aeac16c6b9ba11d4c9e92cad7dc15b3b3f`，回滚镜像 `apboa-dev-frontend:rollback-507d532-pre-2a261ea`，旧产物 `ui-react/dist.pre-2a261ea/`。`/react/` 与新版 workflow 页面 JavaScript 资源返回 HTTP 200，Frontend/Console/Runtime 容器运行。浏览器打开部署后的真实工作流列表，能看到新增的发布/启用筛选、独立“设计”和“编辑信息”入口，四条真实记录与浏览器错误日志为空；浏览器点击命令偶发 CDP 超时，尚未完成筛选和保存的真实交互回归。34 个测试文件共 114 项通过，类型检查、生产构建和体积检查通过。
 - 2026-10-06：账号草稿和 API Key 创建修复提交 `5229c92` 已推送并在 ECS 两处仓库部署；只重建 `frontend`。运行镜像 ID `sha256:b7d1bb3a30e6d4ebe88d0fae0a398f3a47cec3ca7a38fa71500a3b396579e3a4`，回滚镜像 `apboa-dev-frontend:rollback-2a261ea-pre-5229c92`，旧产物 `ui-react/dist.pre-5229c92/`。`/react/` 返回 HTTP 200，Frontend/Console/Runtime 容器运行。浏览器打开部署后的 API Key 页看到名称、过期时间和备注字段，真实列表为空，浏览器错误日志为空；未创建真实密钥，因此一次性展示和复制只由组件测试验证。35 个测试文件共 115 项通过，类型检查、生产构建和体积检查通过。
+- 2026-10-06：存储协议校验与运维角色修复提交 `adf7322` 已推送并在 ECS 两处仓库部署；只重建 `frontend`。运行镜像 ID `sha256:a359b605574fabc033f301f4f43f4777d54c5b729c6063985b1ddfe14e86c09e`，回滚镜像 `apboa-dev-frontend:rollback-5229c92-pre-adf7322`，旧产物 `ui-react/dist.pre-adf7322/`。`/react/` 返回 HTTP 200，所有 Compose 服务运行。浏览器在部署后的真实 LOCAL 存储记录上看到“详情”入口与管理员节点页签，错误日志为空；浏览器点击通道超时，未取得详情弹窗或编辑角色的真实交互证据。36 个测试文件共 117 项通过，类型检查、生产构建和体积检查通过。
 
 ## 13. 结论口径
 

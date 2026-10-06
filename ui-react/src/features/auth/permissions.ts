@@ -35,7 +35,7 @@ export const CAPABILITY_MIN_ROLE: Record<Capability, TenantRoleValue> = {
   'dashboard:manage': 'TENANT_EDITOR',
   'api-service:manage': 'TENANT_EDITOR',
   'ops:manage': 'TENANT_EDITOR',
-  'settings:manage': 'TENANT_ADMIN',
+  'settings:manage': 'TENANT_EDITOR',
   'account:manage': 'TENANT_ADMIN',
 }
 
