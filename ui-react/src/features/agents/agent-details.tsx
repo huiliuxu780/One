@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowSquareOut, Copy, Key, Link, Trash } from '@phosphor-icons/react'
 import { addAgentJob, deleteAgentJob, getAgent, getAgentChatKey, getAgentJob, getAgentTrends, updateAgentJob } from '@/api/agents'
 import { getCurrentMessages, pageSessions } from '@/api/chatSession'
+import { hooks, mcpServers, modelConfigs, prompts, sensitiveWords, skills, tools } from '@/api/resources'
+import { getWorkflow } from '@/api/workflows'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -40,21 +42,84 @@ export function AgentDetails({ agent, onClose }: { agent: AgentDefinitionVO; onC
   )
 }
 
+type NamedValue = { name?: string; alias?: string; toolId?: string } | null
+type DetailFetcher = (id: string) => Promise<{ data: { data: NamedValue } }>
+
+interface ArchItem {
+  id: string
+  name: string
+  sub?: string
+}
+
+/** 与 Vue useArchitectureData 一致：逐 ID 拉详情解析名称；单个失败回退显示 ID，不伪造。 */
+async function resolveIds(ids: string[], fetch: DetailFetcher): Promise<ArchItem[]> {
+  if (!ids.length) return []
+  const settled = await Promise.allSettled(ids.map((id) => fetch(id)))
+  return settled.map((result, index) => {
+    const value = result.status === 'fulfilled' ? result.value.data.data : null
+    return value
+      ? { id: ids[index], name: value.alias || value.name || ids[index], sub: value.toolId }
+      : { id: ids[index], name: ids[index] }
+  })
+}
+
 function ArchitecturePanel({ agentId }: { agentId: string }) {
-  const query = useQuery({ queryKey: ['detail', 'agent-architecture', agentId], queryFn: async () => (await getAgent(agentId)).data.data })
+  const query = useQuery({
+    queryKey: ['detail', 'agent-architecture', agentId],
+    queryFn: async () => {
+      const agent = (await getAgent(agentId)).data.data
+      if (!agent) throw new Error('智能体不存在')
+      const [modelItems, toolItems, skillItems, mcpItems, hookItems, subAgentItems, workflowItems, promptItems, sensitiveItems] = await Promise.all([
+        resolveIds(agent.modelConfigId ? [agent.modelConfigId] : [], modelConfigs.detail as DetailFetcher),
+        resolveIds(agent.tool ?? [], tools.detail as DetailFetcher),
+        resolveIds(agent.skill ?? [], skills.detail as DetailFetcher),
+        resolveIds(agent.mcp ?? [], mcpServers.detail as DetailFetcher),
+        resolveIds(agent.hook ?? [], hooks.detail as DetailFetcher),
+        resolveIds(agent.subAgent ?? [], getAgent as DetailFetcher),
+        resolveIds(agent.workflow ?? [], getWorkflow as DetailFetcher),
+        resolveIds(agent.systemPromptTemplateId ? [agent.systemPromptTemplateId] : [], prompts.detail as DetailFetcher),
+        resolveIds(agent.sensitiveWordConfigId ? [agent.sensitiveWordConfigId] : [], sensitiveWords.detail as DetailFetcher),
+      ])
+      return { agent, modelItems, toolItems, skillItems, mcpItems, hookItems, subAgentItems, workflowItems, promptItems, sensitiveItems }
+    },
+  })
   if (query.isLoading) return <PageLoading />
   if (query.error) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />
-  const agent = query.data!
+  const data = query.data!
   const groups = [
-    ['模型', agent.modelConfigId ? [agent.modelConfigId] : []],
-    ['工具', agent.tool ?? []],
-    ['技能', agent.skill ?? []],
-    ['MCP', agent.mcp ?? []],
-    ['Hook', agent.hook ?? []],
-    ['子 Agent', agent.subAgent ?? []],
-    ['工作流', agent.workflow ?? []],
-  ] as Array<[string, string[]]>
-  return <div className="mt-4 rounded-xl border border-border bg-muted/20 p-5"><div className="mx-auto mb-5 max-w-sm rounded-xl border-2 border-primary bg-card p-4 text-center shadow-card"><div className="font-semibold">{agent.name}</div><div className="font-mono text-xs text-muted-foreground">{agent.agentCode}</div></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{groups.map(([label, ids]) => <div key={label} className="rounded-lg border border-border bg-card p-3"><div className="mb-2 flex items-center justify-between text-sm font-medium"><span>{label}</span><Badge variant="secondary">{ids.length}</Badge></div>{ids.length ? <div className="flex flex-wrap gap-1">{ids.map((id) => <Badge key={id} variant="outline" className="max-w-full truncate font-mono">{id}</Badge>)}</div> : <span className="text-xs text-muted-foreground">未配置</span>}</div>)}</div><p className="mt-4 text-xs text-muted-foreground">关系来自当前 Agent 详情接口；知识库关系按本项目范围不展示。</p></div>
+    ['模型', data.modelItems],
+    ['工具', data.toolItems],
+    ['技能', data.skillItems],
+    ['MCP', data.mcpItems],
+    ['Hook', data.hookItems],
+    ['子 Agent', data.subAgentItems],
+    ['工作流', data.workflowItems],
+    ['提示词模板', data.promptItems],
+    ['敏感词配置', data.sensitiveItems],
+  ] as Array<[string, ArchItem[]]>
+  return (
+    <div className="mt-4 rounded-lg border border-border bg-muted/20 p-5">
+      <div className="mx-auto mb-5 max-w-sm rounded-lg border-2 border-primary bg-card p-4 text-center shadow-card">
+        <div className="font-semibold">{data.agent.name}</div>
+        <div className="font-mono text-xs text-muted-foreground">{data.agent.agentCode}</div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {groups.map(([label, items]) => (
+          <div key={label} className="rounded-lg border border-border bg-card p-3">
+            <div className="mb-2 flex items-center justify-between text-sm font-medium"><span>{label}</span><Badge variant="secondary">{items.length}</Badge></div>
+            {items.length ? (
+              <div className="flex flex-wrap gap-1">
+                {items.map((item) => <Badge key={item.id} variant="outline" className="max-w-full truncate" title={item.sub ? `${item.name} · ${item.sub}` : item.name}>{item.name}</Badge>)}
+              </div>
+            ) : (
+              <span className="text-xs text-muted-foreground">未配置</span>
+            )}
+          </div>
+        ))}
+      </div>
+      <p className="mt-4 text-xs text-muted-foreground">关系来自 Agent 详情与各资源详情接口；知识库关系按本项目范围不展示。</p>
+    </div>
+  )
 }
 
 function ApiPanel({ agent }: { agent: AgentDefinitionVO }) {
@@ -64,7 +129,7 @@ function ApiPanel({ agent }: { agent: AgentDefinitionVO }) {
   const chatUrl = query.data ? `${window.location.origin}${import.meta.env.BASE_URL}communication/${query.data}` : ''
   const runtimeUrl = `${window.location.origin}/api/runtime/agui/run/${agent.agentCode}`
   async function copy(value: string) { await navigator.clipboard.writeText(value); toast.success('已复制') }
-  return <div className="mt-4 space-y-4"><div className="rounded-xl border border-border p-4"><div className="mb-2 flex items-center gap-2 font-medium"><Key size={17} />外部对话链接</div>{query.isLoading ? <PageLoading /> : query.error ? <ErrorState error={query.error} onRetry={() => void query.refetch()} /> : <><div className="flex gap-2"><Input readOnly value={chatUrl} className="font-mono text-xs" /><Button size="icon" variant="outline" aria-label="复制外部对话链接" onClick={() => void copy(chatUrl)}><Copy size={14} /></Button><Button size="icon" variant="outline" asChild><a href={chatUrl} target="_blank" rel="noreferrer" aria-label="打开外部对话链接"><ArrowSquareOut size={14} /></a></Button></div><Button className="mt-3" variant="outline" size="sm" onClick={() => { if (window.confirm('刷新后旧链接立即失效，确认继续？')) setRefresh(true) }}>刷新 Chat Key</Button></>}</div><div className="rounded-xl border border-border p-4"><div className="mb-2 flex items-center gap-2 font-medium"><Link size={17} />AG-UI 运行接口</div><div className="flex gap-2"><Input readOnly value={runtimeUrl} className="font-mono text-xs" /><Button size="icon" variant="outline" aria-label="复制运行接口地址" onClick={() => void copy(runtimeUrl)}><Copy size={14} /></Button></div><pre className="mt-3 overflow-auto rounded-lg bg-muted p-3 text-xs">{JSON.stringify({ threadId: 'string', runId: 'string', messages: [{ id: 'string', role: 'user', content: '你好' }], forwardedProps: { agentId: String(agent.id), memoryActive: false, planActive: false, fileIds: [] } }, null, 2)}</pre></div></div>
+  return <div className="mt-4 space-y-4"><div className="rounded-lg border border-border p-4"><div className="mb-2 flex items-center gap-2 font-medium"><Key size={17} />外部对话链接</div>{query.isLoading ? <PageLoading /> : query.error ? <ErrorState error={query.error} onRetry={() => void query.refetch()} /> : <><div className="flex gap-2"><Input readOnly value={chatUrl} className="font-mono text-xs" /><Button size="icon" variant="outline" aria-label="复制外部对话链接" onClick={() => void copy(chatUrl)}><Copy size={14} /></Button><Button size="icon" variant="outline" asChild><a href={chatUrl} target="_blank" rel="noreferrer" aria-label="打开外部对话链接"><ArrowSquareOut size={14} /></a></Button></div><Button className="mt-3" variant="outline" size="sm" onClick={() => { if (window.confirm('刷新后旧链接立即失效，确认继续？')) setRefresh(true) }}>刷新 Chat Key</Button></>}</div><div className="rounded-lg border border-border p-4"><div className="mb-2 flex items-center gap-2 font-medium"><Link size={17} />AG-UI 运行接口</div><div className="flex gap-2"><Input readOnly value={runtimeUrl} className="font-mono text-xs" /><Button size="icon" variant="outline" aria-label="复制运行接口地址" onClick={() => void copy(runtimeUrl)}><Copy size={14} /></Button></div><pre className="mt-3 overflow-auto rounded-lg bg-muted p-3 text-xs">{JSON.stringify({ threadId: 'string', runId: 'string', messages: [{ id: 'string', role: 'user', content: '你好' }], forwardedProps: { agentId: String(agent.id), memoryActive: false, planActive: false, fileIds: [] } }, null, 2)}</pre></div></div>
 }
 
 function StatisticsPanel({ agentId }: { agentId: string }) {
@@ -73,7 +138,7 @@ function StatisticsPanel({ agentId }: { agentId: string }) {
   if (query.isLoading) return <PageLoading />
   if (query.error) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />
   const cards: Array<[string, TrendItem[], 'sum' | 'average']> = [['会话数', query.data?.sessionTrend ?? [], 'sum'], ['活跃用户', query.data?.activeUserTrend ?? [], 'sum'], ['消息数', query.data?.messageTrend ?? [], 'sum'], ['平均轮次', query.data?.avgRoundsTrend ?? [], 'average']]
-  return <div className="mt-4"><div className="mb-3 flex gap-1">{[3, 7, 15, 30, 90].map((value) => <Button key={value} size="sm" variant={days === value ? 'default' : 'outline'} onClick={() => setDays(value)}>{value}天</Button>)}</div><div className="grid gap-3 sm:grid-cols-2">{cards.map(([label, items, aggregation]) => { const sum = items.reduce((total, item) => total + (item.value || 0), 0); const value = aggregation === 'average' && items.length ? (sum / items.length).toFixed(1) : sum; return <div key={label} className="rounded-xl border border-border p-4"><div className="text-sm text-muted-foreground">{label}</div><div className="mt-1 text-2xl font-semibold">{value}</div><Sparkline items={items} /></div> })}</div></div>
+  return <div className="mt-4"><div className="mb-3 flex gap-1">{[3, 7, 15, 30, 90].map((value) => <Button key={value} size="sm" variant={days === value ? 'default' : 'outline'} onClick={() => setDays(value)}>{value}天</Button>)}</div><div className="grid gap-3 sm:grid-cols-2">{cards.map(([label, items, aggregation]) => { const sum = items.reduce((total, item) => total + (item.value || 0), 0); const value = aggregation === 'average' && items.length ? (sum / items.length).toFixed(1) : sum; return <div key={label} className="rounded-lg border border-border p-4"><div className="text-sm text-muted-foreground">{label}</div><div className="mt-1 font-display text-[26px] font-bold">{value}</div><Sparkline items={items} /></div> })}</div></div>
 }
 
 function Sparkline({ items }: { items: TrendItem[] }) {
