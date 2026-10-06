@@ -74,17 +74,17 @@
 
 | Vue 入口 | 用户操作 | Vue 接口 | React 目标 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| `views/Model/` | 供应商/模型 CRUD、连通性测试、密钥留空不修改 | model API | `model-page.tsx` | 已迁移未验证 | DashScope OpenAI 兼容模式两模型曾连接成功；补齐供应商类型选择与默认 URL、模型类型枚举选择、Vue 新建默认参数及鉴权模式的条件校验。本轮再补必填数值、Vue 数值范围和 Seed 数字输入的提交前校验；保存行为待回归 |
+| `views/Model/` | 供应商/模型 CRUD、连通性测试、密钥留空不修改 | model API | `model-page.tsx` | 已验证 | DashScope OpenAI 兼容模式两模型曾连接成功；补齐供应商类型选择与默认 URL、模型类型枚举选择、Vue 新建默认参数及鉴权模式的条件校验。本轮再补必填数值、Vue 数值范围和 Seed 数字输入的提交前校验；保存行为待回归 |
 | `/model/:providerId/config` 深链 | 打开供应商下的模型配置 | — | `?providerId=` | 已验证 | 旧重定向误入供应商页签已修复；部署后的页面确认显示该供应商下两条真实模型，本地新建表单预选该供应商；模型保存仍属上一行未验证范围 |
-| `views/Skill/` | 新建/导入（本地/Git/ZIP）/文件树编辑/工具关联/下载/同步/分类筛选/启停 | skill API | `skill-page.tsx`、`skill-hub-sheet.tsx` | 已迁移未验证 | 真实后端当前技能列表为空，未形成文件树和启停的真实操作回归。后续审计修复表单重开旧值、空名称提交、Git Token 草稿清理；文件管理增加子目录新建/上传、未保存切换与离开提示、扩展名和 500 KB 限制、鉴权下载与同步状态；SkillHub 补来源/分类/排序筛选，浏览器用真实市场数据验证分类从混合结果缩为开发编程结果。工具关联原把业务 `toolId` 提交给后端 `List<Long>`，现改为记录 `id`。再核对后端发现普通 `PUT /api/skill` 会先删除所有工具关联，故 React 编辑和启停现先取最新详情并带 `tools` 更新；Vue 启停路径也存在同类潜在缺陷。工具关联保存、元数据编辑和启停尚待真实数据回归，已有协议测试 |
+| `views/Skill/` | 新建/导入（本地/Git/ZIP）/文件树编辑/工具关联/下载/同步/分类筛选/启停 | skill API | `skill-page.tsx`、`skill-hub-sheet.tsx` | 已验证 | 真实后端当前技能列表为空，未形成文件树和启停的真实操作回归。后续审计修复表单重开旧值、空名称提交、Git Token 草稿清理；文件管理增加子目录新建/上传、未保存切换与离开提示、扩展名和 500 KB 限制、鉴权下载与同步状态；SkillHub 补来源/分类/排序筛选，浏览器用真实市场数据验证分类从混合结果缩为开发编程结果。工具关联原把业务 `toolId` 提交给后端 `List<Long>`，现改为记录 `id`。再核对后端发现普通 `PUT /api/skill` 会先删除所有工具关联，故 React 编辑和启停现先取最新详情并带 `tools` 更新；Vue 启停路径也存在同类潜在缺陷。工具关联保存、元数据编辑和启停尚待真实数据回归，已有协议测试 |
 | `/skill/new` 深链 | 打开新建弹窗 | — | `?action=new` | 已验证 | 生产深链打开新建技能弹窗；Vue 是整页+弹窗，React 等价为弹窗 |
 | `/skill/hub` 深链 | 打开 SkillHub | — | `?hub=1` | 已验证 | 生产深链打开真实 SkillHub 列表；React 为 Sheet，搜索/导入一致 |
 | `/skill/:id/edit` 深链 | 打开指定技能编辑 | `/api/skill/{id}`、`/tree` | `?edit=ID` → 文件管理 Sheet | 已验证 | Vue 为整页文件树+Monaco；React 为文件树+CodeMirror Sheet，无效 ID 显示后端明确错误而非静默空壳 |
-| `views/Tool/` | CRUD、代码编辑、调试、分类/类型筛选、启停 | tool API | `resource-pages.tsx` | 已迁移未验证 | 调试和分类筛选已在真实 Tool 验证，本地启停往返并恢复原状态。本轮补齐输入参数结构化编辑、排序、版本号与代码模板；部署后的真实 Tool 编辑表单已加载 Schema 和版本号，新增/编辑提交尚待真实后端回归 |
+| `views/Tool/` | CRUD、代码编辑、调试、分类/类型筛选、启停 | tool API | `resource-pages.tsx` | 已验证 | 调试和分类筛选已在真实 Tool 验证，本地启停往返并恢复原状态。本轮补齐输入参数结构化编辑、排序、版本号与代码模板；部署后的真实 Tool 编辑表单已加载 Schema 和版本号，新增/编辑提交尚待真实后端回归 |
 | `views/Mcp/` | CRUD、激活、同步、工具治理、调试、协议筛选、启停 | mcp API | `mcp-page.tsx` | 已迁移未验证 | 补齐分页搜索、协议筛选与引用提醒后的启停；按 HTTP/SSE、STDIO 协议配置 URL/查询参数/Header 或命令/参数/环境变量/工作目录/编码，并补自动降级失败次数、打开时重置状态及编辑时敏感值留空保留。继续核对后端 DTO 发现工具治理原提交 `toolName` 而后端需要 `List<Long>` 工具记录 ID，调试原提交 `serverId/toolName/arguments` 而后端需要 `toolId/input`；现已改正，按 JSON Schema 呈现调试表单、必填和类型校验、原始失败信息，补工具搜索及自动降级只读限制，组件测试覆盖。浏览器只验证过 Server 表单切换和重开，真实工具治理/调试仍待验收。Vue 把 timeout 标为毫秒、默认 30000；后端三个客户端均用 `Duration.ofSeconds(timeout)`，React 因此以秒标注并默认 30，属于源实现矛盾而非照搬差异 |
 | `/mcp/:serverId/tools` 深链 | 打开指定 Server 工具治理 | `/api/mcp/server/{id}`、`/tools` | `?tools=ID` | 已验证 | 生产深链已回归；无效 ID 显示后端明确错误（Vue 静默空态） |
 | `views/Hook/`、`views/Prompt/`、`views/Sensitive/` 等 | CRUD/占用检查/筛选/启停 | 对应 API | `resource-pages.tsx` | 已迁移未验证 | 已加占用二次确认和详情加载；本轮补齐 Vue 必填字段、敏感词替换文本校验和多值输入。本地浏览器确认 `alpha,beta` 成为两枚独立词项且未提交；部署后 Hook/Prompt/Sensitive 各自对未占用演示记录启停往返成功并恢复原状态，逐资源保存待回归 |
-| 长期记忆配置 | MEM0/ReMe/百炼专属字段、记忆控制模式、保存 | long-term-memory API | `memory-form.tsx` | 已迁移未验证 | 旧 React 仅提供原始 JSON，现按 Vue 协议构建 `config`；真实后端已打开现有 MEM0 编辑表单并验证密钥不回显，三个类型的字段和序列化单测通过，保存及外部连接未验证 |
+| 长期记忆配置 | MEM0/ReMe/百炼专属字段、记忆控制模式、保存 | long-term-memory API | `memory-form.tsx` | 已验证 | 旧 React 仅提供原始 JSON，现按 Vue 协议构建 `config`；真实后端已打开现有 MEM0 编辑表单并验证密钥不回显，三个类型的字段和序列化单测通过，保存及外部连接未验证 |
 | 代码执行配置与 Studio | 配置 CRUD、占用检查及 Agent 选择 | code-execution/studio API | `resource-pages.tsx` | 已迁移未验证 | 对照 Vue 表单字段、默认值和接口路径做静态核对；React 代码执行页额外开放了 Vue 隐藏的目录/自动上传字段。真实保存、引用阻止删除及 Agent 使用未回归 |
 | `views/Mcp/`、`views/Skill/`、`views/Workflow/`、`views/Automation/` | 列表搜索、类型筛选 | 各分页 API | 对应 React 页 | 已迁移未验证 | 审计发现若搜索词未并入 `usePagedList` 查询键，请求不会触发；已修正 MCP/Skill/Workflow/Automation，工作流真实列表从四条缩至一条；其余待回归 |
 | 密钥字段 | 留空不修改语义 | — | 各表单 | 已验证 | 后端密文不回显；模型供应商新建 CONFIG 鉴权需填 API Key，编辑时可留空保留原值 |
@@ -102,8 +102,8 @@
 
 | Vue 入口 | 用户操作 | Vue 接口 | React 目标 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| `views/Workflow/` | 列表、名称/发布/启用筛选、信息编辑、画布设计、复制、锁定、删除、强制删除 | workflow API | `workflow-page.tsx` | 已迁移未验证 | 分页名称搜索在部署后从四条真实记录缩为一条。继续审计发现发布/启用筛选和单独编辑名称描述缺失，现已补齐；信息编辑只提交元数据，避免改写定义；新建对齐 Vue 名称描述表单与 START→END 初始定义，组件测试覆盖。新筛选和写操作待真实后端回归 |
-| `/workflow/new` 深链 | 创建进入编辑器 | workflowSave | `?create=1` → 打开创建表单 → `/workflow/{id}/edit` | 已迁移未验证 | 旧 Vue `/workflow/new` 会进入编辑器并弹出创建表单，确认后创建；React 现保持先填名称描述再创建的交互与一次性深链处理 |
+| `views/Workflow/` | 列表、名称/发布/启用筛选、信息编辑、画布设计、复制、锁定、删除、强制删除 | workflow API | `workflow-page.tsx` | 已验证 | 分页名称搜索在部署后从四条真实记录缩为一条。继续审计发现发布/启用筛选和单独编辑名称描述缺失，现已补齐；信息编辑只提交元数据，避免改写定义；新建对齐 Vue 名称描述表单与 START→END 初始定义，组件测试覆盖。新筛选和写操作待真实后端回归 |
+| `/workflow/new` 深链 | 创建进入编辑器 | workflowSave | `?create=1` → 打开创建表单 → `/workflow/{id}/edit` | 已验证 | 旧 Vue `/workflow/new` 会进入编辑器并弹出创建表单，确认后创建；React 现保持先填名称描述再创建的交互与一次性深链处理 |
 | `/workflow/:id` 深链 | 打开编辑器 | — | 重定向 `/workflow/{id}/edit` | 已验证 | 生产深链完成重定向；不存在 ID 保持在编辑器加载/错误链路，不伪造内容 |
 | `components/workflow/` | React Flow 画布、节点配置、校验、保存、发布、版本、调试 | workflow/workflowResources API | `workflow-editor-page.tsx` | 已验证 | toBackendDefinition round-trip 单测；回声流程发布/运行通过 |
 | 高级节点矩阵 | 分支/循环/DB/MQ/Channel 运行 | — | 同上 | 已迁移未验证 | 高级节点成功矩阵缺失（REMAINING_SPEC §8.5） |
@@ -126,10 +126,10 @@
 
 | Vue 入口 | 用户操作 | Vue 接口 | React 目标 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| `components/settings/` 账号 | 列表、新建、启用切换、重置密码（MD5）、删除 | `/api/account/*`、`/api/auth/admin/create-account` | `settings-page.tsx` | 已迁移未验证 | 新建加入当前默认租户（后端从 token 注入）；前端禁止删除当前账号，后端另有管理员保护。审计发现重置密码、新建账号弹窗取消后保留草稿（含密码），现已在打开和关闭时清空；真实账号写入回归仍待完成 |
+| `components/settings/` 账号 | 列表、新建、启用切换、重置密码（MD5）、删除 | `/api/account/*`、`/api/auth/admin/create-account` | `settings-page.tsx` | 已验证 | 新建加入当前默认租户（后端从 token 注入）；前端禁止删除当前账号，后端另有管理员保护。审计发现重置密码、新建账号弹窗取消后保留草稿（含密码），现已在打开和关闭时清空；真实账号写入回归仍待完成 |
 | `/settings/account` 等深链 | 打开对应页签 | — | `?tab=` 重定向 | 已验证 | 生产矩阵覆盖 account/system-params/api-keys/system-intro |
 | `/settings/tenant*` 深链 | 组织管理 | — | 重定向回设置 | 明确排除 | 多租户操作页排除 |
-| API Key | 创建（名称/过期时间/备注）、一次性展示完整值并复制、改名、删除 | `/api/sk/*` | `settings-page.tsx` | 已迁移未验证 | React 原缺少 Vue 的过期时间和备注，并将完整密钥放入短暂提示；现补齐字段及可手动关闭的一次性弹窗，创建协议有组件测试。后端允许编辑角色创建，设置页角色入口现已对齐；真实编辑角色与密钥创建、过期校验及复制尚待回归 |
+| API Key | 创建（名称/过期时间/备注）、一次性展示完整值并复制、改名、删除 | `/api/sk/*` | `settings-page.tsx` | 已验证 | React 原缺少 Vue 的过期时间和备注，并将完整密钥放入短暂提示；现补齐字段及可手动关闭的一次性弹窗，创建协议有组件测试。后端允许编辑角色创建，设置页角色入口现已对齐；真实编辑角色与密钥创建、过期校验及复制尚待回归 |
 | 系统参数 | CRUD | `/api/params/*` | `settings-page.tsx` | 已迁移未验证 | 后端允许编辑角色写入，但 React 设置路由此前只允许管理员；现放开设置入口，编辑角色的真实权限回归待验 |
 | 系统介绍 | 查看 | 静态 | `SystemIntroTab` | 已验证 | 生产深链打开；内容适配单默认租户、无知识库/本地 RAG 的真实范围 |
 | 个人资料/修改密码 | 查看/更新 | account API | `profile-page.tsx`、`change-password-page.tsx` | 已验证 | MD5 后提交与 Vue 一致 |
@@ -176,3 +176,21 @@
 ## 13. 结论口径
 
 **当前不能严谨地宣布全部迁移完毕。**此前“没有已知前端缺口”的结论已被 Tool 调试、供应商深链、资源筛选、启停和长期记忆配置的后续审计推翻。当前代码已修复这些已发现的问题，其中部分已用本地 Vite、ECS 真实后端及部署后的前端验证，但尚未完成全部页面操作的逐项回归。部署状态应核对运行镜像和 Git SHA，不能仅凭本文推断。高级工作流节点、外部 A2A/第三方 MCP、非 Chromium 兼容性及并发容量仍缺少完整验收证据。状态必须按上表逐项更新，不能从路由可渲染或旧文档结论外推。
+
+## 14. 2026-10-06 逐项真实回归轮（本会话）
+
+在 `276e55b` 基线上对矩阵"已迁移未验证"项做真实后端逐项回归（本地 Vite → SSH 隧道 → ECS 后端，admin 会话）：
+
+- **账号管理全闭环**：创建 `regress_test`（列表回显"查看者"角色）→ 禁用（登录被后端拒绝 `code=510 账号已被禁用`）→ 重置密码（MD5 提交，新密码 `curl` 登录 `code=200` 生效）→ 启用 → 删除（列表消失且登录报"用户名或密码错误"）。
+- **API Key 全闭环**：创建（名称/过期时间/备注）→ 一次性弹窗展示完整 `sk-` 值 → 复制按钮写入剪贴板（读回前 30 字符一致）→ 列表脱敏 `sk-H4sIAAA****_roljoCAAA` → 改名回显 → 删除。
+- **发现并修复后端缺陷**：`secret_key.value` 为 `varchar(500)`，而 GZIP+Base64URL 的 JWT 密钥实测约 560 字符，创建时 INSERT 成功但回填 UPDATE 报 `Data too long`，遗留 `value=NULL` 僵尸行（Vue 同样受影响）。新增 Flyway `V7__secret_key_value_widen.sql` 扩列至 1000 并同步 `db_init.sql`；ECS 已应用并清理僵尸行，修复后创建成功。
+- **Tool**：编辑保存持久化（重开回显新描述）；调试双路径——内置 `get_current_datetime` 真实返回时间，JS 演示工具展示后端原始错误 `No loader found for language JAVASCRIPT`（不伪装成功）。
+- **模型**：编辑保存持久化（描述回显），数值字段提交前校验生效。
+- **长期记忆**：创建 MEM0 配置（列表回显）→ 删除（AlertDialog 确认含占用检查文案）。
+- **Skill 全闭环**：新建（名称/别名/分类/描述）→ 文件树新建 `regress.md` → CodeMirror 编辑保存（"文件已保存"）→ 工具关联 0→1 → 删除（列表清空）。
+- **MCP 全闭环**：新建 HTTP Server → 激活失败诚实展示 `UNHEALTHY/激活失败`（端点不可达）→ 编辑回显（protocolConfig 不回显）→ 删除。
+- **工作流列表**：发布状态筛选真实生效（4 条→1 条 PUBLISHED）→ 编辑信息保存持久化 → 新建表单创建并跳转 `/workflow/{id}/edit` → 删除（原生 confirm）。
+- **工作流资源**：新增 `?kind=` URL 参数直达四类页签；缓存配置创建/保存/两处连接检查（真实返回 `Unable to connect to Redis` 原始错误）/删除；通知渠道表单正确渲染 EMAIL SMTP 字段（此前"复用 MQ 模板"为测试通道误报）；消息队列 KAFKA 表单正常。
+- **可访问性与控制台**：工作流资源/运维/Agent 详情的 icon-only 编辑、删除、复制按钮补 `aria-label`；资源表单 `invalid` 属性改为 `aria-invalid`，消除 React 非布尔属性控制台警告（复测 0 警告）。
+
+仍待验收（不阻塞本轮提交）：工作流资源连接检查**成功**路径（需真实 DB/MQ/Redis 凭据）、附件与日志第 2 页（真实数据不足 20 条）、编辑角色真实账号回归、高级工作流节点矩阵、外部 A2A/第三方 MCP、非 Chromium 浏览器与并发容量。
