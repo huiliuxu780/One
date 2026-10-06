@@ -100,7 +100,8 @@ export function FormFieldRenderer({
   invalid?: boolean
 }) {
   const id = `field-${field.name}`
-  const common = { id, invalid }
+  // invalid 不是合法 DOM 属性；用 aria-invalid 表达校验状态，避免 React 非布尔属性警告
+  const common = { id, 'aria-invalid': invalid || undefined }
   switch (field.type) {
     case 'textarea':
     case 'json':
