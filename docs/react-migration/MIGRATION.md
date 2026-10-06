@@ -235,3 +235,10 @@
 - 回滚策略变更：下线 Vue 后，回滚路径仅为旧版本 React 镜像。`apboa-vue-rollback:20261005` 与 `:20261005-exec` 两个镜像按用户决策保留一个稳定期（至 2026-10-20），期间不作为 compose 服务存在，仅作为镜像保留；到期由人工清理。
 - React 固化提交打 tag `react-1.0.0`；ECS 部署记录对应 frontend 镜像 digest。README 技术栈、徽章、目录树与死链同步更新为 React 表述。
 - 该决策不改变 REMAINING_SPEC 的验收口径：凭据依赖验收、高级节点矩阵、TLS/域名等未完成项仍按矩阵 §11/§15 追踪。
+
+### 固化版本证据（react-1.0.0 = 56cca39）
+
+- ECS `/opt/apboa-next` 与 origin 均在 `56cca39`，tag `react-1.0.0` 已推送；ECS 仓库已无 `ui/`。
+- 运行中 frontend 镜像 `sha256:f19fa240d08063dc1a21095084e8dd3eef45cce4c7ef6a80c98129d7307f06f5`（构建于 26df3ba；固化提交仅删除 Vue 源码与文档，前端产物未变，无需重建镜像）。
+- Vue 回滚镜像保留至 2026-10-20：`apboa-vue-rollback:20261005-exec`（b2c2d14e8065）、`:20261005`（20a91fd9b89b）。
+- `/react/` 返回 200；回滚路径为 rollback-* React 镜像链（最新 `rollback-f5f64bf-pre-26df3ba`）。
