@@ -6,11 +6,11 @@ import { ApiClientError, toApiClientError } from '@/api/client'
 function shell(title: string, description: React.ReactNode, extra?: React.ReactNode) {
   return (
     <div className="grid min-h-[60dvh] place-items-center px-6">
-      <div className="w-full max-w-md space-y-4 rounded-xl border border-border bg-card p-8 text-center shadow-card">
+      <div className="w-full max-w-md space-y-4 rounded-lg border border-border bg-card p-8 text-center shadow-card">
         <div className="mx-auto grid size-12 place-items-center rounded-full bg-muted text-muted-foreground">
           <Warning size={22} />
         </div>
-        <div className="text-lg font-semibold">{title}</div>
+        <div className="font-display text-lg font-semibold">{title}</div>
         <div className="space-y-1 text-sm text-muted-foreground">{description}</div>
         {extra}
         <div className="pt-2">

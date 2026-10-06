@@ -2,9 +2,9 @@ import { Folder, Sparkle, Wrench } from '@phosphor-icons/react'
 import { displayFromTagContent, isMentionTag, parseTaggedContent } from './mention'
 
 const KIND_STYLE: Record<string, { icon: React.ReactNode; className: string }> = {
-  'workspace-file': { icon: <Folder size={12} />, className: 'border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300' },
+  'workspace-file': { icon: <Folder size={12} />, className: 'border-primary/40 bg-primary/10 text-primary' },
   'agent-tool': { icon: <Wrench size={12} />, className: 'border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-300' },
-  'agent-skill': { icon: <Sparkle size={12} />, className: 'border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300' },
+  'agent-skill': { icon: <Sparkle size={12} />, className: 'border-border bg-muted text-secondary-foreground' },
 }
 
 /**

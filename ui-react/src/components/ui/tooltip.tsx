@@ -10,7 +10,7 @@ export function TooltipContent({ className, sideOffset = 6, ...props }: React.Co
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Content
         sideOffset={sideOffset}
-        className={cn('z-50 max-w-72 rounded-md bg-slate-950 px-3 py-1.5 text-xs text-slate-50 shadow-dialog', className)}
+        className={cn('z-50 max-w-72 rounded-md bg-foreground px-3 py-1.5 text-xs text-background shadow-dialog', className)}
         {...props}
       />
     </TooltipPrimitive.Portal>

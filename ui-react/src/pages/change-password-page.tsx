@@ -42,7 +42,7 @@ export function ChangePasswordPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
-      <h1 className="text-xl font-semibold tracking-tight">修改密码</h1>
+      <h1 className="font-display text-[24px] font-bold leading-tight">修改密码</h1>
       <p className="mb-6 mt-1 text-sm text-muted-foreground">定期更换密码有助于保护账号安全。</p>
       <Card>
         <CardHeader>

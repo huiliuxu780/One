@@ -74,7 +74,7 @@ export const MentionDropdown = forwardRef<MentionDropdownHandle, {
 
   if (!flat.length) {
     return (
-      <div className="absolute bottom-full left-0 z-30 mb-2 w-80 overflow-hidden rounded-xl border border-border bg-popover shadow-md">
+      <div className="absolute bottom-full left-0 z-30 mb-2 w-80 overflow-hidden rounded-lg border border-border bg-popover shadow-md">
         <p className="px-3 py-4 text-center text-xs text-muted-foreground">没有匹配的文件、工具或技能</p>
       </div>
     )
@@ -82,7 +82,7 @@ export const MentionDropdown = forwardRef<MentionDropdownHandle, {
 
   let renderIndex = -1
   return (
-    <div ref={listRef} className="absolute bottom-full left-0 z-30 mb-2 max-h-72 w-80 overflow-auto rounded-xl border border-border bg-popover py-1 shadow-md">
+    <div ref={listRef} className="absolute bottom-full left-0 z-30 mb-2 max-h-72 w-80 overflow-auto rounded-lg border border-border bg-popover py-1 shadow-md">
       {visible.map((group) => (
         <div key={group.kind}>
           <div className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-muted-foreground">{group.icon} {group.title}</div>

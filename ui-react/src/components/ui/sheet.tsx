@@ -20,10 +20,10 @@ export interface SheetContentProps extends React.ComponentProps<typeof DialogPri
 export function SheetContent({ className, children, side = 'right', ...props }: SheetContentProps) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-slate-950/45 backdrop-blur-[2px]" />
+      <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-foreground/40 backdrop-blur-[2px]" />
       <DialogPrimitive.Content
         className={cn(
-          'fixed z-50 flex flex-col gap-4 border-border bg-background p-6 shadow-dialog transition-transform duration-300',
+          'fixed z-50 flex flex-col gap-4 border-border bg-card p-6 shadow-dialog transition-transform duration-300',
           SIDE_CLASSES[side],
           className,
         )}
@@ -43,11 +43,11 @@ export function SheetHeader({ className, ...props }: React.ComponentProps<'div'>
 }
 
 export function SheetTitle({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Title>) {
-  return <DialogPrimitive.Title className={cn('text-lg font-semibold tracking-tight', className)} {...props} />
+    return <DialogPrimitive.Title className={cn('font-display font-display text-lg font-semibold tracking-tight', className)} {...props} />
 }
 
 export function SheetDescription({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Description>) {
-  return <DialogPrimitive.Description className={cn('text-sm text-muted-foreground', className)} {...props} />
+  return <DialogPrimitive.Description className={cn("text-[12.5px] text-muted-foreground", className)} {...props} />
 }
 
 export function SheetFooter({ className, ...props }: React.ComponentProps<'div'>) {

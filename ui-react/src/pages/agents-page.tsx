@@ -84,39 +84,38 @@ export function AgentsPage() {
     <main className="min-h-[100dvh] px-5 py-6 sm:px-8 lg:px-10">
       <div className="mx-auto max-w-[1440px]">
         <header className="flex flex-col gap-5 border-b border-border pb-6 sm:flex-row sm:items-end sm:justify-between">
-          <div><div className="mb-2 flex items-center gap-2 text-sm font-medium text-primary"><Robot size={18} weight="duotone" />Agent workspace</div><h1 className="text-2xl font-semibold tracking-tight">智能体</h1><p className="mt-1 text-sm text-muted-foreground">管理自定义智能体、A2A 智能体和子 Agent 关系。</p></div>
+          <div><h1 className="font-display text-[26px] font-bold">智能体</h1><p className="mt-1 text-sm text-muted-foreground">管理自定义智能体、A2A 智能体和子 Agent 关系。</p></div>
           <Button onClick={openCreate}><Plus size={17} weight="bold" />新建智能体</Button>
         </header>
 
         <section className="flex flex-col gap-3 py-5 lg:flex-row lg:items-center">
-          <div className="relative w-full max-w-md"><MagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} /><Input value={keyword} onChange={(event) => { setKeyword(event.target.value); setPage(1) }} placeholder="搜索名称" className="pl-10" aria-label="搜索智能体" /></div>
+          <div className="relative w-full max-w-[260px]"><MagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} /><Input value={keyword} onChange={(event) => { setKeyword(event.target.value); setPage(1) }} placeholder="搜索名称" className="pl-10" aria-label="搜索智能体" /></div>
           <div className="flex flex-wrap gap-2">
             <FilterButton active={!selectedType} onClick={() => { setSelectedType(''); setPage(1) }}>全部类型</FilterButton>
             <FilterButton active={selectedType === 'CUSTOM'} onClick={() => { setSelectedType('CUSTOM'); setPage(1) }}>自定义</FilterButton>
             <FilterButton active={selectedType === 'A2A'} onClick={() => { setSelectedType('A2A'); setPage(1) }}>A2A</FilterButton>
           </div>
-          {tags.length ? <select value={selectedTag} onChange={(event) => { setSelectedTag(event.target.value); setPage(1) }} className="h-9 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"><option value="">全部标签</option>{tags.map((tag) => <option key={tag} value={tag}>{tag}</option>)}</select> : null}
-          <span className="ml-auto text-xs text-muted-foreground">共 {result.total} 个</span>
+          {tags.length ? <select value={selectedTag} onChange={(event) => { setSelectedTag(event.target.value); setPage(1) }} className="h-8 rounded-md border border-input bg-card px-3 text-[12.5px] outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"><option value="">全部标签</option>{tags.map((tag) => <option key={tag} value={tag}>{tag}</option>)}</select> : null}
+          <span className="ml-auto font-mono text-[11px] text-muted-foreground">共 {result.total} 个</span>
         </section>
 
-        {error ? <div className="rounded-xl border border-destructive/25 bg-destructive/5 p-5"><p className="text-sm font-medium text-destructive">{error}</p><Button variant="outline" size="sm" onClick={() => void load()} className="mt-3">重试</Button></div> : null}
-        {!error && loading ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"><LoadingCard /><LoadingCard /><LoadingCard /></div> : null}
+        {error ? <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-5"><p className="text-sm font-medium text-destructive">{error}</p><Button variant="outline" size="sm" onClick={() => void load()} className="mt-3">重试</Button></div> : null}
+        {!error && loading ? <div className="grid gap-3.5 md:grid-cols-2 xl:grid-cols-3"><LoadingCard /><LoadingCard /><LoadingCard /></div> : null}
         {!error && !loading && result.records.length ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3.5 md:grid-cols-2 xl:grid-cols-3">
             {result.records.map((agent) => (
-              <div key={String(agent.id)} className="space-y-2">
+              <div key={String(agent.id)} className="flex flex-col">
                 <AgentCard agent={agent} />
-                <div className="flex gap-1">
-                  <Button variant="outline" size="sm" onClick={() => setDetailsAgent(agent)}><DotsThreeOutline size={13} /> 详情</Button>
-                  <Button variant="outline" size="sm" className="flex-1" onClick={() => openEdit(agent)}><PencilSimple size={13} /> 编辑</Button>
-                  <Button variant="outline" size="sm" className="flex-1" onClick={() => openClone(agent)}><Copy size={13} /> 复制</Button>
-                  <Button variant="outline" size="sm" className="text-destructive" onClick={() => void handleDelete([agent])}><Trash size={13} /> 删除</Button>
+                <div className="flex gap-1 rounded-b-lg border border-t-0 border-border bg-card px-3 py-2">                  <Button variant="ghost" size="sm" className="text-secondary-foreground" onClick={() => setDetailsAgent(agent)}><DotsThreeOutline size={13} /> 详情</Button>
+                  <Button variant="ghost" size="sm" className="flex-1 text-secondary-foreground" onClick={() => openEdit(agent)}><PencilSimple size={13} /> 编辑</Button>
+                  <Button variant="ghost" size="sm" className="flex-1 text-secondary-foreground" onClick={() => openClone(agent)}><Copy size={13} /> 复制</Button>
+                  <Button variant="ghost" size="sm" className="text-primary" onClick={() => void handleDelete([agent])}><Trash size={13} /> 删除</Button>
                 </div>
               </div>
             ))}
           </div>
         ) : null}
-        {!error && !loading && !result.records.length ? <div className="grid min-h-72 place-items-center rounded-xl border border-dashed border-border bg-card/55 p-8 text-center"><div><div className="mx-auto mb-4 grid size-12 place-items-center rounded-xl bg-muted text-muted-foreground"><Robot size={25} /></div><h2 className="font-semibold">没有匹配的智能体</h2><p className="mt-1 text-sm text-muted-foreground">调整搜索条件，或新建第一个智能体。</p></div></div> : null}
+        {!error && !loading && !result.records.length ? <div className="grid min-h-72 place-items-center rounded-lg border border-dashed border-border bg-card p-8 text-center"><div><div className="mx-auto mb-4 grid size-12 place-items-center rounded-lg bg-muted text-muted-foreground"><Robot size={25} /></div><h2 className="font-semibold">没有匹配的智能体</h2><p className="mt-1 text-sm text-muted-foreground">调整搜索条件，或新建第一个智能体。</p></div></div> : null}
         {result.total > result.size ? (
           <div className="pt-4">
             <Pagination page={page} size={result.size} total={result.total} onPageChange={setPage} pageSizeOptions={[24, 48]} />
@@ -131,9 +130,9 @@ export function AgentsPage() {
 }
 
 function FilterButton({ active, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { active: boolean }) {
-  return <button className={active ? 'h-9 rounded-lg bg-slate-900 px-3 text-sm text-white' : 'h-9 rounded-lg border border-border bg-background px-3 text-sm text-muted-foreground hover:bg-muted'} {...props} />
+  return <button className={active ? "h-7 rounded-md bg-foreground px-2.5 text-[11.5px] text-background" : "h-7 rounded-md border border-border bg-card px-2.5 text-[11.5px] text-muted-foreground hover:bg-muted"} {...props} />
 }
 
 function LoadingCard() {
-  return <div className="rounded-xl border border-border bg-card p-5"><div className="flex gap-3"><Skeleton className="size-11" /><div className="flex-1 space-y-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-3 w-1/3" /></div></div><Skeleton className="mt-6 h-10 w-full" /><Skeleton className="mt-6 h-8 w-2/3" /></div>
+  return <div className="rounded-lg border border-border bg-card p-5"><div className="flex gap-3"><Skeleton className="size-11" /><div className="flex-1 space-y-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-3 w-1/3" /></div></div><Skeleton className="mt-6 h-10 w-full" /><Skeleton className="mt-6 h-8 w-2/3" /></div>
 }

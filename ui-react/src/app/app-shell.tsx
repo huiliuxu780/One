@@ -22,7 +22,7 @@ import {
   Wrench,
 } from '@phosphor-icons/react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { PageLoading } from '@/components/states'
 import { cn } from '@/lib/utils'
@@ -73,6 +73,26 @@ const integrationNavigation: NavigationItem[] = [
   { label: '使用手册', to: '/docs', icon: BookOpen },
 ]
 
+const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
+/** 纸墨外壳顶栏：面包屑 + 等宽日期，全产品统一。 */
+function Topbar() {
+  const location = useLocation()
+  const current = [...primaryNavigation, ...resourceNavigation, ...assetNavigation, ...integrationNavigation]
+    .find((item) => item.to && (location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)))
+  const now = new Date()
+  return (
+    <div className="flex h-[46px] flex-none items-center justify-between border-b border-border px-6">
+      <span className="text-[11.5px] text-muted-foreground">
+        工作空间 / <b className="font-medium text-secondary-foreground">{current?.label ?? '总览'}</b>
+      </span>
+      <span className="font-mono text-[11px] text-muted-foreground">
+        {now.getMonth() + 1} 月 {now.getDate()} 日，{WEEKDAYS[now.getDay()]}
+      </span>
+    </div>
+  )
+}
+
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false)
   const { user, tenant, logout } = useAuthStore()
@@ -87,7 +107,7 @@ export function AppShell() {
   function renderNavigation(items: NavigationItem[], ariaLabel: string, groupLabel: string) {
     return (
       <nav className="mt-5 space-y-1" aria-label={ariaLabel}>
-        {!collapsed ? <div className="mb-2 px-3 text-[11px] font-medium text-sidebar-muted">{groupLabel}</div> : null}
+        {!collapsed ? <div className="mb-2 px-3 text-[10.5px] font-medium tracking-[0.14em] text-sidebar-muted">{groupLabel}</div> : null}
         {items.map((item) => {
           const Icon = item.icon
           if (item.capability && !can(item.capability)) return null
@@ -97,12 +117,12 @@ export function AppShell() {
               to={item.to!}
               className={({ isActive }) =>
                 cn(
-                  'flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition-colors hover:bg-sidebar-accent',
-                  isActive && 'bg-sidebar-accent font-medium text-primary',
+                  'flex h-8 items-center gap-2.5 rounded-md px-3 text-[13px] transition-colors hover:bg-sidebar-accent',
+                  isActive && 'bg-sidebar-accent font-semibold text-primary',
                 )
               }
             >
-              <Icon size={18} weight="duotone" />
+              <Icon size={16} weight="duotone" />
               <span className={cn(collapsed && 'sr-only')}>{item.label}</span>
             </NavLink>
           )
@@ -112,15 +132,15 @@ export function AppShell() {
   }
 
   return (
-    <div className="grid min-h-[100dvh] bg-app" style={{ gridTemplateColumns: collapsed ? '76px minmax(0,1fr)' : '244px minmax(0,1fr)' }}>
+    <div className="grid min-h-[100dvh] bg-app" style={{ gridTemplateColumns: collapsed ? '76px minmax(0,1fr)' : '216px minmax(0,1fr)' }}>
       <aside className="sticky top-0 flex h-[100dvh] flex-col border-r border-sidebar-border bg-sidebar p-3 text-sidebar-foreground">
-        <button className="flex h-12 items-center gap-3 rounded-xl px-2 text-left hover:bg-sidebar-accent" onClick={() => setCollapsed((value) => !value)} aria-label={collapsed ? '展开侧边栏' : '收起侧边栏'}>
-          <img src={`${import.meta.env.BASE_URL}logo.png`} alt="" className="size-9 rounded-lg" />
-          {!collapsed ? <div className="min-w-0"><div className="truncate text-sm font-semibold">Apboa Next</div><div className="truncate text-[11px] text-sidebar-muted">React workspace</div></div> : null}
+        <button className="flex h-12 items-center gap-3 rounded-md px-2 text-left hover:bg-sidebar-accent" onClick={() => setCollapsed((value) => !value)} aria-label={collapsed ? '展开侧边栏' : '收起侧边栏'}>
+          <img src={`${import.meta.env.BASE_URL}logo.png`} alt="" className="size-8 rounded-md" />
+          {!collapsed ? <div className="min-w-0"><div className="truncate font-display text-[15px] font-bold">Apboa Next</div></div> : null}
         </button>
 
         <div
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1"
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 [mask-image:linear-gradient(to_bottom,#000_calc(100%-20px),transparent)]"
           data-testid="sidebar-navigation-scroll"
         >
           {renderNavigation(primaryNavigation, '主导航', '工作空间')}
@@ -133,7 +153,7 @@ export function AppShell() {
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
               <Button variant="ghost" className={cn('h-auto w-full justify-start gap-3 p-2 text-sidebar-foreground hover:bg-sidebar-accent', collapsed && 'justify-center')}>
-                <span className="grid size-9 place-items-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground">{user?.username?.slice(0, 1).toUpperCase() || '?'}</span>
+                <span className="grid size-6 place-items-center rounded-full bg-foreground text-[10px] font-semibold text-background">{user?.username?.slice(0, 1).toUpperCase() || '?'}</span>
                 {!collapsed ? <><span className="min-w-0 flex-1 text-left"><span className="block truncate text-sm">{user?.nickname || user?.username}</span><span className="block truncate text-[11px] font-normal text-sidebar-muted">{tenant?.tenantName || '默认组织'}</span></span><CaretDown size={14} /></> : null}
               </Button>
             </DropdownMenu.Trigger>
@@ -149,7 +169,8 @@ export function AppShell() {
           </DropdownMenu.Root>
         </div>
       </aside>
-      <div className="min-w-0">
+      <div className="flex min-w-0 flex-col">
+        <Topbar />
         <Suspense fallback={<PageLoading />}>
           <Outlet />
         </Suspense>

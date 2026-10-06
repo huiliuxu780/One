@@ -469,7 +469,7 @@ export function ResourcePage<T extends { id?: string | number }>({ def }: { def:
     <div className="px-6 py-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">{def.title}</h1>
+          <h1 className="font-display text-[24px] font-bold leading-tight">{def.title}</h1>
           {def.description ? <p className="mt-1 text-sm text-muted-foreground">{def.description}</p> : null}
         </div>
         <div className="flex items-center gap-2">

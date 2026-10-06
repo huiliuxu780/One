@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useBlocker, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
   addEdge,
   Background,
+  BackgroundVariant,
   Controls,
   Handle,
   MiniMap,
@@ -51,22 +52,54 @@ import { sessionStorageAdapter } from '@/lib/storage'
 
 // 知识库节点不在节点库中（明确排除）；旧含 KNOWLEDGE 节点的流程加载后只读提示。
 
+// 画布主题：把 xyflow 默认的灰蓝配色收敛到纸墨 token。
+// 变量挂在 ReactFlow 根上，级联到边线、手柄、框选、控件与小地图。
+const canvasTheme = {
+  '--xy-background-color': 'var(--background)',
+  '--xy-edge-stroke': 'var(--muted-foreground)',
+  '--xy-edge-stroke-width': '1.5',
+  '--xy-edge-stroke-selected': 'var(--primary)',
+  '--xy-connectionline-stroke': 'var(--primary)',
+  '--xy-connectionline-stroke-width': '1.5',
+  '--xy-handle-background-color': 'var(--muted-foreground)',
+  '--xy-handle-border-color': 'var(--card)',
+  '--xy-selection-background-color': 'rgb(178 58 44 / 0.06)',
+  '--xy-selection-border': '1px dotted rgb(178 58 44 / 0.5)',
+  '--xy-attribution-background-color': 'transparent',
+  '--xy-controls-box-shadow': 'none',
+  '--xy-controls-button-background-color': 'var(--card)',
+  '--xy-controls-button-background-color-hover': 'var(--muted)',
+  '--xy-controls-button-border-color': 'var(--border)',
+  '--xy-controls-button-color': 'var(--secondary-foreground)',
+  '--xy-controls-button-color-hover': 'var(--foreground)',
+  '--xy-minimap-background-color': 'var(--card)',
+  '--xy-minimap-mask-background-color': 'rgb(234 230 221 / 0.55)',
+  '--xy-minimap-mask-stroke-color': 'var(--input)',
+  '--xy-minimap-node-background-color': 'var(--input)',
+} as CSSProperties
+
 function WorkflowCanvasNode({ data, selected }: { data: Record<string, unknown>; selected?: boolean }) {
   const type = String(data.type ?? '')
   const status = String(data.status ?? 'IDLE')
   const summary = workflowNodeSummary(type, (data.config as Record<string, unknown> | undefined) ?? {})
   const errors = Array.isArray(data.errors) ? data.errors.map(String) : []
-  const statusClass = status === 'INVALID' || status === 'FAIL' ? 'border-destructive' : status === 'SUCCESS' ? 'border-emerald-500' : status === 'RUNNING' ? 'border-primary animate-pulse' : 'border-border'
+  const failed = status === 'INVALID' || status === 'FAIL'
+  const statusClass = failed ? 'border-destructive' : status === 'SUCCESS' ? 'border-success' : status === 'RUNNING' ? 'border-primary animate-pulse' : 'border-border'
   return (
-    <div className={`w-48 rounded-lg border bg-card px-3 py-2 shadow-card ${selected ? 'border-primary ring-2 ring-ring' : statusClass}`} title={errors.join('\n') || undefined}>
-      {type !== 'START' ? <Handle id="input" type="target" position={Position.Left} className="!size-2.5 !border-background !bg-primary" /> : null}
+    <div className={`w-48 rounded-lg border bg-card px-3 py-2 ${selected ? 'border-primary ring-2 ring-primary/20' : statusClass}`} title={errors.join('\n') || undefined}>
+      {type !== 'START' ? <Handle id="input" type="target" position={Position.Left} className="size-2.5!" /> : null}
       <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-sm font-medium">{String(data.name ?? '节点')}</span>
-        <Badge variant="outline" className="shrink-0 text-[10px]">{String(data.type ?? '')}</Badge>
+        <span className="truncate text-[13px] font-medium">{String(data.name ?? '节点')}</span>
+        <span className="shrink-0 font-mono text-[10.5px] text-muted-foreground">{String(data.type ?? '')}</span>
       </div>
-      {summary.length ? <div className="mt-1.5 space-y-0.5 border-t border-border/70 pt-1.5">{summary.map((item) => <div key={item} className="truncate text-[10px] text-muted-foreground">{item}</div>)}</div> : null}
-      {status !== 'IDLE' ? <div className={`mt-1 text-[10px] font-medium ${status === 'INVALID' || status === 'FAIL' ? 'text-destructive' : status === 'SUCCESS' ? 'text-emerald-600' : 'text-primary'}`}>{status}{errors.length ? ` · ${errors[0]}` : ''}</div> : null}
-      {type !== 'END' ? <Handle id="output" type="source" position={Position.Right} className="!size-2.5 !border-background !bg-primary" /> : null}
+      {summary.length ? <div className="mt-1.5 space-y-0.5 border-t border-border pt-1.5">{summary.map((item) => <div key={item} className="truncate text-[10.5px] text-muted-foreground">{item}</div>)}</div> : null}
+      {status !== 'IDLE' ? (
+        <span className={`stat mt-1.5 ${status === 'RUNNING' ? 'run' : failed || status === 'SUCCESS' ? '' : 'off'}`}>
+          <i style={failed ? { background: 'var(--destructive)' } : undefined} />
+          <span className="min-w-0 truncate">{status}{errors.length ? ` · ${errors[0]}` : ''}</span>
+        </span>
+      ) : null}
+      {type !== 'END' ? <Handle id="output" type="source" position={Position.Right} className="size-2.5!" /> : null}
     </div>
   )
 }
@@ -600,9 +633,9 @@ export function WorkflowEditorPage() {
         <Button variant="ghost" size="sm" onClick={() => subWorkflowStack.length ? exitSubWorkflow() : navigate('/workflow')}>
           <ArrowLeft size={14} /> {subWorkflowStack.length ? '返回上级流程' : '返回'}
         </Button>
-        <span className="font-semibold">{detailQuery.data?.workflow.name}</span>
+        <span className="min-w-0 truncate font-display text-[15px] font-bold">{detailQuery.data?.workflow.name}</span>
         {subWorkflowStack.length ? <Badge variant="outline">循环子流程 · 第 {subWorkflowStack.length} 层</Badge> : null}
-        <Badge variant="secondary" className="ml-1">{detailQuery.data?.workflow.version ?? '草稿'}</Badge>
+        <Badge variant="secondary" className="ml-1 font-mono">{detailQuery.data?.workflow.version ?? '草稿'}</Badge>
         <div className="ml-auto flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={undo} disabled={readOnly || !undoStackRef.current.length || Boolean(subWorkflowStack.length)}>撤销</Button>
           <Button variant="ghost" size="sm" onClick={redo} disabled={readOnly || !redoStackRef.current.length || Boolean(subWorkflowStack.length)}>重做</Button>
@@ -632,22 +665,22 @@ export function WorkflowEditorPage() {
 
       <div className="flex min-h-0 flex-1">
         {/* 节点库 */}
-        <aside className="w-48 shrink-0 overflow-auto border-r border-border p-2">
-          <div className="mb-1 px-1 text-[11px] font-medium text-muted-foreground">完整节点库</div>
+        <aside className="w-48 shrink-0 overflow-auto border-r border-border bg-muted p-2">
+          <div className="mb-1 px-1 text-[10.5px] tracking-[0.14em] text-muted-foreground">完整节点库</div>
           {workflowNodeSchemas.map((item) => (
             <button
               key={item.type}
-              className="w-full rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted"
+              className="w-full rounded-md px-2 py-1.5 text-left text-[12.5px] text-secondary-foreground transition-colors hover:bg-card hover:text-foreground"
               onClick={() => addNode(item.type)}
             >
               {item.title}
             </button>
           ))}
-          <p className="mt-2 px-1 text-[10px] text-muted-foreground">知识库节点不提供；含旧知识库节点的流程仅可查看。</p>
+          <p className="mt-2 px-1 text-[10.5px] leading-4 text-muted-foreground">知识库节点不提供；含旧知识库节点的流程仅可查看。</p>
         </aside>
 
         {/* 画布 */}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 bg-background">
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -669,27 +702,28 @@ export function WorkflowEditorPage() {
             nodesConnectable={!readOnly}
             edgesReconnectable={!readOnly}
             fitView
+            style={canvasTheme}
           >
-            <Background />
-            <Controls />
-            <MiniMap pannable />
+            <Background variant={BackgroundVariant.Dots} color="var(--input)" gap={22} size={1} />
+            <Controls className="overflow-hidden rounded-md border border-border bg-card" />
+            <MiniMap pannable nodeBorderRadius={4} className="overflow-hidden rounded-md border border-border" />
           </ReactFlow>
-          {contextMenu ? <div className="fixed z-50 w-44 rounded-lg border border-border bg-popover p-1 text-sm shadow-dialog" style={{ left: contextMenu.x, top: contextMenu.y }}>
-            <button className="w-full rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { focusNode(contextMenu.nodeId); setContextMenu(null) }}>编辑配置</button>
-            <button className="w-full rounded px-3 py-2 text-left hover:bg-muted" onClick={() => duplicateNode(contextMenu.nodeId)}>复制节点</button>
-            <button className="w-full rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { void flowRef.current?.fitView({ nodes: [{ id: contextMenu.nodeId }], padding: 1.6, duration: 250 }); setContextMenu(null) }}>适配到节点</button>
-            <button className="w-full rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { nodeRunMutation.mutate(contextMenu.nodeId); setContextMenu(null) }}>运行此节点</button>
-            <button className="w-full rounded px-3 py-2 text-left text-destructive hover:bg-muted" onClick={() => { removeNode(contextMenu.nodeId); setContextMenu(null) }}>删除节点</button>
+          {contextMenu ? <div className="fixed z-50 w-44 rounded-md border border-border bg-popover p-1 text-[12.5px] text-popover-foreground shadow-dialog" style={{ left: contextMenu.x, top: contextMenu.y }}>
+            <button className="w-full rounded px-2.5 py-1.5 text-left text-secondary-foreground hover:bg-muted hover:text-foreground" onClick={() => { focusNode(contextMenu.nodeId); setContextMenu(null) }}>编辑配置</button>
+            <button className="w-full rounded px-2.5 py-1.5 text-left text-secondary-foreground hover:bg-muted hover:text-foreground" onClick={() => duplicateNode(contextMenu.nodeId)}>复制节点</button>
+            <button className="w-full rounded px-2.5 py-1.5 text-left text-secondary-foreground hover:bg-muted hover:text-foreground" onClick={() => { void flowRef.current?.fitView({ nodes: [{ id: contextMenu.nodeId }], padding: 1.6, duration: 250 }); setContextMenu(null) }}>适配到节点</button>
+            <button className="w-full rounded px-2.5 py-1.5 text-left text-secondary-foreground hover:bg-muted hover:text-foreground" onClick={() => { nodeRunMutation.mutate(contextMenu.nodeId); setContextMenu(null) }}>运行此节点</button>
+            <button className="w-full rounded px-2.5 py-1.5 text-left text-destructive hover:bg-muted" onClick={() => { removeNode(contextMenu.nodeId); setContextMenu(null) }}>删除节点</button>
           </div> : null}
         </div>
 
         {/* 选中节点配置 */}
-        <aside className="w-80 shrink-0 overflow-auto border-l border-border p-3">
+        <aside className="w-80 shrink-0 overflow-auto border-l border-border bg-muted p-3">
           {selectedNode ? (
             <>
-              <div className="mb-2 flex items-center justify-between">
-                <Label>节点配置 · {String(selectedNode.data.type)}</Label>
-                {configDirty ? <Badge variant="outline">未应用</Badge> : null}
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <Label className="font-display text-[13px] font-bold">节点配置 <span className="font-mono text-[10.5px] font-normal text-muted-foreground">{String(selectedNode.data.type)}</span></Label>
+                {configDirty ? <Badge variant="outline" className="shrink-0">未应用</Badge> : null}
               </div>
               <Input
                 disabled={readOnly}
@@ -703,7 +737,7 @@ export function WorkflowEditorPage() {
                   setDirty(true)
                 }}
               />
-              {String(selectedNode.data.type) === 'LOOP' ? <div className="mb-3 rounded-lg border border-border p-2"><p className="mb-2 text-xs text-muted-foreground">循环体使用与主流程相同的节点和连线协议，返回主流程时写回 subNodes / subEdges。</p><Button type="button" className="w-full" variant="outline" size="sm" disabled={readOnly} onClick={enterSubWorkflow}>编辑循环子流程</Button></div> : null}
+              {String(selectedNode.data.type) === 'LOOP' ? <div className="mb-3 rounded-lg border border-border bg-card p-2.5"><p className="mb-2 text-xs leading-5 text-muted-foreground">循环体使用与主流程相同的节点和连线协议，返回主流程时写回 subNodes / subEdges。</p><Button type="button" className="w-full" variant="outline" size="sm" disabled={readOnly} onClick={enterSubWorkflow}>编辑循环子流程</Button></div> : null}
               <StructuredConfigEditor
                 nodeType={String(selectedNode.data.type)}
                 nodeId={selectedNode.id}
@@ -738,20 +772,20 @@ export function WorkflowEditorPage() {
                 onChange={(value) => updateNodeData('inputConfigs', value)}
               />
               <OutputConfigDisplay value={(selectedNode.data.outputConfigs as Array<{ name: string; type?: string; description?: string }> | undefined) ?? []} />
-              <details className="mt-3 rounded-lg border border-border p-2">
-                <summary className="cursor-pointer text-xs font-medium text-muted-foreground">高级 JSON 配置</summary>
-                <Textarea disabled={readOnly} className="mt-2 min-h-48 font-mono text-xs" value={configText} onChange={(event) => { setConfigText(event.target.value); setConfigDirty(true); setDirty(true) }} />
+              <details className="mt-3 rounded-lg border border-border bg-card p-2.5">
+                <summary className="cursor-pointer font-display text-[13px] font-bold text-foreground">高级 JSON 配置</summary>
+                <Textarea disabled={readOnly} className="mt-2 min-h-48 font-mono text-[11px] leading-[17px]" value={configText} onChange={(event) => { setConfigText(event.target.value); setConfigDirty(true); setDirty(true) }} />
                 <Button className="mt-2 w-full" size="sm" onClick={applyConfig} disabled={readOnly || !configDirty}>应用 JSON</Button>
               </details>
-              <div className="mt-4 rounded-lg border border-border p-3">
-                <Label className="text-xs">单节点调试输入（JSON）</Label>
-                <Textarea className="mt-2 min-h-24 font-mono text-xs" value={nodeRunInputs} onChange={(event) => setNodeRunInputs(event.target.value)} />
+              <div className="mt-3 rounded-lg border border-border bg-card p-3">
+                <Label className="font-display text-[13px] font-bold">单节点调试输入（JSON）</Label>
+                <Textarea className="mt-2 min-h-24 font-mono text-[11px] leading-[17px]" value={nodeRunInputs} onChange={(event) => setNodeRunInputs(event.target.value)} />
                 <Button className="mt-2 w-full" variant="outline" size="sm" onClick={() => nodeRunMutation.mutate()} disabled={readOnly || nodeRunMutation.isPending}><Bug size={14} /> {nodeRunMutation.isPending ? '调试中…' : '调试当前节点'}</Button>
               </div>
-              <Button className="mt-3 w-full text-destructive" variant="ghost" size="sm" onClick={removeSelectedNode} disabled={readOnly}><Trash size={14} /> 删除节点</Button>
+              <Button className="mt-3 w-full text-destructive hover:text-destructive" variant="ghost" size="sm" onClick={removeSelectedNode} disabled={readOnly}><Trash size={14} /> 删除节点</Button>
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">点击画布中的节点编辑配置；从节点库添加新节点。</p>
+            <p className="text-[12.5px] leading-5 text-muted-foreground">点击画布中的节点编辑配置；从节点库添加新节点。</p>
           )}
         </aside>
       </div>
@@ -769,9 +803,9 @@ export function WorkflowEditorPage() {
       <Sheet open={validationOpen} onOpenChange={setValidationOpen}>
         <SheetContent side="right" className="w-full overflow-auto sm:max-w-lg">
           <SheetHeader><SheetTitle>校验结果</SheetTitle><SheetDescription>{validationResult ? `${validationResult.errors.length} 个错误 · ${validationResult.warnings?.length ?? 0} 个提醒` : '尚未执行校验'}</SheetDescription></SheetHeader>
-          {validationResult?.valid && !validationResult.warnings?.length ? <div className="m-4 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm text-emerald-700">校验通过：当前流程结构与配置可用于发布或调试。</div> : null}
+          {validationResult?.valid && !validationResult.warnings?.length ? <div className="m-4 rounded-lg border border-success/30 bg-success-soft p-4 text-[12.5px] leading-5 text-success">校验通过：当前流程结构与配置可用于发布或调试。</div> : null}
           {validationResult ? <div className="space-y-5 p-4">
-            {[{ title: '必须修复', items: validationResult.errors, tone: 'text-destructive' }, { title: '建议关注', items: validationResult.warnings ?? [], tone: 'text-amber-600' }].map((section) => section.items.length ? <section key={section.title}><h3 className={`mb-2 text-sm font-semibold ${section.tone}`}>{section.title}</h3><div className="space-y-2">{section.items.map((raw, index) => { const item = validationItem(raw); return <button key={`${section.title}-${index}`} type="button" className="w-full rounded-lg border border-border p-3 text-left hover:bg-muted" onClick={() => item.nodeId && focusNode(item.nodeId)}><div className="text-sm font-medium">{item.nodeId ? String(nodes.find((node) => node.id === item.nodeId)?.data.name ?? item.nodeId) : '工作流'}</div><div className="mt-1 text-xs text-muted-foreground">{item.field ? `${item.field}：` : ''}{item.message || '配置需要检查'}</div></button> })}</div></section> : null)}
+            {[{ title: '必须修复', items: validationResult.errors, tone: 'text-destructive' }, { title: '建议关注', items: validationResult.warnings ?? [], tone: 'text-warning' }].map((section) => section.items.length ? <section key={section.title}><h3 className={`mb-2 font-display text-[13px] font-bold ${section.tone}`}>{section.title}</h3><div className="space-y-2">{section.items.map((raw, index) => { const item = validationItem(raw); return <button key={`${section.title}-${index}`} type="button" className="w-full rounded-lg border border-border p-3 text-left hover:bg-muted" onClick={() => item.nodeId && focusNode(item.nodeId)}><div className="text-[13px] font-medium">{item.nodeId ? String(nodes.find((node) => node.id === item.nodeId)?.data.name ?? item.nodeId) : '工作流'}</div><div className="mt-1 text-xs leading-5 text-muted-foreground">{item.field ? <span className="font-mono text-[11px]">{item.field}</span> : null}{item.field ? '：' : ''}{item.message || '配置需要检查'}</div></button> })}</div></section> : null)}
           </div> : null}
         </SheetContent>
       </Sheet>
@@ -798,7 +832,7 @@ export function WorkflowEditorPage() {
         <DialogContent className="max-h-[85dvh] max-w-xl overflow-y-auto">
           <DialogHeader><DialogTitle>工作流变量</DialogTitle><DialogDescription>系统变量只读；自定义变量随工作流定义保存，并可用于节点输入绑定和运行输入。</DialogDescription></DialogHeader>
           <div className="space-y-2">
-            {systemWorkflowVariables.map((variable) => <div key={variable.id} className="grid grid-cols-[minmax(0,1fr)_120px] gap-2 rounded-lg bg-muted px-3 py-2 text-sm"><div><div className="font-medium">{variable.name}</div><div className="text-xs text-muted-foreground">{variable.description}</div></div><Badge variant="outline" className="self-center justify-self-end">{variable.type}</Badge></div>)}
+            {systemWorkflowVariables.map((variable) => <div key={variable.id} className="grid grid-cols-[minmax(0,1fr)_120px] gap-2 rounded-md bg-muted px-3 py-2 text-[12.5px]"><div><div className="font-mono text-[12px] font-medium">{variable.name}</div><div className="text-xs text-muted-foreground">{variable.description}</div></div><Badge variant="outline" className="self-center justify-self-end font-mono">{variable.type}</Badge></div>)}
             {workflowVariables.length ? <div className="pt-2 text-xs font-medium text-muted-foreground">自定义变量</div> : null}
             {workflowVariables.map((variable, index) => <div key={variable.id} className="grid grid-cols-[minmax(0,1fr)_130px_36px] gap-2"><Input aria-label={`变量 ${index + 1} 名称`} value={variable.name} disabled={readOnly} placeholder="变量名" onChange={(event) => { recordHistory('workflow-variables'); setWorkflowVariables((items) => items.map((item) => item.id === variable.id ? { ...item, name: event.target.value } : item)); setDirty(true) }} /><Select value={variable.type} disabled={readOnly} onValueChange={(type) => { recordHistory('workflow-variables'); setWorkflowVariables((items) => items.map((item) => item.id === variable.id ? { ...item, type: type as VariableType } : item)); setDirty(true) }}><SelectTrigger aria-label={`变量 ${index + 1} 类型`}><SelectValue /></SelectTrigger><SelectContent>{workflowVariableTypes.map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}</SelectContent></Select><Button type="button" variant="ghost" size="icon" className="text-destructive" disabled={readOnly} aria-label={`删除变量 ${variable.name || index + 1}`} onClick={() => { recordHistory('workflow-variables-delete'); setWorkflowVariables((items) => items.filter((item) => item.id !== variable.id)); setDirty(true) }}><Trash size={13} /></Button></div>)}
             <Button type="button" variant="outline" className="w-full" disabled={readOnly} onClick={() => { recordHistory('workflow-variables-add'); setWorkflowVariables((items) => [...items, { id: `cust_${Date.now()}`, name: '', type: 'String', source: 'custom' }]); setDirty(true) }}><Plus size={14} /> 添加变量</Button>
@@ -810,9 +844,9 @@ export function WorkflowEditorPage() {
       <Dialog open={Boolean(runDialogMode)} onOpenChange={(open) => !open && setRunDialogMode(null)}>
         <DialogContent className="max-h-[85dvh] overflow-y-auto">
           <DialogHeader><DialogTitle>{runDialogMode === 'debug' ? '调试运行' : '正式运行'}</DialogTitle><DialogDescription>按 Java DTO 提交 params 与 variables；不会再发送后端忽略的 inputs 字段。</DialogDescription></DialogHeader>
-          {startParams.length ? <div className="space-y-3"><Label>开始节点参数</Label>{startParams.filter((param) => param.name).map((param) => { const name = String(param.name); const type = param.type || 'String'; const value = runParamValues[name] ?? defaultRunValue(type, param.value); return <div key={name}><Label className="text-xs">{name} · {type}{param.required ? ' · 必填' : ''}</Label>{type === 'Boolean' ? <div className="mt-1"><Switch checked={Boolean(value)} onCheckedChange={(checked) => updateRunParam(name, checked)} /></div> : type === 'Array' || type === 'Object' ? <Textarea className="mt-1 min-h-20 font-mono text-xs" value={String(value)} onChange={(event) => updateRunParam(name, event.target.value)} /> : <Input className="mt-1" type={['Integer', 'Float', 'Double'].includes(type) ? 'number' : 'text'} value={String(value)} onChange={(event) => updateRunParam(name, event.target.value)} />}</div> })}</div> : <p className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">开始节点没有声明参数。</p>}
-          {workflowVariables.length ? <div><Label>自定义变量（JSON 对象）</Label><Textarea className="mt-2 min-h-28 font-mono text-xs" value={runVariablesText} onChange={(event) => updateRunVariables(event.target.value)} /></div> : null}
-          <details className="rounded-lg border border-border p-3"><summary className="cursor-pointer text-sm font-medium">高级请求 JSON</summary><Textarea aria-label="运行输入（JSON 对象）" className="mt-2 min-h-44 font-mono text-xs" value={runInputs} onChange={(event) => { setRunInputs(event.target.value); setRunInputSource('advanced') }} /><p className="mt-1 text-xs text-muted-foreground">格式：{'{ "params": [{ "name": "...", "value": ... }], "variables": {} }'}</p></details>
+          {startParams.length ? <div className="space-y-3"><Label>开始节点参数</Label>{startParams.filter((param) => param.name).map((param) => { const name = String(param.name); const type = param.type || 'String'; const value = runParamValues[name] ?? defaultRunValue(type, param.value); return <div key={name}><Label className="font-mono text-[11px]">{name} · {type}{param.required ? ' · 必填' : ''}</Label>{type === 'Boolean' ? <div className="mt-1"><Switch checked={Boolean(value)} onCheckedChange={(checked) => updateRunParam(name, checked)} /></div> : type === 'Array' || type === 'Object' ? <Textarea className="mt-1 min-h-20 font-mono text-[11px] leading-[17px]" value={String(value)} onChange={(event) => updateRunParam(name, event.target.value)} /> : <Input className="mt-1" type={['Integer', 'Float', 'Double'].includes(type) ? 'number' : 'text'} value={String(value)} onChange={(event) => updateRunParam(name, event.target.value)} />}</div> })}</div> : <p className="rounded-lg border border-dashed border-border p-3 text-[12.5px] leading-5 text-muted-foreground">开始节点没有声明参数。</p>}
+          {workflowVariables.length ? <div><Label>自定义变量（JSON 对象）</Label><Textarea className="mt-2 min-h-28 font-mono text-[11px] leading-[17px]" value={runVariablesText} onChange={(event) => updateRunVariables(event.target.value)} /></div> : null}
+          <details className="rounded-lg border border-border p-3"><summary className="cursor-pointer font-display text-[13px] font-bold">高级请求 JSON</summary><Textarea aria-label="运行输入（JSON 对象）" className="mt-2 min-h-44 font-mono text-[11px] leading-[17px]" value={runInputs} onChange={(event) => { setRunInputs(event.target.value); setRunInputSource('advanced') }} /><p className="mt-1 font-mono text-[10.5px] text-muted-foreground">格式：{'{ "params": [{ "name": "...", "value": ... }], "variables": {} }'}</p></details>
           <DialogFooter><Button variant="outline" onClick={() => setRunDialogMode(null)}>取消</Button><Button onClick={() => runDialogMode && runMutation.mutate(runDialogMode)} disabled={runMutation.isPending}>{runMutation.isPending ? '执行中…' : '开始执行'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -831,15 +865,15 @@ export function WorkflowEditorPage() {
               <SheetTitle>运行结果</SheetTitle>
               <SheetDescription>包含节点执行日志与最终输出。</SheetDescription>
             </SheetHeader>
-            <pre className="max-h-[40dvh] overflow-auto rounded-lg bg-muted p-3 font-mono text-xs">{JSON.stringify(runResult, null, 2)}</pre>
+            <pre className="max-h-[40dvh] overflow-auto rounded-lg bg-muted p-3 font-mono text-[11px] leading-[17px]">{JSON.stringify(runResult, null, 2)}</pre>
           </SheetContent>
         </Sheet>
       ) : null}
       {nodeRunResult ? (
         <Sheet open onOpenChange={() => setNodeRunResult(null)}>
           <SheetContent side="bottom" className="h-[55dvh] overflow-auto">
-            <SheetHeader><SheetTitle>节点调试结果</SheetTitle><SheetDescription>状态：{nodeRunResult.status} · 耗时：{nodeRunResult.duration ?? '-'} ms</SheetDescription></SheetHeader>
-            <pre className="max-h-[38dvh] overflow-auto rounded-lg bg-muted p-3 font-mono text-xs">{JSON.stringify(nodeRunResult, null, 2)}</pre>
+            <SheetHeader><SheetTitle>节点调试结果</SheetTitle><SheetDescription>状态：<span className="font-mono text-[11px]">{nodeRunResult.status}</span> · 耗时：<span className="font-mono text-[11px]">{nodeRunResult.duration ?? '-'}</span> ms</SheetDescription></SheetHeader>
+            <pre className="max-h-[38dvh] overflow-auto rounded-lg bg-muted p-3 font-mono text-[11px] leading-[17px]">{JSON.stringify(nodeRunResult, null, 2)}</pre>
           </SheetContent>
         </Sheet>
       ) : null}
@@ -854,13 +888,13 @@ function VersionList({ workflowId }: { workflowId: string }) {
   })
   const versions: WorkflowVersion[] = versionsQuery.data ?? []
   if (versionsQuery.isLoading) return <PageLoading />
-  if (versions.length === 0) return <p className="px-4 text-sm text-muted-foreground">暂无已发布版本。</p>
+  if (versions.length === 0) return <p className="px-4 text-[12.5px] leading-5 text-muted-foreground">暂无已发布版本。</p>
   return (
     <div className="space-y-2 p-3">
       {versions.map((version) => (
-        <div key={version.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
-          <span className="font-mono text-xs">{version.version}</span>
-          <span className="text-xs text-muted-foreground">{version.createdAt ?? ''}</span>
+        <div key={version.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-[12.5px]">
+          <span className="font-mono text-[11px]">{version.version}</span>
+          <span className="font-mono text-[10.5px] text-muted-foreground">{version.createdAt ?? ''}</span>
           <Button
             variant="ghost"
             size="sm"
@@ -939,7 +973,7 @@ function StructuredConfigEditor({ nodeType, nodeId, nodes, edges, config, defaul
   onOutputConfigsChange: (value: Array<{ name: string; fromNodeId?: string; type?: string; description?: string }>) => void
 }) {
   const keys = Array.from(new Set([...Object.keys(defaults), ...Object.keys(config)]))
-  if (!keys.length) return <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">此节点没有可配置参数。</p>
+  if (!keys.length) return <p className="rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted-foreground">此节点没有可配置参数。</p>
   return (
     <div className="space-y-3">
       {keys.map((key) => {
@@ -1013,7 +1047,7 @@ function StructuredConfigEditor({ nodeType, nodeId, nodes, edges, config, defaul
         }
         return (
           <div key={key}>
-            <Label className="mb-1.5 block text-xs">{key}</Label>
+            <Label className="mb-1.5 block font-mono text-[11px]">{key}</Label>
             {resourceKind ? (
               <Select value={value === undefined || value === null ? '' : String(value)} onValueChange={(next) => onChange(key, next)} disabled={disabled}>
                 <SelectTrigger><SelectValue placeholder={`选择${resourceKind}`} /></SelectTrigger>
@@ -1028,7 +1062,7 @@ function StructuredConfigEditor({ nodeType, nodeId, nodes, edges, config, defaul
             ) : value !== null && typeof value === 'object' ? (
               <JsonValueField value={value} disabled={disabled} onChange={(next) => onChange(key, next)} />
             ) : multilineFieldPattern.test(key) ? (
-              <Textarea className="min-h-24 font-mono text-xs" value={value == null ? '' : String(value)} disabled={disabled} onChange={(event) => onChange(key, event.target.value)} />
+              <Textarea className="min-h-24 font-mono text-[11px] leading-[17px]" value={value == null ? '' : String(value)} disabled={disabled} onChange={(event) => onChange(key, event.target.value)} />
             ) : (
               <Input value={value == null ? '' : String(value)} disabled={disabled} onChange={(event) => onChange(key, event.target.value)} />
             )}
@@ -1045,7 +1079,7 @@ const workflowValueTypes = ['String', 'Long', 'Integer', 'Float', 'Double', 'Boo
 function StartParamsField({ value, disabled, onChange }: { value: unknown; disabled: boolean; onChange: (value: StartParam[]) => void }) {
   const params = Array.isArray(value) ? value as StartParam[] : []
   const patch = (index: number, next: Partial<StartParam>) => onChange(params.map((item, itemIndex) => itemIndex === index ? { ...item, ...next } : item))
-  return <div className="space-y-2"><Label className="text-xs">请求参数</Label>{params.map((item, index) => <div key={index} className="space-y-2 rounded-lg border border-border p-2"><div className="grid grid-cols-[minmax(0,1fr)_110px_28px] gap-2"><Input aria-label={`参数 ${index + 1} 名称`} value={item.name || ''} disabled={disabled} placeholder="参数名" onChange={(event) => patch(index, { name: event.target.value })} /><Select value={item.type || 'String'} disabled={disabled} onValueChange={(type) => patch(index, { type })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{workflowValueTypes.map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}</SelectContent></Select><Button type="button" variant="ghost" size="icon" className="text-destructive" disabled={disabled} aria-label={`删除参数 ${index + 1}`} onClick={() => onChange(params.filter((_, itemIndex) => itemIndex !== index))}><Trash size={13} /></Button></div><div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2"><Input value={item.value || ''} disabled={disabled} placeholder="默认值" onChange={(event) => patch(index, { value: event.target.value })} /><label className="flex items-center gap-2 rounded-md border px-2 text-xs"><Switch checked={Boolean(item.required)} disabled={disabled} onCheckedChange={(required) => patch(index, { required })} />必填</label></div><Input value={item.description || ''} disabled={disabled} placeholder="参数说明（可选）" onChange={(event) => patch(index, { description: event.target.value })} /></div>)}<Button type="button" className="w-full" variant="outline" size="sm" disabled={disabled} onClick={() => onChange([...params, { position: 'QUERY', name: '', value: '', type: 'String', required: false, description: '' }])}><Plus size={13} /> 添加请求参数</Button></div>
+  return <div className="space-y-2"><Label className="text-xs">请求参数</Label>{params.map((item, index) => <div key={index} className="space-y-2 rounded-lg border border-border bg-card p-2"><div className="grid grid-cols-[minmax(0,1fr)_110px_28px] gap-2"><Input aria-label={`参数 ${index + 1} 名称`} value={item.name || ''} disabled={disabled} placeholder="参数名" onChange={(event) => patch(index, { name: event.target.value })} /><Select value={item.type || 'String'} disabled={disabled} onValueChange={(type) => patch(index, { type })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{workflowValueTypes.map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}</SelectContent></Select><Button type="button" variant="ghost" size="icon" className="text-destructive" disabled={disabled} aria-label={`删除参数 ${index + 1}`} onClick={() => onChange(params.filter((_, itemIndex) => itemIndex !== index))}><Trash size={13} /></Button></div><div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2"><Input value={item.value || ''} disabled={disabled} placeholder="默认值" onChange={(event) => patch(index, { value: event.target.value })} /><label className="flex items-center gap-2 rounded-md border px-2 text-xs"><Switch checked={Boolean(item.required)} disabled={disabled} onCheckedChange={(required) => patch(index, { required })} />必填</label></div><Input value={item.description || ''} disabled={disabled} placeholder="参数说明（可选）" onChange={(event) => patch(index, { description: event.target.value })} /></div>)}<Button type="button" className="w-full" variant="outline" size="sm" disabled={disabled} onClick={() => onChange([...params, { position: 'QUERY', name: '', value: '', type: 'String', required: false, description: '' }])}><Plus size={13} /> 添加请求参数</Button></div>
 }
 
 type DbParam = { value?: string; type?: string }
@@ -1059,7 +1093,7 @@ function DbParamsField({ value, disabled, onChange }: { value: unknown; disabled
 
 function StringListField({ label, value, disabled, onChange }: { label: string; value: unknown; disabled: boolean; onChange: (value: string[]) => void }) {
   const items = Array.isArray(value) ? value.map(String) : []
-  return <div className="space-y-2"><div className="flex items-center justify-between"><Label className="text-xs">{label}</Label><Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={() => onChange([...items, ''])}><Plus size={12} />添加</Button></div>{items.map((item, index) => <div key={index} className="grid grid-cols-[minmax(0,1fr)_28px] gap-2"><Input aria-label={`${label} ${index + 1}`} value={item} disabled={disabled} onChange={(event) => onChange(items.map((current, itemIndex) => itemIndex === index ? event.target.value : current))} /><Button type="button" variant="ghost" size="icon" className="text-destructive" disabled={disabled} aria-label={`删除 ${label} ${index + 1}`} onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}><Trash size={12} /></Button></div>)}</div>
+  return <div className="space-y-2"><div className="flex items-center justify-between"><Label className="font-mono text-[11px]">{label}</Label><Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={() => onChange([...items, ''])}><Plus size={12} />添加</Button></div>{items.map((item, index) => <div key={index} className="grid grid-cols-[minmax(0,1fr)_28px] gap-2"><Input aria-label={`${label} ${index + 1}`} value={item} disabled={disabled} onChange={(event) => onChange(items.map((current, itemIndex) => itemIndex === index ? event.target.value : current))} /><Button type="button" variant="ghost" size="icon" className="text-destructive" disabled={disabled} aria-label={`删除 ${label} ${index + 1}`} onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}><Trash size={12} /></Button></div>)}</div>
 }
 
 function downstreamNodes(nodeId: string, nodes: Node[], edges: Edge[]) {
@@ -1071,7 +1105,7 @@ function DownstreamNodeSelect({ label, value, nodeId, nodes, edges, disabled, on
   const options = downstreamNodes(nodeId, nodes, edges)
   return (
     <div>
-      <Label className="mb-1.5 block text-xs">{label}</Label>
+      <Label className="mb-1.5 block font-mono text-[11px]">{label}</Label>
       <Select value={value ? String(value) : 'none'} disabled={disabled} onValueChange={(next) => onChange(next === 'none' ? '' : next)}>
         <SelectTrigger><SelectValue placeholder="选择已连接的下游节点" /></SelectTrigger>
         <SelectContent><SelectItem value="none">未设置</SelectItem>{options.map((node) => <SelectItem key={node.id} value={node.id}>{String(node.data.name || node.id)}</SelectItem>)}</SelectContent>
@@ -1103,7 +1137,7 @@ function ConditionBranchesField({ value, nodeId, nodes, edges, disabled, onChang
       <Label className="text-xs">条件分支</Label>
       {branches.map((branch, index) => {
         const compareTo = branch.compareTo && typeof branch.compareTo === 'object' ? branch.compareTo : { type: 'CONSTANT', value: '' }
-        return <div key={index} className="space-y-2 rounded-lg border border-border p-2">
+        return <div key={index} className="space-y-2 rounded-lg border border-border bg-card p-2">
           <div className="flex items-center gap-2"><Badge variant="outline">{index === 0 ? 'IF' : 'ELSE IF'}</Badge>{index > 0 ? <div className="ml-auto flex gap-1"><Button type="button" variant="ghost" size="icon" disabled={disabled || index === 1} aria-label={`上移条件 ${index + 1}`} onClick={() => { const next = [...branches]; const [item] = next.splice(index, 1); next.splice(index - 1, 0, item!); onChange(next) }}>↑</Button><Button type="button" variant="ghost" size="icon" disabled={disabled || index === branches.length - 1} aria-label={`下移条件 ${index + 1}`} onClick={() => { const next = [...branches]; const [item] = next.splice(index, 1); next.splice(index + 1, 0, item!); onChange(next) }}>↓</Button><Button type="button" variant="ghost" size="icon" className="text-destructive" disabled={disabled} aria-label={`删除条件 ${index + 1}`} onClick={() => onChange(branches.filter((_, itemIndex) => itemIndex !== index))}><Trash size={13} /></Button></div> : null}</div>
           <Select value={branch.symbol || 'EQ'} disabled={disabled} onValueChange={(symbol) => patch(index, { symbol })}><SelectTrigger aria-label={`条件 ${index + 1} 运算符`}><SelectValue /></SelectTrigger><SelectContent>{conditionSymbols.filter((symbol) => branch.scope !== 'LENGTH' || !['CONTAINS', 'NOT_CONTAINS', 'IS_ALL', 'STARTS_WITH', 'ENDS_WITH', 'EQUALS', 'NOT_EQUALS', 'IS_TRUE', 'IS_FALSE'].includes(symbol)).map((symbol) => <SelectItem key={symbol} value={symbol}>{symbol}</SelectItem>)}</SelectContent></Select>
           {branch.symbol === 'EXPRESSION' ? <Textarea value={branch.conditionExpression || ''} disabled={disabled} placeholder="Groovy 条件表达式" onChange={(event) => patch(index, { conditionExpression: event.target.value })} /> : <CompareToField value={compareTo} nodeId={nodeId} nodes={nodes} edges={edges} disabled={disabled} onChange={(next) => patch(index, { compareTo: next })} />}
@@ -1121,7 +1155,7 @@ type MatchRoute = { matchValue: string; nextNodeId: string }
 function MatchRoutesField({ value, nodeId, nodes, edges, disabled, onChange }: { value: unknown; nodeId: string; nodes: Node[]; edges: Edge[]; disabled: boolean; onChange: (value: MatchRoute[]) => void }) {
   const items = Array.isArray(value) ? value as MatchRoute[] : []
   const patch = (index: number, next: Partial<MatchRoute>) => onChange(items.map((item, itemIndex) => itemIndex === index ? { ...item, ...next } : item))
-  return <div className="space-y-2"><Label className="text-xs">匹配路由</Label>{items.map((item, index) => <div key={index} className="space-y-2 rounded-lg border border-border p-2"><div className="flex gap-2"><Input value={item.matchValue || ''} disabled={disabled} placeholder="匹配值" onChange={(event) => patch(index, { matchValue: event.target.value })} /><Button type="button" variant="ghost" size="icon" className="text-destructive" disabled={disabled} aria-label={`删除匹配项 ${index + 1}`} onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}><Trash size={13} /></Button></div><DownstreamNodeSelect label="跳转到" value={item.nextNodeId} nodeId={nodeId} nodes={nodes} edges={edges} disabled={disabled} onChange={(nextNodeId) => patch(index, { nextNodeId })} /></div>)}<Button type="button" className="w-full" variant="outline" size="sm" disabled={disabled} onClick={() => onChange([...items, { matchValue: '', nextNodeId: '' }])}><Plus size={13} /> 添加匹配项</Button></div>
+  return <div className="space-y-2"><Label className="text-xs">匹配路由</Label>{items.map((item, index) => <div key={index} className="space-y-2 rounded-lg border border-border bg-card p-2"><div className="flex gap-2"><Input value={item.matchValue || ''} disabled={disabled} placeholder="匹配值" onChange={(event) => patch(index, { matchValue: event.target.value })} /><Button type="button" variant="ghost" size="icon" className="text-destructive" disabled={disabled} aria-label={`删除匹配项 ${index + 1}`} onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}><Trash size={13} /></Button></div><DownstreamNodeSelect label="跳转到" value={item.nextNodeId} nodeId={nodeId} nodes={nodes} edges={edges} disabled={disabled} onChange={(nextNodeId) => patch(index, { nextNodeId })} /></div>)}<Button type="button" className="w-full" variant="outline" size="sm" disabled={disabled} onClick={() => onChange([...items, { matchValue: '', nextNodeId: '' }])}><Plus size={13} /> 添加匹配项</Button></div>
 }
 
 type IntentRoute = { name: string; description: string; nextNodeId: string }
@@ -1131,7 +1165,7 @@ function IntentRoutesField({ value, nodeId, nodes, edges, disabled, onChange }: 
   const connected = downstreamNodes(nodeId, nodes, edges)
   const items = connected.map((node) => stored.find((item) => item.nextNodeId === node.id) ?? { name: '', description: '', nextNodeId: node.id })
   const patch = (index: number, next: Partial<IntentRoute>) => onChange(items.map((item, itemIndex) => itemIndex === index ? { ...item, ...next } : item))
-  return <div className="space-y-2"><Label className="text-xs">意图路由</Label>{items.length ? items.map((item, index) => <div key={item.nextNodeId} className="space-y-2 rounded-lg border border-border p-2"><div className="text-xs font-medium">{String(connected[index]?.data.name || item.nextNodeId)}</div><Input value={item.name || ''} disabled={disabled} placeholder="意图名称，如：退款咨询" onChange={(event) => patch(index, { name: event.target.value })} /><Input value={item.description || ''} disabled={disabled} placeholder="意图描述" onChange={(event) => patch(index, { description: event.target.value })} /></div>) : <p className="text-xs text-muted-foreground">请先连接下游节点，再配置每条意图。</p>}</div>
+  return <div className="space-y-2"><Label className="text-xs">意图路由</Label>{items.length ? items.map((item, index) => <div key={item.nextNodeId} className="space-y-2 rounded-lg border border-border bg-card p-2"><div className="text-xs font-medium">{String(connected[index]?.data.name || item.nextNodeId)}</div><Input value={item.name || ''} disabled={disabled} placeholder="意图名称，如：退款咨询" onChange={(event) => patch(index, { name: event.target.value })} /><Input value={item.description || ''} disabled={disabled} placeholder="意图描述" onChange={(event) => patch(index, { description: event.target.value })} /></div>) : <p className="text-xs text-muted-foreground">请先连接下游节点，再配置每条意图。</p>}</div>
 }
 
 type KeyValueItem = { key?: string; value?: string }
@@ -1146,13 +1180,13 @@ function HttpRequestField({ value, disabled, onChange }: { value: unknown; disab
   const request = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
   const patch = (next: Record<string, unknown>) => onChange({ ...request, ...next })
   const method = String(request.method || 'GET')
-  return <div className="space-y-3 rounded-lg border border-border p-3"><Label className="text-xs">HTTP 请求</Label><div className="grid grid-cols-[100px_minmax(0,1fr)] gap-2"><Select value={method} disabled={disabled} onValueChange={(next) => patch({ method: next })}><SelectTrigger aria-label="HTTP 方法"><SelectValue /></SelectTrigger><SelectContent>{['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'].map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select><Input aria-label="请求 URL" value={String(request.url || '')} disabled={disabled} placeholder="https://api.example.com/users/${id}" onChange={(event) => patch({ url: event.target.value })} /></div><div><Label className="mb-1.5 block text-xs">Content-Type</Label><Select value={String(request.contentType || 'JSON')} disabled={disabled} onValueChange={(contentType) => patch({ contentType })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['JSON', 'FORM_URLENCODED', 'FORM_DATA', 'XML', 'TEXT_PLAIN', 'OCTET_STREAM'].map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select></div><KeyValueList label="Headers" value={request.headers} disabled={disabled} onChange={(headers) => patch({ headers })} /><KeyValueList label="Query Params" value={request.queryParams} disabled={disabled} onChange={(queryParams) => patch({ queryParams })} />{!['GET', 'HEAD'].includes(method) ? <div><Label className="mb-1.5 block text-xs">Body</Label><Textarea className="min-h-32 font-mono text-xs" value={String(request.body ?? '')} disabled={disabled} placeholder="支持 ${输入名} 模板语法" onChange={(event) => patch({ body: event.target.value })} /></div> : null}</div>
+  return <div className="space-y-3 rounded-lg border border-border bg-card p-3"><Label className="font-display text-[13px] font-bold">HTTP 请求</Label><div className="grid grid-cols-[100px_minmax(0,1fr)] gap-2"><Select value={method} disabled={disabled} onValueChange={(next) => patch({ method: next })}><SelectTrigger aria-label="HTTP 方法"><SelectValue /></SelectTrigger><SelectContent>{['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'].map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select><Input aria-label="请求 URL" value={String(request.url || '')} disabled={disabled} placeholder="https://api.example.com/users/${id}" onChange={(event) => patch({ url: event.target.value })} /></div><div><Label className="mb-1.5 block font-mono text-[11px]">Content-Type</Label><Select value={String(request.contentType || 'JSON')} disabled={disabled} onValueChange={(contentType) => patch({ contentType })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['JSON', 'FORM_URLENCODED', 'FORM_DATA', 'XML', 'TEXT_PLAIN', 'OCTET_STREAM'].map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select></div><KeyValueList label="Headers" value={request.headers} disabled={disabled} onChange={(headers) => patch({ headers })} /><KeyValueList label="Query Params" value={request.queryParams} disabled={disabled} onChange={(queryParams) => patch({ queryParams })} />{!['GET', 'HEAD'].includes(method) ? <div><Label className="mb-1.5 block font-mono text-[11px]">Body</Label><Textarea className="min-h-32 font-mono text-[11px] leading-[17px]" value={String(request.body ?? '')} disabled={disabled} placeholder="支持 ${输入名} 模板语法" onChange={(event) => patch({ body: event.target.value })} /></div> : null}</div>
 }
 
 function SingleOptionSelect({ label, value, disabled, placeholder, options, onChange }: { label: string; value: unknown; disabled: boolean; placeholder: string; options: SelectOption[]; onChange: (value: string) => void }) {
   return (
     <div>
-      <Label className="mb-1.5 block text-xs">{label}</Label>
+      <Label className="mb-1.5 block font-mono text-[11px]">{label}</Label>
       <Select value={value == null ? '' : String(value)} onValueChange={onChange} disabled={disabled}>
         <SelectTrigger><SelectValue placeholder={placeholder} /></SelectTrigger>
         <SelectContent>{options.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
@@ -1166,7 +1200,7 @@ function MultiOptionSelect({ label, value, disabled, options, onChange }: { labe
   const selected = Array.isArray(value) ? value.map(String) : []
   return (
     <div>
-      <Label className="mb-1.5 block text-xs">{label}</Label>
+      <Label className="mb-1.5 block font-mono text-[11px]">{label}</Label>
       <fieldset disabled={disabled}>
         <MultiSelectField options={options} value={selected} onChange={onChange} placeholder={`选择${label}`} />
       </fieldset>
@@ -1184,7 +1218,7 @@ function McpToolSelector({ serverId, value, disabled, onChange }: { serverId: st
   const toolList = (toolsQuery.data ?? []).filter((tool) => tool.enabled && !tool.missing)
   return (
     <div>
-      <Label className="mb-1.5 block text-xs">MCP 工具</Label>
+      <Label className="mb-1.5 block font-mono text-[11px]">MCP 工具</Label>
       <Select value={value == null ? '' : String(value)} onValueChange={(next) => onChange(toolList.find((tool) => String(tool.id) === next) ?? null)} disabled={disabled || !serverId || toolsQuery.isLoading}>
         <SelectTrigger><SelectValue placeholder={!serverId ? '请先选择 MCP 服务' : toolsQuery.isLoading ? '工具加载中…' : '选择 MCP 工具'} /></SelectTrigger>
         <SelectContent>{toolList.map((tool) => <SelectItem key={tool.id} value={String(tool.id)}>{tool.toolName}</SelectItem>)}</SelectContent>
@@ -1215,9 +1249,9 @@ function InputConfigEditor({ value, nodes, edges, selectedNodeId, variables, par
     }
   }
   return (
-    <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
+    <div className="mt-4 space-y-2 rounded-lg border border-border bg-card p-3">
       <div className="flex items-center justify-between gap-2">
-        <Label className="text-xs">输入映射</Label>
+        <Label className="font-display text-[13px] font-bold">输入映射</Label>
         <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={() => onChange([...value, { name: `input${value.length + 1}`, sourceType: 'CONSTANT', value: '', type: 'String' }])}><Plus size={13} /> 添加</Button>
       </div>
       {value.length === 0 ? <p className="text-xs text-muted-foreground">暂无输入映射。</p> : value.map((item, index) => (
@@ -1234,7 +1268,7 @@ function InputConfigEditor({ value, nodes, edges, selectedNodeId, variables, par
             const outputs = selectedSource ? workflowNodeOutputs(selectedSource) : []
             return <div className="space-y-1"><div className="grid grid-cols-2 gap-2"><Select value={item.nodeId ?? ''} disabled={disabled || !upstream.length} onValueChange={(nodeId) => { const sourceNode = upstream.find((node) => node.id === nodeId); const firstOutput = sourceNode ? workflowNodeOutputs(sourceNode).at(0)?.name : undefined; patch(index, { nodeId, outputName: firstOutput }) }}><SelectTrigger aria-label={`输入 ${index + 1} 来源节点`}><SelectValue placeholder="选择上游节点" /></SelectTrigger><SelectContent>{upstream.map((node) => <SelectItem key={node.id} value={node.id}>{String(node.data.name || node.id)}{parentUpstreamNodes.some((parent) => parent.id === node.id) ? '（主流程）' : ''}</SelectItem>)}</SelectContent></Select><Select value={item.outputName ?? ''} disabled={disabled || !selectedSource || !outputs.length} onValueChange={(outputName) => patch(index, { outputName })}><SelectTrigger aria-label={`输入 ${index + 1} 输出名`}><SelectValue placeholder="选择节点输出" /></SelectTrigger><SelectContent>{outputs.map((output) => <SelectItem key={output.name} value={output.name}>{output.name}{output.type ? ` · ${output.type}` : ''}</SelectItem>)}</SelectContent></Select></div>{!upstream.length ? <p className="text-[11px] text-muted-foreground">当前节点没有可引用的上游节点，请先连线。</p> : selectedSource && !outputs.length ? <p className="text-[11px] text-muted-foreground">所选上游节点没有声明输出。</p> : null}</div>
           })() : null}
-          {item.sourceType === 'EXPRESSION' ? <Textarea aria-label={`输入 ${index + 1} 表达式`} className="min-h-20 font-mono text-xs" value={item.expression ?? ''} disabled={disabled} placeholder="表达式" onChange={(event) => patch(index, { expression: event.target.value })} /> : null}
+          {item.sourceType === 'EXPRESSION' ? <Textarea aria-label={`输入 ${index + 1} 表达式`} className="min-h-20 font-mono text-[11px] leading-[17px]" value={item.expression ?? ''} disabled={disabled} placeholder="表达式" onChange={(event) => patch(index, { expression: event.target.value })} /> : null}
         </div>
       ))}
     </div>
@@ -1243,9 +1277,9 @@ function InputConfigEditor({ value, nodes, edges, selectedNodeId, variables, par
 
 function OutputConfigDisplay({ value }: { value: Array<{ name: string; type?: string; description?: string }> }) {
   return (
-    <div className="mt-3 rounded-lg border border-border p-3">
-      <Label className="text-xs">节点输出</Label>
-      {value.length ? <div className="mt-2 space-y-1">{value.map((item) => <div key={item.name} className="flex items-center gap-2 text-xs"><code className="rounded bg-muted px-1.5 py-0.5">{item.name}</code><span className="text-muted-foreground">{item.type || 'Object'}{item.description ? ` · ${item.description}` : ''}</span></div>)}</div> : <p className="mt-2 text-xs text-muted-foreground">此节点没有声明输出。</p>}
+    <div className="mt-3 rounded-lg border border-border bg-card p-3">
+      <Label className="font-display text-[13px] font-bold">节点输出</Label>
+      {value.length ? <div className="mt-2 space-y-1">{value.map((item) => <div key={item.name} className="flex items-center gap-2 text-xs"><code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]">{item.name}</code><span className="text-muted-foreground"><span className="font-mono text-[11px]">{item.type || 'Object'}</span>{item.description ? ` · ${item.description}` : ''}</span></div>)}</div> : <p className="mt-2 text-xs text-muted-foreground">此节点没有声明输出。</p>}
     </div>
   )
 }
@@ -1256,7 +1290,7 @@ function JsonValueField({ value, disabled, onChange }: { value: unknown; disable
   useEffect(() => setText(serialized), [serialized])
   return (
     <Textarea
-      className="min-h-24 font-mono text-xs"
+      className="min-h-24 font-mono text-[11px] leading-[17px]"
       value={text}
       disabled={disabled}
       onChange={(event) => setText(event.target.value)}
@@ -1288,22 +1322,22 @@ function RunHistory({ workflowId }: { workflowId: string }) {
 
   if (runsQuery.isLoading) return <PageLoading />
   if (runsQuery.error) return <ErrorState error={runsQuery.error} onRetry={() => void runsQuery.refetch()} />
-  if (!runs.length) return <p className="p-4 text-sm text-muted-foreground">暂无运行记录。</p>
+  if (!runs.length) return <p className="p-4 text-[12.5px] leading-5 text-muted-foreground">暂无运行记录。</p>
   return (
     <div className="grid gap-3 p-4 md:grid-cols-[220px_minmax(0,1fr)]">
       <div className="space-y-2">
         {runs.map((run) => (
           <button key={run.id} className={`w-full rounded-lg border p-3 text-left text-xs ${selectedRun?.id === run.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted'}`} onClick={() => setSelectedRun(run)}>
-            <div className="flex items-center justify-between gap-2"><span className="font-mono">{run.version || String(run.id).slice(-8)}</span><Badge className={run.status === 'FAIL' ? 'bg-destructive/10 text-destructive' : undefined} variant={run.status === 'SUCCESS' ? 'success' : 'secondary'}>{run.status}</Badge></div>
-            <div className="mt-1 text-muted-foreground">{formatRunTime(run.createdAt, run.startTime)}</div>
+            <div className="flex items-center justify-between gap-2"><span className="font-mono text-[11px]">{run.version || String(run.id).slice(-8)}</span><Badge className={run.status === 'FAIL' ? 'bg-destructive/10 text-destructive' : undefined} variant={run.status === 'SUCCESS' ? 'success' : 'secondary'}>{run.status}</Badge></div>
+            <div className="mt-1 font-mono text-[10.5px] text-muted-foreground">{formatRunTime(run.createdAt, run.startTime)}</div>
           </button>
         ))}
       </div>
       <div className="min-w-0">
-        {!selectedRun ? <p className="text-sm text-muted-foreground">选择一条记录查看节点执行日志。</p> : nodesQuery.isLoading ? <PageLoading /> : nodesQuery.error ? <ErrorState error={nodesQuery.error} onRetry={() => void nodesQuery.refetch()} /> : (
+        {!selectedRun ? <p className="text-[12.5px] leading-5 text-muted-foreground">选择一条记录查看节点执行日志。</p> : nodesQuery.isLoading ? <PageLoading /> : nodesQuery.error ? <ErrorState error={nodesQuery.error} onRetry={() => void nodesQuery.refetch()} /> : (
           <div className="space-y-2">
-            <div className="rounded-lg bg-muted p-3 text-xs"><div className="font-medium">运行 {selectedRun.id}</div>{selectedRun.error ? <p className="mt-1 text-destructive">{selectedRun.error}</p> : null}<pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono">输出：{JSON.stringify(selectedRun.outputs ?? null, null, 2)}</pre></div>
-            {executions.length ? executions.map((execution) => <details key={execution.id} className="rounded-lg border border-border p-3 text-xs"><summary className="flex cursor-pointer items-center gap-2"><span className="font-medium">{execution.nodeTitle || execution.nodeId}</span><Badge className={`ml-auto ${execution.status === 'FAIL' ? 'bg-destructive/10 text-destructive' : ''}`} variant={execution.status === 'SUCCESS' ? 'success' : 'secondary'}>{execution.status}</Badge></summary><pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap font-mono">{JSON.stringify({ inputs: safeJson(execution.inputs), processData: safeJson(execution.processData), outputs: safeJson(execution.outputs), error: execution.error }, null, 2)}</pre></details>) : <p className="text-sm text-muted-foreground">该运行没有节点日志。</p>}
+            <div className="rounded-lg bg-muted p-3 text-xs"><div className="font-medium">运行 <span className="font-mono text-[11px]">{selectedRun.id}</span></div>{selectedRun.error ? <p className="mt-1 text-destructive">{selectedRun.error}</p> : null}<pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-[17px]">输出：{JSON.stringify(selectedRun.outputs ?? null, null, 2)}</pre></div>
+            {executions.length ? executions.map((execution) => <details key={execution.id} className="rounded-lg border border-border p-3 text-xs"><summary className="flex cursor-pointer items-center gap-2"><span className="text-[13px] font-medium">{execution.nodeTitle || execution.nodeId}</span><Badge className={`ml-auto ${execution.status === 'FAIL' ? 'bg-destructive/10 text-destructive' : ''}`} variant={execution.status === 'SUCCESS' ? 'success' : 'secondary'}>{execution.status}</Badge></summary><pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-[17px]">{JSON.stringify({ inputs: safeJson(execution.inputs), processData: safeJson(execution.processData), outputs: safeJson(execution.outputs), error: execution.error }, null, 2)}</pre></details>) : <p className="text-[12.5px] text-muted-foreground">该运行没有节点日志。</p>}
           </div>
         )}
       </div>

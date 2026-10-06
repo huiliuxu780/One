@@ -11,5 +11,5 @@ export function PasswordRecoveryUnavailablePage() {
 }
 
 function Availability({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
-  return <main className="grid min-h-[100dvh] place-items-center bg-muted/30 px-5"><div className="w-full max-w-lg rounded-2xl border border-border bg-card p-8 shadow-card"><div className="mb-5 grid size-12 place-items-center rounded-xl bg-primary/10 text-primary">{icon}</div><h1 className="text-xl font-semibold">{title}</h1><p className="mt-3 text-sm leading-6 text-muted-foreground">{description}</p><Button asChild variant="outline" className="mt-6"><Link to="/login"><ArrowLeft size={14} /> 返回登录</Link></Button></div></main>
+  return <main className="grid min-h-[100dvh] place-items-center bg-muted/30 px-5"><div className="w-full max-w-lg rounded-lg border border-border bg-card p-8 shadow-card"><div className="mb-5 grid size-12 place-items-center rounded-lg bg-primary/10 text-primary">{icon}</div><h1 className="font-display text-[22px] font-bold">{title}</h1><p className="mt-3 text-sm leading-6 text-muted-foreground">{description}</p><Button asChild variant="outline" className="mt-6"><Link to="/login"><ArrowLeft size={14} /> 返回登录</Link></Button></div></main>
 }

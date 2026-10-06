@@ -1,6 +1,17 @@
 @import "tailwindcss";
 
 @theme inline {
+  --font-sans: var(--font-sans-stack);
+  --font-mono: var(--font-mono-stack);
+  --font-display: var(--font-display-stack);
+  --radius-sm: 4px;
+  --radius-md: 5px;
+  --radius-lg: 6px;
+  --radius-xl: 6px;
+  --radius-2xl: 8px;
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -22,45 +33,72 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-muted: var(--sidebar-muted);
-  --shadow-card: 0 1px 2px rgb(25 35 55 / 0.035), 0 5px 18px rgb(25 35 55 / 0.025);
-  --shadow-card-hover: 0 12px 35px rgb(25 35 55 / 0.08);
-  --shadow-dialog: 0 24px 70px rgb(15 23 42 / 0.2);
+  --shadow-card: none;
+  --shadow-card-hover: 0 10px 30px rgb(38 35 30 / 0.08);
+  --shadow-dialog: 0 18px 50px rgb(38 35 30 / 0.16);
 }
 
 :root {
-  font-family: "SF Pro Display", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-sans-stack);
   color-scheme: light;
-  --background: #fbfcfd;
-  --foreground: #182033;
-  --card: #ffffff;
-  --card-foreground: #182033;
-  --popover: #ffffff;
-  --popover-foreground: #182033;
-  --primary: #1769e0;
-  --primary-foreground: #f8fbff;
-  --secondary: #eef2f7;
-  --secondary-foreground: #29334a;
-  --muted: #f0f3f7;
-  --muted-foreground: #687287;
-  --destructive: #c63c47;
-  --border: #e2e7ee;
-  --input: #d9e0e9;
-  --ring: #1769e0;
-  --sidebar: #f7f8fa;
-  --sidebar-foreground: #263047;
-  --sidebar-border: #e3e7ed;
-  --sidebar-accent: #e9eef5;
-  --sidebar-muted: #7c8596;
+  /* 纸墨编辑：表面三级 */
+  --background: #f2efe9;
+  --card: #fcfbf8;
+  --popover: #fcfbf8;
+  /* 墨色三级 */
+  --foreground: #26231e;
+  --card-foreground: #26231e;
+  --popover-foreground: #26231e;
+  --muted-foreground: #8a857a;
+  --secondary-foreground: #57534a;
+  /* 重点色：朱 */
+  --primary: #b23a2c;
+  --primary-foreground: #fdf9f7;
+  --ring: #b23a2c;
+  --destructive: #8f2d22;
+  /* 沉底表面与线 */
+  --secondary: #eae6dd;
+  --muted: #eae6dd;
+  --border: #ded8cb;
+  --input: #cbc4b4;
+  --sidebar: #eae6dd;
+  --sidebar-foreground: #57534a;
+  --sidebar-border: #ded8cb;
+  --sidebar-accent: #f3e3de;
+  --sidebar-muted: #8a857a;
+  /* 状态 */
+  --success: #567d5e;
+  --success-soft: #e6ede4;
+  --warning: #9a6b2f;
+  /* 字族三层 */
+  --font-display-stack: "Songti SC", "Noto Serif SC", "STSong", "SimSun", serif;
+  --font-sans-stack: "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono-stack: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
-* { border-color: var(--border); }
+@layer base {
+  /* 放在 base 层：Tailwind v4 的 utilities 在 utilities 层，层外规则会压过所有 border-color 工具类。 */
+  * { border-color: var(--border); }
+}
 html { background: var(--background); }
 body { margin: 0; min-width: 320px; min-height: 100dvh; background: var(--background); color: var(--foreground); text-rendering: optimizeLegibility; }
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; }
-.bg-app { background: radial-gradient(circle at 90% 0%, rgb(23 105 224 / 0.045), transparent 25rem), var(--background); }
-.bg-auth { background: radial-gradient(circle at 80% 15%, rgb(23 105 224 / 0.07), transparent 26rem), var(--background); }
+.bg-app { background: var(--background); }
+.bg-auth { background: var(--background); }
+
+/* 状态：圆点 + 文字；标签：# 前缀文字。全产品统一语汇，不用底色块。 */
+.stat { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--muted-foreground); white-space: nowrap; }
+.stat i { width: 6px; height: 6px; border-radius: 50%; background: var(--success); flex: none; }
+.stat.off i { background: var(--input); }
+.stat.warn i { background: var(--warning); }
+.stat.run i { background: var(--primary); animation: stat-pulse 1.1s ease-in-out infinite; }
+@keyframes stat-pulse { 50% { opacity: 0.25; } }
+/* xyflow 署名链接写死 #999，收到墨三级。 */
+.react-flow__attribution a { color: var(--muted-foreground); }
+.tag { font-size: 11px; color: var(--secondary-foreground); white-space: nowrap; }
+.tag::before { content: "# "; color: var(--muted-foreground); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }

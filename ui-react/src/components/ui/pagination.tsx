@@ -21,7 +21,7 @@ export function Pagination({ page, size, total, onPageChange, onSizeChange, page
 
   return (
     <nav className={cn('flex flex-wrap items-center justify-between gap-3 py-3', className)} aria-label="分页">
-      <div className="text-sm text-muted-foreground">
+      <div className="font-mono text-[11px] text-muted-foreground">
         共 {total} 条 · 第 {page}/{pages} 页
       </div>
       <div className="flex items-center gap-2">

@@ -30,28 +30,27 @@ export function LoginPage() {
 
   return (
     <main className="grid min-h-[100dvh] bg-auth md:grid-cols-[minmax(320px,0.8fr)_minmax(480px,1.2fr)]">
-      <section className="hidden border-r border-white/10 bg-slate-950 px-12 py-10 text-slate-100 md:flex md:flex-col md:justify-between">
+      <section className="hidden border-r border-border bg-muted px-12 py-10 md:flex md:flex-col md:justify-between">
         <div className="flex items-center gap-3">
-          <img src={`${import.meta.env.BASE_URL}logo.png`} alt="Apboa Next" className="size-10 rounded-xl" />
+          <img src={`${import.meta.env.BASE_URL}logo.png`} alt="Apboa Next" className="size-10 rounded-lg" />
           <div>
-            <div className="text-sm font-semibold">Apboa Next</div>
-            <div className="text-xs text-slate-400">Agent development platform</div>
+            <div className="font-display text-[15px] font-bold">Apboa Next</div>
+            <div className="font-mono text-[10.5px] tracking-[0.14em] text-muted-foreground">AGENT PLATFORM</div>
           </div>
         </div>
         <div className="max-w-md space-y-4">
-          <p className="text-4xl font-semibold leading-tight tracking-[-0.035em]">构建、调试并运行你的智能体。</p>
-          <p className="max-w-sm text-sm leading-6 text-slate-400">React 控制台，复用现有 Java、Spring Boot 与 AgentScope 后端。</p>
+          <p className="font-display text-[30px] font-bold leading-[1.35] [text-wrap:balance]">构建、调试并运行你的智能体。</p>
         </div>
-        <p className="text-xs text-slate-500">默认组织模式</p>
+        <p className="font-mono text-[10.5px] text-muted-foreground">console · single-tenant</p>
       </section>
 
       <section className="flex items-center justify-center px-5 py-12 sm:px-10">
         <div className="w-full max-w-[380px]">
           <div className="mb-8 md:hidden">
-            <img src={`${import.meta.env.BASE_URL}logo.png`} alt="Apboa Next" className="mb-4 size-11 rounded-xl" />
+            <img src={`${import.meta.env.BASE_URL}logo.png`} alt="Apboa Next" className="mb-4 size-11 rounded-lg" />
           </div>
           <div className="mb-7">
-            <h1 className="text-2xl font-semibold tracking-tight">登录 Apboa Next</h1>
+            <h1 className="font-display text-[26px] font-bold tracking-tight">登录 Apboa Next</h1>
             <p className="mt-2 text-sm text-muted-foreground">使用已有账号进入默认组织。</p>
           </div>
           <form className="space-y-5" onSubmit={submit}>
@@ -75,7 +74,6 @@ export function LoginPage() {
               {!busy ? <ArrowRight size={17} weight="bold" /> : null}
             </Button>
           </form>
-          <p className="mt-6 text-xs leading-5 text-muted-foreground">组织切换、组织申请和审批入口已从新前端移除，鉴权与租户隔离仍由后端执行。</p>
         </div>
       </section>
     </main>

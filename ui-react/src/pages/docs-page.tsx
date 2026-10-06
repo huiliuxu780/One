@@ -66,8 +66,8 @@ function headingId(children: unknown) {
 
 const markdownComponents: Components = {
   h1: ({ children }) => <h1 id={headingId(children)} className="mb-6 mt-2 scroll-mt-6 text-3xl font-semibold tracking-tight">{children}</h1>,
-  h2: ({ children }) => <h2 id={headingId(children)} className="mb-3 mt-10 scroll-mt-6 border-b border-border pb-2 text-xl font-semibold">{children}</h2>,
-  h3: ({ children }) => <h3 id={headingId(children)} className="mb-2 mt-7 scroll-mt-6 text-base font-semibold">{children}</h3>,
+  h2: ({ children }) => <h2 id={headingId(children)} className="mb-3 mt-10 scroll-mt-6 border-b border-border pb-2 font-display text-[22px] font-bold">{children}</h2>,
+  h3: ({ children }) => <h3 id={headingId(children)} className="mb-2 mt-7 scroll-mt-6 font-display text-base font-semibold">{children}</h3>,
   h4: ({ children }) => <h4 className="mb-2 mt-5 font-semibold">{children}</h4>,
   p: ({ children }) => <p className="my-3 leading-7 text-foreground/85">{children}</p>,
   ul: ({ children }) => <ul className="my-3 list-disc space-y-1 pl-6 text-foreground/85">{children}</ul>,
@@ -78,7 +78,7 @@ const markdownComponents: Components = {
   td: ({ children }) => <td className="border-b border-border px-3 py-2 align-top last:border-b-0">{children}</td>,
   a: ({ children, href }) => <a href={href} target={href?.startsWith('http') ? '_blank' : undefined} rel="noreferrer" className="font-medium text-primary underline underline-offset-4">{children}</a>,
   code: ({ children, className }) => className ? <code className={className}>{children}</code> : <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em]">{children}</code>,
-  pre: ({ children }) => <pre className="my-4 overflow-x-auto rounded-xl bg-slate-950 p-4 font-mono text-xs leading-6 text-slate-100">{children}</pre>,
+  pre: ({ children }) => <pre className="my-4 overflow-x-auto rounded-lg border border-border bg-card p-4 font-mono text-xs leading-6 text-secondary-foreground">{children}</pre>,
   img: ({ alt }) => <span className="my-4 block rounded-lg border border-dashed border-border bg-muted/50 px-4 py-6 text-center text-xs text-muted-foreground">{alt || '原手册截图占位'}</span>,
   hr: () => <hr className="my-10 border-border" />,
 }
@@ -86,14 +86,14 @@ const markdownComponents: Components = {
 function DocsHome() {
   return (
     <div>
-      <div className="rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-background to-background p-7">
-        <div className="mb-3 flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground"><BookOpen size={24} weight="duotone" /></div>
+      <div className="rounded-lg border border-primary/15 bg-gradient-to-br from-primary/10 via-background to-background p-7">
+        <div className="mb-3 flex size-11 items-center justify-center rounded-lg bg-primary text-primary-foreground"><BookOpen size={24} weight="duotone" /></div>
         <h1 className="text-3xl font-semibold tracking-tight">Apboa Next 使用手册</h1>
         <p className="mt-3 max-w-2xl leading-7 text-muted-foreground">React 版管理台的配置、运行与排障参考。知识库与本地 RAG 已按当前产品范围移除，因此不会出现在文档导航中。</p>
       </div>
       <div className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {docSections.map((section) => (
-          <Link key={section.slug} to={`/docs/${section.slug}`} className="group rounded-xl border border-border bg-card p-4 shadow-card transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-card-hover">
+          <Link key={section.slug} to={`/docs/${section.slug}`} className="group rounded-lg border border-border bg-card p-4 shadow-card transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-card-hover">
             <div className="font-semibold group-hover:text-primary">{section.label}</div>
             <p className="mt-1 text-sm text-muted-foreground">{section.summary}</p>
           </Link>
@@ -111,7 +111,7 @@ export function DocsPage() {
   return (
     <div className="min-h-[100dvh] bg-app lg:grid lg:grid-cols-[260px_minmax(0,1fr)]">
       <aside className="border-b border-border bg-sidebar p-4 lg:sticky lg:top-0 lg:h-[100dvh] lg:overflow-y-auto lg:border-b-0 lg:border-r">
-        <Link to="/agent" className="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-sidebar-accent">
+        <Link to="/agent" className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-sidebar-accent">
           <img src={`${import.meta.env.BASE_URL}logo.png`} alt="" className="size-9 rounded-lg" />
           <span><span className="block text-sm font-semibold">Apboa Next</span><span className="block text-[11px] text-sidebar-muted">使用手册</span></span>
         </Link>

@@ -96,7 +96,7 @@ export function SkillHubSheet({ onClose, onImported }: { onClose: () => void; on
         <div className="flex gap-2"><Button type="submit">搜索</Button><Button type="button" variant="outline" onClick={reset}>重置</Button></div>
       </form>
       {query.isLoading ? <TableSkeleton rows={5} /> : query.error ? <ErrorState error={query.error} onRetry={() => void query.refetch()} /> : rows.length === 0 ? <EmptyState title="没有搜索结果" description="调整关键词或筛选条件后重试。" /> : <div className="grid gap-3 sm:grid-cols-2">
-        {rows.map((item) => <div key={item.slug} className="rounded-xl border border-border p-4">
+        {rows.map((item) => <div key={item.slug} className="rounded-lg border border-border p-4">
           <div className="flex items-start gap-3">{item.iconUrl ? <img src={item.iconUrl} alt="" className="size-10 rounded-lg object-cover" /> : null}<div className="min-w-0"><div className="truncate font-medium">{item.name}</div><div className="text-xs text-muted-foreground">{item.category} · v{item.version} · {item.downloads} 下载</div></div></div>
           <p className="mt-3 line-clamp-3 text-sm text-muted-foreground">{item.description}</p>
           <div className="mt-3 flex gap-2"><Button size="sm" onClick={() => void install(item)} disabled={Boolean(downloading)}>{downloading === item.slug ? '导入中…' : '导入'}</Button>{safeHomepage(item.homepage) ? <Button asChild size="sm" variant="outline"><a href={safeHomepage(item.homepage)!} target="_blank" rel="noreferrer">详情</a></Button> : null}</div>

@@ -10,7 +10,7 @@ export function SelectTrigger({ className, children, ...props }: React.Component
   return (
     <SelectPrimitive.Trigger
       className={cn(
-        'flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-input bg-background px-3 text-sm transition-[border,box-shadow] data-[placeholder]:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:truncate',
+        'flex h-8 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-3 text-[12.5px] transition-[border,box-shadow] data-[placeholder]:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:truncate',
         className,
       )}
       {...props}
@@ -56,7 +56,7 @@ export function SelectItem({ className, children, ...props }: React.ComponentPro
   return (
     <SelectPrimitive.Item
       className={cn(
-        'relative flex w-full cursor-pointer select-none items-center gap-2 rounded-md py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-muted data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+        'relative flex w-full cursor-pointer select-none items-center gap-2 rounded px-2 py-1.5 pl-8 pr-2 text-[12.5px] outline-none focus:bg-muted data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         className,
       )}
       {...props}

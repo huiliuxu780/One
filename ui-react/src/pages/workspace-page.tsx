@@ -180,7 +180,7 @@ export function WorkspacePage() {
     <div className="px-6 py-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">工作空间</h1>
+          <h1 className="font-display text-[24px] font-bold leading-tight">工作空间</h1>
           <p className="mt-1 text-sm text-muted-foreground">按会话管理文件：上传（单/批/压缩包）、下载、删除与容量展示。</p>
         </div>
         <div className="flex items-center gap-2">
@@ -227,7 +227,7 @@ export function WorkspacePage() {
       ) : null}
 
       {uploadProgress.length ? (
-        <div className="mb-4 rounded-xl border border-border bg-card p-3">
+        <div className="mb-4 rounded-lg border border-border bg-card p-3">
           <div className="mb-2 flex items-center justify-between text-sm font-medium"><span>上传队列</span>{uploading ? <Button size="sm" variant="outline" onClick={() => uploadAbortRef.current?.abort()}>取消上传</Button> : <Button size="sm" variant="ghost" onClick={() => setUploadProgress([])}>清除记录</Button>}</div>
           <div className="space-y-2">{uploadProgress.map((item, index) => <div key={`${item.name}-${index}`} className="grid grid-cols-[minmax(0,1fr)_120px_52px] items-center gap-2 text-xs"><span className="truncate">{item.name}</span><div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className={`h-full ${item.state === 'error' ? 'bg-destructive' : 'bg-primary'}`} style={{ width: `${item.percent}%` }} /></div><span className="text-right text-muted-foreground">{item.state === 'error' ? '失败' : item.state === 'pending' ? '等待' : `${item.percent}%`}</span></div>)}</div>
         </div>

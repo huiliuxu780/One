@@ -23,7 +23,7 @@ export function ChatClusterPage() {
     <div className="px-6 py-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">对话广场</h1>
+          <h1 className="font-display text-[24px] font-bold leading-tight">对话广场</h1>
           <p className="mt-1 text-sm text-muted-foreground">聚合展示全部可用智能体，点击进入对话。</p>
         </div>
         <div className="relative w-64">
@@ -42,10 +42,10 @@ export function ChatClusterPage() {
             <a
               key={String(agent.id)}
               href={`/chat?agent=${agent.id}`}
-              className="group rounded-xl border border-border bg-card p-5 shadow-card transition-[border,transform] hover:border-primary/40 hover:-translate-y-0.5"
+              className="group rounded-lg border border-border bg-card p-5 shadow-card transition-[border,transform] hover:border-primary/40 hover:-translate-y-0.5"
             >
               <div className="flex items-center gap-3">
-                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
                   <Robot size={20} />
                 </span>
                 <div className="min-w-0">

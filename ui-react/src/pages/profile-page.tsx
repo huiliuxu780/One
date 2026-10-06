@@ -43,7 +43,7 @@ export function ProfilePage() {
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
-      <h1 className="text-xl font-semibold tracking-tight">个人资料</h1>
+      <h1 className="font-display text-[24px] font-bold leading-tight">个人资料</h1>
       <p className="mb-6 mt-1 text-sm text-muted-foreground">维护账号基础信息；修改后立即生效。</p>
       <Card>
         <CardHeader>

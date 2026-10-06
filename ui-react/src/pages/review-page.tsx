@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 export function ReviewPage() {
   return (
     <div className="px-6 py-6">
-      <h1 className="text-xl font-semibold tracking-tight">审查</h1>
+      <h1 className="font-display text-[24px] font-bold leading-tight">审查</h1>
       <p className="mb-4 mt-1 text-sm text-muted-foreground">Agent 与 Workflow 的内容审查工作台。</p>
       <Tabs defaultValue="agent">
         <TabsList>

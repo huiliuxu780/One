@@ -33,7 +33,7 @@ export function ModelPage() {
 
   return (
     <div className="px-6 py-6">
-      <h1 className="text-xl font-semibold tracking-tight">模型</h1>
+      <h1 className="font-display text-[24px] font-bold leading-tight">模型</h1>
       <p className="mb-4 mt-1 text-sm text-muted-foreground">模型配置与供应商连接信息；密钥仅提交时传输。</p>
       <Tabs
         value={searchParams.get('tab') === 'provider' ? 'provider' : 'config'}

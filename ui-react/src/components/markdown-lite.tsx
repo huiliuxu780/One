@@ -79,7 +79,7 @@ export function MarkdownLite({ content, disabled = false, onInteraction }: { con
       if (language === 'mermaid') return <MermaidBlock key={`code-${segmentIndex}`} code={code} />
       if (language === 'vep') return <VepBlock key={`code-${segmentIndex}`} code={code} />
       if (language === 'uip' || language === 'apip') return <UipBlock key={`code-${segmentIndex}`} code={code} disabled={disabled} onSubmit={onInteraction} />
-      return <pre key={`code-${segmentIndex}`} className="overflow-auto rounded-lg bg-slate-950 p-3 font-mono text-xs text-slate-100">{language ? <div className="mb-1 text-[10px] uppercase text-slate-400">{language}</div> : null}<code>{code}</code></pre>
+      return <pre key={`code-${segmentIndex}`} className="overflow-auto rounded-md border border-border bg-card p-3 font-mono text-xs text-secondary-foreground">{language ? <div className="mb-1 text-[10px] uppercase text-muted-foreground">{language}</div> : null}<code>{code}</code></pre>
     }
     return <ReactMarkdown
       key={`text-${segmentIndex}`}
@@ -87,9 +87,9 @@ export function MarkdownLite({ content, disabled = false, onInteraction }: { con
       urlTransform={(url) => /^https?:\/\//i.test(url) || url.startsWith('/') ? url : ''}
       components={{
         a: ({ children, ...props }) => <a {...props} target="_blank" rel="noreferrer" className="underline underline-offset-2">{children}</a>,
-        h1: ({ children }) => <h1 className="mt-4 text-xl font-semibold first:mt-0">{children}</h1>,
-        h2: ({ children }) => <h2 className="mt-4 text-lg font-semibold first:mt-0">{children}</h2>,
-        h3: ({ children }) => <h3 className="mt-3 text-base font-semibold first:mt-0">{children}</h3>,
+        h1: ({ children }) => <h1 className="mt-4 font-display text-[22px] font-bold first:mt-0">{children}</h1>,
+        h2: ({ children }) => <h2 className="mt-4 font-display text-lg font-semibold first:mt-0">{children}</h2>,
+        h3: ({ children }) => <h3 className="mt-3 font-display text-base font-semibold first:mt-0">{children}</h3>,
         p: ({ children }) => <p className="whitespace-pre-wrap">{children}</p>,
         ul: ({ children }) => <ul className="ml-5 list-disc space-y-1">{children}</ul>,
         ol: ({ children }) => <ol className="ml-5 list-decimal space-y-1">{children}</ol>,
@@ -119,7 +119,7 @@ function MermaidBlock({ code }: { code: string }) {
   }, [code])
   if (error) return <ProtocolFallback label="Mermaid 解析失败" code={code} detail={error} />
   if (!svg) return <div className="animate-pulse rounded-lg border border-dashed border-border bg-muted/40 p-5 text-center text-xs text-muted-foreground">正在渲染 Mermaid…</div>
-  return <div className="overflow-auto rounded-lg border border-border bg-white p-3" dangerouslySetInnerHTML={{ __html: svg }} />
+  return <div className="overflow-auto rounded-md border border-border bg-card p-3" dangerouslySetInnerHTML={{ __html: svg }} />
 }
 
 function sanitizeSvg(svg: string) {
@@ -141,10 +141,10 @@ function VepBlock({ code }: { code: string }) {
   if (!vision || (vision.type !== 'card' && vision.type !== 'chart')) return <ProtocolFallback label="VEP 内容无效" code={code} />
   if (vision.type === 'card') {
     const fields = Array.isArray(vision.data) ? vision.data : []
-    return <div className="rounded-xl border border-primary/20 bg-primary/5 p-4"><div className="font-semibold">{vision.title || '信息卡片'}</div>{vision.insight ? <p className="mt-1 text-xs text-muted-foreground">{vision.insight}</p> : null}<div className="mt-3 grid gap-2 sm:grid-cols-2">{fields.map((field, index) => <div key={`${field.label}-${index}`} className="rounded-lg bg-background p-3"><div className="text-xs text-muted-foreground">{field.label}</div><div className="mt-1 text-lg font-semibold">{String(field.value)}{field.unit ? <span className="ml-1 text-xs font-normal text-muted-foreground">{field.unit}</span> : null}</div></div>)}</div></div>
+    return <div className="rounded-lg border border-primary/20 bg-primary/5 p-4"><div className="font-semibold">{vision.title || '信息卡片'}</div>{vision.insight ? <p className="mt-1 text-xs text-muted-foreground">{vision.insight}</p> : null}<div className="mt-3 grid gap-2 sm:grid-cols-2">{fields.map((field, index) => <div key={`${field.label}-${index}`} className="rounded-lg bg-background p-3"><div className="text-xs text-muted-foreground">{field.label}</div><div className="mt-1 font-display text-lg font-semibold">{String(field.value)}{field.unit ? <span className="ml-1 text-xs font-normal text-muted-foreground">{field.unit}</span> : null}</div></div>)}</div></div>
   }
   const chart = !Array.isArray(vision.data) ? vision.data : undefined
-  return <div className="rounded-xl border border-border bg-card p-4"><div className="font-semibold">{vision.title || '数据图表'}</div>{vision.insight ? <p className="mt-1 text-xs text-muted-foreground">{vision.insight}</p> : null}<SimpleChart chart={chart} /></div>
+  return <div className="rounded-lg border border-border bg-card p-4"><div className="font-semibold">{vision.title || '数据图表'}</div>{vision.insight ? <p className="mt-1 text-xs text-muted-foreground">{vision.insight}</p> : null}<SimpleChart chart={chart} /></div>
 }
 
 function SimpleChart({ chart }: { chart?: ChartData }) {
@@ -171,15 +171,15 @@ function InteractionCard({ interaction, code, disabled, onSubmit }: { interactio
     onSubmit?.({ interactionId: interaction.id, type: interaction.type, data, code, userText: interactionText(interaction, data) })
   }
   const locked = disabled || submitted
-  if (interaction.type === 'confirm') return <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4"><div className="font-medium">{interaction.message}</div>{submitted ? <p className="mt-2 text-xs text-muted-foreground">已提交：{values.confirmed ? '确认' : '取消'}</p> : <div className="mt-3 flex gap-2"><Button size="sm" disabled={locked} onClick={() => submit({ confirmed: true, payload: interaction.payload })}>{interaction.confirmLabel || '确认'}</Button><Button size="sm" variant="outline" disabled={locked} onClick={() => submit({ confirmed: false, payload: interaction.payload })}>{interaction.cancelLabel || '取消'}</Button></div>}</div>
+  if (interaction.type === 'confirm') return <div className="rounded-lg border border-warning/40 bg-warning/10 p-4"><div className="font-medium">{interaction.message}</div>{submitted ? <p className="mt-2 text-xs text-muted-foreground">已提交：{values.confirmed ? '确认' : '取消'}</p> : <div className="mt-3 flex gap-2"><Button size="sm" disabled={locked} onClick={() => submit({ confirmed: true, payload: interaction.payload })}>{interaction.confirmLabel || '确认'}</Button><Button size="sm" variant="outline" disabled={locked} onClick={() => submit({ confirmed: false, payload: interaction.payload })}>{interaction.cancelLabel || '取消'}</Button></div>}</div>
   if (interaction.type === 'choice') return <ChoiceCard interaction={interaction} values={values} disabled={locked} onSubmit={submit} />
-  return <form className="rounded-xl border border-border bg-card p-4" onSubmit={(event) => { event.preventDefault(); if ((interaction.fields ?? []).some((field) => field.required && (values[field.name] === '' || values[field.name] == null))) return; submit(values) }}><div className="mb-3 font-medium">{interaction.props?.title || '请填写信息'}</div><div className="space-y-3">{(interaction.fields ?? []).filter((field) => !field.hidden).map((field) => <UipFieldControl key={field.name} field={field} value={values[field.name]} disabled={locked} onChange={(value) => setValues((previous) => ({ ...previous, [field.name]: value }))} />)}</div><Button className="mt-4" size="sm" type="submit" disabled={locked}>{submitted ? '已提交' : interaction.props?.submitLabel || '提交'}</Button></form>
+  return <form className="rounded-lg border border-border bg-card p-4" onSubmit={(event) => { event.preventDefault(); if ((interaction.fields ?? []).some((field) => field.required && (values[field.name] === '' || values[field.name] == null))) return; submit(values) }}><div className="mb-3 font-medium">{interaction.props?.title || '请填写信息'}</div><div className="space-y-3">{(interaction.fields ?? []).filter((field) => !field.hidden).map((field) => <UipFieldControl key={field.name} field={field} value={values[field.name]} disabled={locked} onChange={(value) => setValues((previous) => ({ ...previous, [field.name]: value }))} />)}</div><Button className="mt-4" size="sm" type="submit" disabled={locked}>{submitted ? '已提交' : interaction.props?.submitLabel || '提交'}</Button></form>
 }
 
 function ChoiceCard({ interaction, values, disabled, onSubmit }: { interaction: UipInteraction; values: Record<string, unknown>; disabled: boolean; onSubmit: (data: Record<string, unknown>) => void }) {
   const [selected, setSelected] = useState<string[]>(Array.isArray(values.values) ? values.values as string[] : [])
   const [custom, setCustom] = useState(String(values.customInput ?? ''))
-  return <div className="rounded-xl border border-border bg-card p-4"><div className="font-medium">{interaction.question}</div><div className="mt-3 space-y-2">{(interaction.options ?? []).map((option) => <label key={option.value} className="flex items-start gap-2 rounded-lg border border-border p-2 text-sm"><Checkbox disabled={disabled || option.disabled} checked={selected.includes(option.value)} onCheckedChange={(checked) => setSelected((previous) => interaction.multiple ? (checked ? [...previous, option.value] : previous.filter((value) => value !== option.value)) : (checked ? [option.value] : []))} /><span><span className="font-medium">{option.label}</span>{option.description ? <span className="block text-xs text-muted-foreground">{option.description}</span> : null}</span></label>)}</div>{interaction.allowCustom ? <Input className="mt-3" value={custom} disabled={disabled} placeholder="其他…" onChange={(event) => setCustom(event.target.value)} /> : null}<Button className="mt-3" size="sm" disabled={disabled || (!selected.length && !custom)} onClick={() => onSubmit({ values: selected, customInput: custom || undefined })}>{disabled ? '已提交' : '提交选择'}</Button></div>
+  return <div className="rounded-lg border border-border bg-card p-4"><div className="font-medium">{interaction.question}</div><div className="mt-3 space-y-2">{(interaction.options ?? []).map((option) => <label key={option.value} className="flex items-start gap-2 rounded-lg border border-border p-2 text-sm"><Checkbox disabled={disabled || option.disabled} checked={selected.includes(option.value)} onCheckedChange={(checked) => setSelected((previous) => interaction.multiple ? (checked ? [...previous, option.value] : previous.filter((value) => value !== option.value)) : (checked ? [option.value] : []))} /><span><span className="font-medium">{option.label}</span>{option.description ? <span className="block text-xs text-muted-foreground">{option.description}</span> : null}</span></label>)}</div>{interaction.allowCustom ? <Input className="mt-3" value={custom} disabled={disabled} placeholder="其他…" onChange={(event) => setCustom(event.target.value)} /> : null}<Button className="mt-3" size="sm" disabled={disabled || (!selected.length && !custom)} onClick={() => onSubmit({ values: selected, customInput: custom || undefined })}>{disabled ? '已提交' : '提交选择'}</Button></div>
 }
 
 function UipFieldControl({ field, value, disabled, onChange }: { field: UipField; value: unknown; disabled: boolean; onChange: (value: unknown) => void }) {
@@ -203,5 +203,5 @@ function interactionText(interaction: UipInteraction, data: Record<string, unkno
 }
 
 function ProtocolFallback({ label, code, detail }: { label: string; code: string; detail?: string }) {
-  return <details className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3"><summary className="cursor-pointer text-xs font-medium text-amber-700">{label}</summary>{detail ? <p className="mt-2 text-xs text-destructive">{detail}</p> : null}<pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[11px] text-muted-foreground">{code.slice(0, 2000)}</pre></details>
+  return <details className="rounded-lg border border-warning/40 bg-warning/10 p-3"><summary className="cursor-pointer text-xs font-medium text-warning">{label}</summary>{detail ? <p className="mt-2 text-xs text-destructive">{detail}</p> : null}<pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[11px] text-muted-foreground">{code.slice(0, 2000)}</pre></details>
 }

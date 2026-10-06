@@ -182,7 +182,7 @@ export function ToolDebugDialog({ tool, onClose }: { tool: ToolVO; onClose: () =
 
         {result ? (
           <div>
-            <div className="mb-1.5 text-sm font-medium">执行结果 · <span className={result.ok ? 'text-emerald-600' : 'text-destructive'}>{result.ok ? '成功' : '失败'}</span></div>
+            <div className="mb-1.5 text-sm font-medium">执行结果 · <span className={result.ok ? 'text-success' : 'text-destructive'}>{result.ok ? '成功' : '失败'}</span></div>
             <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-3 font-mono text-xs">{result.text}</pre>
           </div>
         ) : null}

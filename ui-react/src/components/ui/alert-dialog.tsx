@@ -8,10 +8,10 @@ export const AlertDialogTrigger = AlertDialogPrimitive.Trigger
 export function AlertDialogContent({ className, ...props }: React.ComponentProps<typeof AlertDialogPrimitive.Content>) {
   return (
     <AlertDialogPrimitive.Portal>
-      <AlertDialogPrimitive.Overlay className="fixed inset-0 z-40 bg-slate-950/45 backdrop-blur-[2px]" />
+      <AlertDialogPrimitive.Overlay className="fixed inset-0 z-40 bg-foreground/40 backdrop-blur-[2px]" />
       <AlertDialogPrimitive.Content
         className={cn(
-          'fixed left-1/2 top-1/2 z-50 grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border border-border bg-background p-6 shadow-dialog focus:outline-none',
+          'fixed left-1/2 top-1/2 z-50 grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-border bg-card p-6 shadow-dialog focus:outline-none',
           className,
         )}
         {...props}
@@ -25,7 +25,7 @@ export function AlertDialogHeader({ className, ...props }: React.ComponentProps<
 }
 
 export function AlertDialogTitle({ className, ...props }: React.ComponentProps<typeof AlertDialogPrimitive.Title>) {
-  return <AlertDialogPrimitive.Title className={cn('text-lg font-semibold tracking-tight', className)} {...props} />
+  return <AlertDialogPrimitive.Title className={cn('font-display text-lg font-semibold tracking-tight', className)} {...props} />
 }
 
 export function AlertDialogDescription({ className, ...props }: React.ComponentProps<typeof AlertDialogPrimitive.Description>) {

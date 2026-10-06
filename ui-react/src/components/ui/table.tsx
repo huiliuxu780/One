@@ -25,11 +25,11 @@ export function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
 }
 
 export function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
-  return <th className={cn('h-10 px-3 text-left align-middle text-xs font-medium text-muted-foreground', className)} {...props} />
+    return <th className={cn('h-9 px-3.5 text-left align-middle text-[10.5px] font-medium tracking-[0.12em] text-muted-foreground', className)} {...props} />
 }
 
 export function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
-  return <td className={cn('px-3 py-2.5 align-middle', className)} {...props} />
+    return <td className={cn('px-3.5 py-3 align-middle text-[12.5px]', className)} {...props} />
 }
 
 export function TableCaption({ className, ...props }: React.ComponentProps<'caption'>) {
