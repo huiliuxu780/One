@@ -163,6 +163,7 @@
 - `ui-react/dist/` 从本地构建同步，保留旧哈希资源；只重建并重启 Compose `frontend`，Console/Runtime、数据库和数据卷未重建。前端镜像 ID 为 `sha256:e36cc4c15a5e9fa27c00afc8a1e9a8640232c8b7ea1160fed1f70920cff35c9d`，更新前镜像标记为 `apboa-dev-frontend:rollback-ba9def8-pre-603b7d5`，旧静态产物保存在 `ui-react/dist.pre-603b7d5/`。
 - SSH 隧道 `/react/` 返回 HTTP 200；浏览器在部署后的页面验证 Tool 编辑表单、账号设置菜单、Workflow 搜索，以及 Hook/Prompt/Sensitive 启停往返并恢复原状态。浏览器错误日志为空。
 - 本地检查：31 个测试文件共 102 项通过；TypeScript 与生产构建通过；全部静态产物在既定体积阈值内。
+- 2026-10-06：后续修复提交 `5ad1f77` 已推送；ECS `/root/ONE` 与 `/opt/apboa-next` 均快进到该提交。同步本地构建产物，只重建并重启 `frontend`；当前镜像 ID `sha256:c555744f9d157e461ab2c17f7d94e063e54409dac400a8e01c7db398ea6d4250`，更新前镜像标记为 `apboa-dev-frontend:rollback-603b7d5-pre-5ad1f77`，旧静态产物保存在 `ui-react/dist.pre-5ad1f77/`。SSH 隧道 `/react/` 返回 HTTP 200，浏览器在部署后的 MCP 新建表单确认秒数、阈值与结构化字段，在真实模型编辑表单确认数值项；浏览器错误日志为空。MCP 仍无真实 Server 数据，未验证创建/激活/同步。该批次本地 32 个测试文件共 106 项通过，类型检查、生产构建和体积检查通过。
 
 ## 13. 结论口径
 
