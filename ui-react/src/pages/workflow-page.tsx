@@ -20,7 +20,7 @@ export function WorkflowPage() {
   const [search, setSearch] = useState('')
   const paged = usePagedList<Workflow>({
     resource: 'workflow',
-    fetcher: async (params) => (await workflowApi.pageWorkflows({ ...params, name: search || undefined })).data.data,
+    fetcher: async (params) => (await workflowApi.pageWorkflows(params)).data.data,
   })
   const queryClient = useQueryClient()
   const [busy, setBusy] = useState(false)
@@ -104,7 +104,7 @@ export function WorkflowPage() {
           <div className="mb-3 w-64">
             <div className="relative">
               <MagnifyingGlass size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input className="pl-8" placeholder="按名称搜索" value={search} onChange={(event) => setSearch(event.target.value)} />
+              <Input className="pl-8" placeholder="按名称搜索" value={search} onChange={(event) => { setSearch(event.target.value); paged.setFilter('name', event.target.value || undefined) }} />
             </div>
           </div>
 

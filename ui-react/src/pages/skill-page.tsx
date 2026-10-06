@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { ArrowClockwise, Download, FilePlus, FolderPlus, MagnifyingGlass, Plus, Trash, Upload } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -12,6 +13,7 @@ import { Label } from '@/components/ui/label'
 import { Pagination } from '@/components/ui/pagination'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/sonner'
@@ -25,9 +27,10 @@ import { usePagedList } from '@/features/data/paged'
 export function SkillPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [search, setSearch] = useState('')
+  const [category, setCategory] = useState('')
   const paged = usePagedList<SkillPackageVO>({
     resource: 'skill',
-    fetcher: async (params) => (await skills.page({ ...params, name: search || undefined })).data.data,
+    fetcher: async (params) => (await skills.page(params)).data.data,
   })
   const [editing, setEditing] = useState<SkillPackageVO | null>(null)
   const [editingOpen, setEditingOpen] = useState(false)
@@ -36,6 +39,7 @@ export function SkillPage() {
   const [treeSkill, setTreeSkill] = useState<SkillPackageVO | null>(null)
   const [toolsSkill, setToolsSkill] = useState<SkillPackageVO | null>(null)
   const [busy, setBusy] = useState(false)
+  const [pendingDisable, setPendingDisable] = useState<{ skill: SkillPackageVO; usageCount: number } | null>(null)
   // 旧 Vue 深链 /skill/new、/skill/hub、/skill/:id/edit 由 router 转成本页 query；动作只执行一次。
   const deepLinkHandled = useRef(false)
 
@@ -80,6 +84,36 @@ export function SkillPage() {
     }
   }
 
+  async function setSkillEnabled(skill: SkillPackageVO, enabled: boolean) {
+    setBusy(true)
+    try {
+      await skills.update({ id: skill.id, enabled })
+      toast.success(enabled ? '已启用' : '已停用')
+      setPendingDisable(null)
+      void paged.refetch()
+    } catch (cause) {
+      toast.error(readableError(cause, enabled ? '启用失败' : '停用失败'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function requestSkillEnabled(skill: SkillPackageVO, enabled: boolean) {
+    if (!enabled) {
+      try {
+        const used = (await skills.usedWithAgent([String(skill.id)])).data.data
+        if (used?.length) {
+          setPendingDisable({ skill, usageCount: used.length })
+          return
+        }
+      } catch (cause) {
+        toast.error(readableError(cause, '无法检查技能占用'))
+        return
+      }
+    }
+    await setSkillEnabled(skill, enabled)
+  }
+
   return (
     <div className="px-6 py-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -100,11 +134,12 @@ export function SkillPage() {
 
       <Card>
         <CardContent className="pt-5">
-          <div className="mb-3 w-64">
+          <div className="mb-3 flex flex-wrap gap-2">
             <div className="relative">
               <MagnifyingGlass size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input className="pl-8" placeholder="按名称搜索" value={search} onChange={(event) => setSearch(event.target.value)} />
+              <Input className="w-64 pl-8" placeholder="按名称搜索" value={search} onChange={(event) => { setSearch(event.target.value); paged.setFilter('name', event.target.value || undefined) }} />
             </div>
+            <Input className="w-44" aria-label="分类" placeholder="分类" value={category} onChange={(event) => { setCategory(event.target.value); paged.setFilter('category', event.target.value || undefined) }} />
           </div>
 
           {paged.isLoading ? (
@@ -122,6 +157,7 @@ export function SkillPage() {
                   <TableHead>分类</TableHead>
                   <TableHead>关联工具</TableHead>
                   <TableHead>占用</TableHead>
+                  <TableHead>启用</TableHead>
                   <TableHead className="text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
@@ -133,12 +169,13 @@ export function SkillPage() {
                     <TableCell>{skill.category || '—'}</TableCell>
                     <TableCell>{skill.tools?.length ?? 0} 个</TableCell>
                     <TableCell>{skill.used?.length ? <Badge variant="outline">被 {skill.used.length} 处引用</Badge> : '—'}</TableCell>
+                    <TableCell><Switch checked={Boolean(skill.enabled)} disabled={busy} onCheckedChange={(enabled) => void requestSkillEnabled(skill, enabled)} aria-label={`${skill.name}启用开关`} /></TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="sm" onClick={() => setTreeSkill(skill)}>文件</Button>
                         <Button variant="ghost" size="sm" onClick={() => setToolsSkill(skill)}>工具</Button>
                         <Button variant="ghost" size="sm" disabled={busy} onClick={() => void removeSkill(skill)} className="text-destructive">删除</Button>
-                        <Button variant="ghost" size="sm" onClick={() => { setEditing(skill); setEditingOpen(true) }}>编辑</Button>
+                        <Button variant="ghost" size="sm" onClick={async () => { try { setEditing((await skills.detail(String(skill.id))).data.data); setEditingOpen(true) } catch (cause) { toast.error(readableError(cause, '加载技能详情失败')) } }}>编辑</Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -151,6 +188,7 @@ export function SkillPage() {
       </Card>
 
       <SkillFormDialog open={editingOpen} onOpenChange={setEditingOpen} editing={editing} onSaved={() => void paged.refetch()} />
+      <AlertDialog open={pendingDisable != null} onOpenChange={(open) => !open && setPendingDisable(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>确认停用技能</AlertDialogTitle><AlertDialogDescription>该技能仍被 {pendingDisable?.usageCount} 处引用，停用后相关 Agent 可能无法正常使用。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction disabled={busy} onClick={() => pendingDisable && void setSkillEnabled(pendingDisable.skill, false)}>确认停用</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
       <ImportDialog open={importOpen} onOpenChange={setImportOpen} onImported={() => void paged.refetch()} />
       {hubOpen ? <SkillHubSheet onClose={() => setHubOpen(false)} onImported={() => void paged.refetch()} /> : null}
       {treeSkill ? <SkillFilesDialog skill={treeSkill} onClose={() => setTreeSkill(null)} /> : null}

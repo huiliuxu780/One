@@ -34,7 +34,7 @@ export function AutomationPage() {
   const paged = usePagedList<JobInfo>({
     resource: 'automation-job',
     fetcher: async (params) => {
-      const response = await automationApi.pageJobs({ ...params, keyword: search || undefined, type: typeFilter || undefined })
+      const response = await automationApi.pageJobs(params)
       return {
         records: response.data.data.records ?? [],
         total: response.data.data.total ?? 0,
@@ -107,9 +107,9 @@ export function AutomationPage() {
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <div className="relative w-64">
               <MagnifyingGlass size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input className="pl-8" placeholder="按任务描述搜索" value={search} onChange={(event) => setSearch(event.target.value)} />
+              <Input className="pl-8" placeholder="按任务描述搜索" value={search} onChange={(event) => { setSearch(event.target.value); paged.setFilter('keyword', event.target.value || undefined) }} />
             </div>
-            <Select value={typeFilter || 'all'} onValueChange={(value) => setTypeFilter(value === 'all' ? '' : value)}>
+            <Select value={typeFilter || 'all'} onValueChange={(value) => { const next = value === 'all' ? '' : value; setTypeFilter(next); paged.setFilter('type', next || undefined) }}>
               <SelectTrigger className="w-40" aria-label="任务类型">
                 <SelectValue placeholder="任务类型" />
               </SelectTrigger>

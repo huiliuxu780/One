@@ -18,7 +18,7 @@
 
 | Vue 入口 | 用户操作 | Vue 接口 | React 目标 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| `layout/`、`components/layout/` | 侧栏导航、用户菜单、退出 | 无/`auth` | `app-shell.tsx` | 已验证 | 菜单按能力隐藏；后端权限为最终边界；根路径与 Vue 一致进入工作台 |
+| `layout/`、`components/layout/` | 侧栏导航、用户菜单、退出 | 无/`auth` | `app-shell.tsx` | 已迁移未验证 | 左侧导航已确认可纵向滚动；账号设置菜单已接入设置页，尚待部署后回归；菜单按能力隐藏，后端权限为最终边界 |
 | `pages/Login.vue` | 登录、Token 刷新 | `/api/auth/login`、refresh | `login-page.tsx`、`client.ts` | 已验证 | 登录响应必须含默认租户 `tenantId=1`；401 单飞刷新有 MSW 单测 |
 | 路由守卫 | 未登录跳登录 | — | `protected-route.tsx` | 已验证 | 登录后进入应用（Vue 登录后固定跳 dashboard，不回跳深链；React 行为一致） |
 | 403/404/500 | 错误页 | — | `error-pages.tsx` | 已验证 | 404 文案已去除"尚未迁移"过时表述 |
@@ -75,22 +75,23 @@
 | Vue 入口 | 用户操作 | Vue 接口 | React 目标 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- |
 | `views/Model/` | 供应商/模型 CRUD、连通性测试、密钥留空不修改 | model API | `model-page.tsx` | 已验证 | DashScope OpenAI 兼容模式两模型连接成功 |
-| `/model/:providerId/config` 深链 | 打开供应商配置 | — | `?tab=provider&providerId=` | 已验证 | 生产深链重定向到供应商页签并保留 providerId |
-| `views/Skill/` | 新建/导入（本地/Git/ZIP）/文件树编辑/工具关联/下载/同步 | skill API | `skill-page.tsx` | 已验证 | — |
+| `/model/:providerId/config` 深链 | 打开供应商下的模型配置 | — | `?providerId=` | 已迁移未验证 | 旧重定向误入供应商页签，本地 Vite + ECS 后端已确认显示供应商下两条模型，新建时预选该供应商；部署后仍需回归 |
+| `views/Skill/` | 新建/导入（本地/Git/ZIP）/文件树编辑/工具关联/下载/同步/分类筛选/启停 | skill API | `skill-page.tsx` | 已迁移未验证 | 本轮补齐搜索、分类筛选与引用提醒后的启停；真实后端当前技能列表为空，未形成启停回归证据 |
 | `/skill/new` 深链 | 打开新建弹窗 | — | `?action=new` | 已验证 | 生产深链打开新建技能弹窗；Vue 是整页+弹窗，React 等价为弹窗 |
 | `/skill/hub` 深链 | 打开 SkillHub | — | `?hub=1` | 已验证 | 生产深链打开真实 SkillHub 列表；React 为 Sheet，搜索/导入一致 |
 | `/skill/:id/edit` 深链 | 打开指定技能编辑 | `/api/skill/{id}`、`/tree` | `?edit=ID` → 文件管理 Sheet | 已验证 | Vue 为整页文件树+Monaco；React 为文件树+CodeMirror Sheet，无效 ID 显示后端明确错误而非静默空壳 |
-| `views/Tool/` | CRUD、代码编辑、调试 | tool API | `resource-pages.tsx` | 已验证 | 工具绑定提交数据库 ID（契约修复后） |
-| `views/Mcp/` | CRUD、激活、同步、工具治理、调试 | mcp API | `mcp-page.tsx` | 已验证 | 调试展示原始错误 |
+| `views/Tool/` | CRUD、代码编辑、调试、分类/类型筛选、启停 | tool API | `resource-pages.tsx` | 已迁移未验证 | Schema 驱动调试已在真实 Tool 验证；本地分类筛选由两条缩至一条，启停已在真实 Tool 往返验证并恢复原状态；待部署后回归 |
+| `views/Mcp/` | CRUD、激活、同步、工具治理、调试、协议筛选、启停 | mcp API | `mcp-page.tsx` | 已迁移未验证 | 本轮补齐分页搜索、协议筛选与引用提醒后的启停；调试展示原始错误，新增操作待真实数据回归 |
 | `/mcp/:serverId/tools` 深链 | 打开指定 Server 工具治理 | `/api/mcp/server/{id}`、`/tools` | `?tools=ID` | 已验证 | 生产深链已回归；无效 ID 显示后端明确错误（Vue 静默空态） |
-| `views/Hook/`、`views/Prompt/`、`views/Sensitive/` 等 | CRUD/占用检查 | 对应 API | `resource-pages.tsx` | 已验证 | 统一 CRUD 引擎 |
+| `views/Hook/`、`views/Prompt/`、`views/Sensitive/` 等 | CRUD/占用检查/筛选/启停 | 对应 API | `resource-pages.tsx` | 已迁移未验证 | 审计发现统一资源页原来只显示启停徽标，缺少 Vue 的启停动作；已加占用二次确认和详情加载，待逐资源真实回归 |
+| `views/Mcp/`、`views/Skill/`、`views/Workflow/`、`views/Automation/` | 列表搜索、类型筛选 | 各分页 API | 对应 React 页 | 已迁移未验证 | 审计发现若搜索词未并入 `usePagedList` 查询键，请求不会触发；已修正 MCP/Skill/Workflow/Automation，工作流真实列表从四条缩至一条；其余待回归 |
 | 密钥字段 | 留空不修改语义 | — | 各表单 | 已验证 | 后端密文不回显 |
 
 ## 6. 自动化
 
 | Vue 入口 | 用户操作 | Vue 接口 | React 目标 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| `views/Automation/` | 列表、CRUD、启停、手动触发、记录 | `/api/runtime/job/*` | `automation-page.tsx` | 已验证 | Agent/Workflow 两类真实触发均通过；失败审计受后端 schema 限制 |
+| `views/Automation/` | 列表、CRUD、启停、手动触发、记录、搜索与类型筛选 | `/api/runtime/job/*` | `automation-page.tsx` | 已迁移未验证 | Agent/Workflow 两类真实触发先前通过；本轮修复类型筛选，真实后端由两条缩为一条；失败审计受后端 schema 限制 |
 | `/automation/new` 深链 | 打开新建表单 | — | `?action=new` | 已验证 | 生产深链打开 Agent/Workflow 目标表单；Vue 为整页，React 为弹窗 |
 | `/automation/:id/edit` 深链 | 加载任务编辑 | `/api/runtime/job/{id}` | `?edit=ID` | 已验证 | 无效 ID 显示“任务不存在或已被删除” |
 | `/automation/:id/records` 深链 | 打开执行记录 | job/{id}、job/records | `?records=ID` | 已验证 | 无效 ID 诚实提示任务不存在；真实 Agent/Workflow 记录已在主页面验收 |
@@ -99,7 +100,7 @@
 
 | Vue 入口 | 用户操作 | Vue 接口 | React 目标 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| `views/Workflow/` | 列表、复制、锁定、删除、强制删除 | workflow API | `workflow-page.tsx` | 已验证 | — |
+| `views/Workflow/` | 列表、搜索、复制、锁定、删除、强制删除 | workflow API | `workflow-page.tsx` | 已迁移未验证 | 本轮修复分页搜索，真实后端从四条缩为一条；待部署后回归 |
 | `/workflow/new` 深链 | 创建进入编辑器 | workflowSave | `?create=1` → 创建一次 → `/workflow/{id}/edit` | 已迁移未验证 | Vue 打开未保存草稿画布（保存时才创建、无防重）；React 架构要求先建后编，深链严格防重复创建。行为差异已在备注声明 |
 | `/workflow/:id` 深链 | 打开编辑器 | — | 重定向 `/workflow/{id}/edit` | 已验证 | 生产深链完成重定向；不存在 ID 保持在编辑器加载/错误链路，不伪造内容 |
 | `components/workflow/` | React Flow 画布、节点配置、校验、保存、发布、版本、调试 | workflow/workflowResources API | `workflow-editor-page.tsx` | 已验证 | toBackendDefinition round-trip 单测；回声流程发布/运行通过 |
@@ -150,9 +151,10 @@
 
 ## 11. 待办（按优先级）
 
-1. 高级工作流节点成功运行矩阵、外部 A2A/第三方 MCP 集成凭据验收（REMAINING_SPEC §8）。这些是外部资源/场景验收，不是已知 React 页面缺口。
-2. 非 Chromium 浏览器兼容性与并发容量仍未形成证据，不能从单浏览器、单用户开发验收外推。
+1. 继续逐页检查保存协议、表单字段、页面内动作和旧深链。已发现并修复的筛选与启停缺口仍需覆盖各资源的真实浏览器回归，不能据此宣布全部迁移完毕。
+2. 高级工作流节点成功运行矩阵、外部 A2A/第三方 MCP 集成凭据验收（REMAINING_SPEC §8）仍缺证据。
+3. 非 Chromium 浏览器兼容性与并发容量仍未形成证据，不能从单浏览器、单用户开发验收外推。
 
 ## 12. 结论口径
 
-当前没有已知的保留范围内 React 前端代码缺口。准确表述为：**保留范围内前端功能已经迁移，附件与工作空间预览的最后两个已知缺口已由真实后端闭环；但不能把“前端实现对齐”偷换成“所有外部集成和运行场景均已验收”，高级工作流节点矩阵、外部 A2A/第三方 MCP、非 Chromium 兼容性和并发容量仍缺少完整证据。**
+**当前不能严谨地宣布全部迁移完毕。**此前“没有已知前端缺口”的结论已被 Tool 调试、供应商深链、资源筛选与启停的后续审计推翻。当前代码已修复这些已发现的问题，其中部分已用本地 Vite + ECS 真实后端验证，但尚未完成全部页面操作的逐项回归，也尚未把本轮代码部署至 ECS。高级工作流节点、外部 A2A/第三方 MCP、非 Chromium 兼容性及并发容量仍缺少完整验收证据。状态必须按上表逐项更新，不能从路由可渲染或旧文档结论外推。

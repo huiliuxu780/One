@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { ArrowClockwise, MagnifyingGlass, Plus, Plugs, Wrench } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -29,14 +30,16 @@ function statusBadge(server: McpServerVO) {
 
 export function McpPage() {
   const [search, setSearch] = useState('')
+  const [protocolFilter, setProtocolFilter] = useState('')
   const paged = usePagedList<McpServerVO>({
     resource: 'mcp',
-    fetcher: async (params) => (await mcpServers.page({ ...params, name: search || undefined })).data.data,
+    fetcher: async (params) => (await mcpServers.page(params)).data.data,
   })
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<McpServerVO | null>(null)
   const [toolsServer, setToolsServer] = useState<McpServerVO | null>(null)
   const [busy, setBusy] = useState(false)
+  const [pendingDisable, setPendingDisable] = useState<{ server: McpServerVO; usageCount: number } | null>(null)
   // 旧 Vue 深链 /mcp/:serverId/tools 由 router 转成本页 query，打开指定 Server 的工具治理。
   const [searchParams, setSearchParams] = useSearchParams()
   const deepLinkHandled = useRef(false)
@@ -72,6 +75,29 @@ export function McpPage() {
     setFormOpen(true)
   }
 
+  async function setServerEnabled(server: McpServerVO, enabled: boolean) {
+    await rowAction(enabled ? '启用' : '停用', async () => {
+      await mcpServers.update({ id: server.id, enabled })
+      setPendingDisable(null)
+    })
+  }
+
+  async function requestServerEnabled(server: McpServerVO, enabled: boolean) {
+    if (!enabled) {
+      try {
+        const usage = (await mcpServers.usedWithAgent([String(server.id)])).data.data
+        if (usage?.length) {
+          setPendingDisable({ server, usageCount: usage.length })
+          return
+        }
+      } catch (cause) {
+        toast.error(readableError(cause, '无法检查 MCP Server 占用'))
+        return
+      }
+    }
+    await setServerEnabled(server, enabled)
+  }
+
   return (
     <div className="px-6 py-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -86,11 +112,15 @@ export function McpPage() {
 
       <Card>
         <CardContent className="pt-5">
-          <div className="mb-3 w-64">
+          <div className="mb-3 flex flex-wrap gap-2">
             <div className="relative">
               <MagnifyingGlass size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input className="pl-8" placeholder="按名称搜索" value={search} onChange={(event) => setSearch(event.target.value)} />
+              <Input className="w-64 pl-8" placeholder="按名称搜索" value={search} onChange={(event) => { setSearch(event.target.value); paged.setFilter('name', event.target.value || undefined) }} />
             </div>
+            <Select value={protocolFilter || 'all'} onValueChange={(value) => { const next = value === 'all' ? '' : value; setProtocolFilter(next); paged.setFilter('protocol', next || undefined) }}>
+              <SelectTrigger className="w-36" aria-label="MCP 协议"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="all">全部协议</SelectItem><SelectItem value="HTTP">HTTP</SelectItem><SelectItem value="SSE">SSE</SelectItem><SelectItem value="STDIO">STDIO</SelectItem></SelectContent>
+            </Select>
           </div>
 
           {paged.isLoading ? (
@@ -107,6 +137,7 @@ export function McpPage() {
                   <TableHead>协议/模式</TableHead>
                   <TableHead>激活状态</TableHead>
                   <TableHead>健康</TableHead>
+                  <TableHead>启用</TableHead>
                   <TableHead>工具</TableHead>
                   <TableHead className="text-right">操作</TableHead>
                 </TableRow>
@@ -125,6 +156,7 @@ export function McpPage() {
                     <TableCell>
                       <Badge variant={server.healthStatus === HealthStatus.HEALTHY ? 'default' : 'secondary'}>{server.healthStatus}</Badge>
                     </TableCell>
+                    <TableCell><Switch checked={Boolean(server.enabled)} disabled={busy} onCheckedChange={(enabled) => void requestServerEnabled(server, enabled)} aria-label={`${server.name}启用开关`} /></TableCell>
                     <TableCell>
                       {server.toolCount}/{server.availableToolCount} 可用
                     </TableCell>
@@ -139,7 +171,7 @@ export function McpPage() {
                         <Button variant="ghost" size="sm" disabled={busy} onClick={() => void rowAction('激活', () => mcpServers.activate(String(server.id)))}>
                           <Plugs size={14} /> 激活
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => { setEditing(server); setFormOpen(true) }}>
+                        <Button variant="ghost" size="sm" onClick={async () => { try { setEditing((await mcpServers.detail(String(server.id))).data.data); setFormOpen(true) } catch (cause) { toast.error(readableError(cause, '加载 MCP Server 详情失败')) } }}>
                           编辑
                         </Button>
                         <Button variant="ghost" size="sm" className="text-destructive" disabled={busy} onClick={() => {
@@ -164,6 +196,9 @@ export function McpPage() {
       </Card>
 
       <ServerFormDialog open={formOpen} onOpenChange={setFormOpen} editing={editing} onSaved={() => void paged.refetch()} />
+      <AlertDialog open={pendingDisable != null} onOpenChange={(open) => !open && setPendingDisable(null)}>
+        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>确认停用 MCP Server</AlertDialogTitle><AlertDialogDescription>该 Server 仍被 {pendingDisable?.usageCount} 处引用，停用后相关 Agent 可能无法正常使用。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction disabled={busy} onClick={() => pendingDisable && void setServerEnabled(pendingDisable.server, false)}>确认停用</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+      </AlertDialog>
       {toolsServer ? <ToolsDialog server={toolsServer} onClose={() => setToolsServer(null)} /> : null}
     </div>
   )
