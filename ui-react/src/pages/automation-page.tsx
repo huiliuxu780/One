@@ -279,7 +279,7 @@ function JobFormDialog({ open, onOpenChange, editing, onSaved }: {
           </div>
           <div>
             <Label>执行目标</Label>
-            <Select value={values.bizId || undefined} onValueChange={(bizId) => setValues((v) => ({ ...v, bizId }))}>
+            <Select value={values.bizId || ''} onValueChange={(bizId) => setValues((v) => ({ ...v, bizId }))}>
               <SelectTrigger className="mt-1.5"><SelectValue placeholder={targetsQuery.isLoading ? '加载中…' : '选择目标'} /></SelectTrigger>
               <SelectContent>
                 {(targetsQuery.data ?? []).map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}

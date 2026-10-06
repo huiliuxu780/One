@@ -181,7 +181,7 @@ export function WorkspacePage() {
           <p className="mt-1 text-sm text-muted-foreground">按会话管理文件：上传（单/批/压缩包）、下载、删除与容量展示。</p>
         </div>
         <div className="flex items-center gap-2">
-          <Select value={sessionId || undefined} onValueChange={setSessionId}>
+          <Select value={sessionId} onValueChange={setSessionId}>
             <SelectTrigger className="w-72" aria-label="选择会话">
               <SelectValue placeholder="选择会话…" />
             </SelectTrigger>

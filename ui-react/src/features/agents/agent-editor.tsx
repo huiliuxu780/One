@@ -377,7 +377,7 @@ export function AgentEditor({ open, onOpenChange, agentId, cloneFrom, onSaved }:
             <div className="sm:col-span-2">
               <Label>模型配置 *</Label>
               <div className="mt-1.5">
-                <Select value={form.modelConfigId || undefined} onValueChange={(value) => set('modelConfigId', value)}>
+                <Select value={form.modelConfigId || ''} onValueChange={(value) => set('modelConfigId', value)}>
                   <SelectTrigger><SelectValue placeholder={selectors.loading ? '加载中…' : '选择模型'} /></SelectTrigger>
                   <SelectContent>
                     {selectors.modelOptions.map((option) => (

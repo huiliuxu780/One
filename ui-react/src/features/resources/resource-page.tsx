@@ -87,7 +87,7 @@ export function FormFieldRenderer({
     case 'select': {
       const options = enumOptions(field)
       return (
-        <Select value={value === undefined || value === null || value === '' ? undefined : String(value)} onValueChange={(next) => onChange(next)}>
+        <Select value={value === undefined || value === null ? '' : String(value)} onValueChange={(next) => onChange(next)}>
           <SelectTrigger aria-label={field.label}>
             <SelectValue placeholder={field.placeholder ?? `请选择${field.label}`} />
           </SelectTrigger>

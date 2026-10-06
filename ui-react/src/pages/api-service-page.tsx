@@ -393,7 +393,7 @@ function ApiFormDialog({ open, onOpenChange, editing, onSaved }: {
             </div>
             <div>
               <Label>所属应用</Label>
-              <Select value={values.appId || undefined} onValueChange={(value) => setValues((v) => ({ ...v, appId: value }))}>
+              <Select value={values.appId || ''} onValueChange={(value) => setValues((v) => ({ ...v, appId: value }))}>
                 <SelectTrigger className="mt-1.5"><SelectValue placeholder="选择应用" /></SelectTrigger>
                 <SelectContent>
                   {(appsQuery.data?.records ?? []).map((app) => (

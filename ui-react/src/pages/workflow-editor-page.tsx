@@ -449,7 +449,7 @@ function StructuredConfigEditor({ config, defaults, disabled, resources, onChang
           <div key={key}>
             <Label className="mb-1.5 block text-xs">{key}</Label>
             {resourceKind ? (
-              <Select value={value === undefined || value === null || value === '' ? undefined : String(value)} onValueChange={(next) => onChange(key, next)} disabled={disabled}>
+              <Select value={value === undefined || value === null ? '' : String(value)} onValueChange={(next) => onChange(key, next)} disabled={disabled}>
                 <SelectTrigger><SelectValue placeholder={`选择${resourceKind}`} /></SelectTrigger>
                 <SelectContent>
                   {resources[resourceKind].map((resource) => resource.id ? <SelectItem key={resource.id} value={resource.id}>{resource.name || resource.id}</SelectItem> : null)}
