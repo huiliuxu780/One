@@ -8,6 +8,7 @@
 - MySQL、Redis、Console、Runtime、Proxy 和 WebSocket 仅通过 Docker 网络访问。
 - `VECTOR_STORE_TYPE=none` 使用后端已有的 `NoOpVectorStore`，不启动 pgvector。
 - 单机不启动 runner-file。共享工作空间使用同一个 Docker volume。
+- LOCAL 存储目录必须位于共享卷中。默认使用相对路径 `.apboa/storage`（容器内解析为 `/app/.apboa/storage`）；不要使用各容器私有的 `/home`，否则 Console 上传后 Runtime 无法解析或下载。
 - runner-gateway 使用独立 `gateway` profile；默认不启动。开发环境不映射其动态应用端口到宿主机，避免 API 绕过 Nginx/TLS 暴露公网。
 - Compose 依赖预先构建好的 Java JAR 与 `ui-react/dist`，避免每个镜像重复执行 Maven 和 Node 构建。
 

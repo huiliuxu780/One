@@ -11,5 +11,9 @@ import lombok.Setter;
 @Setter
 @Getter
 public class LocalStorageConfig {
-    private String localDir = "/home";
+    /**
+     * Relative to the service working directory. Docker services run from /app
+     * and share /app/.apboa, so Console and Runtime see the same files.
+     */
+    private String localDir = ".apboa/storage";
 }
