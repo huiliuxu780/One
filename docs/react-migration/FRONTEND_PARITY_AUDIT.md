@@ -102,8 +102,8 @@
 
 | Vue 入口 | 用户操作 | Vue 接口 | React 目标 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| `views/Workflow/` | 列表、搜索、复制、锁定、删除、强制删除 | workflow API | `workflow-page.tsx` | 已迁移未验证 | 分页搜索在部署后从四条真实记录缩为一条；复制/锁定/删除等写操作待逐项回归 |
-| `/workflow/new` 深链 | 创建进入编辑器 | workflowSave | `?create=1` → 创建一次 → `/workflow/{id}/edit` | 已迁移未验证 | Vue 打开未保存草稿画布（保存时才创建、无防重）；React 架构要求先建后编，深链严格防重复创建。行为差异已在备注声明 |
+| `views/Workflow/` | 列表、名称/发布/启用筛选、信息编辑、画布设计、复制、锁定、删除、强制删除 | workflow API | `workflow-page.tsx` | 已迁移未验证 | 分页名称搜索在部署后从四条真实记录缩为一条。继续审计发现发布/启用筛选和单独编辑名称描述缺失，现已补齐；信息编辑只提交元数据，避免改写定义；新建对齐 Vue 名称描述表单与 START→END 初始定义，组件测试覆盖。新筛选和写操作待真实后端回归 |
+| `/workflow/new` 深链 | 创建进入编辑器 | workflowSave | `?create=1` → 打开创建表单 → `/workflow/{id}/edit` | 已迁移未验证 | 旧 Vue `/workflow/new` 会进入编辑器并弹出创建表单，确认后创建；React 现保持先填名称描述再创建的交互与一次性深链处理 |
 | `/workflow/:id` 深链 | 打开编辑器 | — | 重定向 `/workflow/{id}/edit` | 已验证 | 生产深链完成重定向；不存在 ID 保持在编辑器加载/错误链路，不伪造内容 |
 | `components/workflow/` | React Flow 画布、节点配置、校验、保存、发布、版本、调试 | workflow/workflowResources API | `workflow-editor-page.tsx` | 已验证 | toBackendDefinition round-trip 单测；回声流程发布/运行通过 |
 | 高级节点矩阵 | 分支/循环/DB/MQ/Channel 运行 | — | 同上 | 已迁移未验证 | 高级节点成功矩阵缺失（REMAINING_SPEC §8.5） |
