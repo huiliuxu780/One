@@ -115,6 +115,36 @@ export function buildToolSelectorOptions(tools: Array<Pick<ToolVO, 'id' | 'name'
   return tools.map((tool) => ({ label: tool.name, value: String(tool.id), description: tool.toolId }))
 }
 
+function defaultWellKnown(agentName: string): WellKnownAgentConfig {
+  return { agentName, baseUrl: '', relativeCardPath: '/.well-known/agent-card.json', authHeaders: [] }
+}
+
+function defaultNacos(agentName: string): NacosAgentConfig {
+  return { agentName, nacosProperties: [{ key: 'serverAddr', value: '', evn: false }, { key: 'username', value: '', evn: false }, { key: 'password', value: '', evn: false }] }
+}
+
+export function validateA2aConfig(a2a: AgentA2A | null): string | null {
+  if (!a2a) return '请先初始化 A2A 配置'
+  if (!a2a.a2aConfig.agentName?.trim()) return 'A2A Agent 名称不能为空'
+  if (a2a.a2aType === A2aType.WELLKNOWN) {
+    const config = a2a.a2aConfig as WellKnownAgentConfig
+    try {
+      const url = new URL(config.baseUrl)
+      if (!['http:', 'https:'].includes(url.protocol)) return 'Base URL 必须使用 HTTP 或 HTTPS'
+    } catch {
+      return '请输入有效的 Base URL'
+    }
+    if (!config.relativeCardPath?.trim()) return 'Agent Card 路径不能为空'
+    if ((config.authHeaders ?? []).some((item) => !item.key?.trim())) return '认证头名称不能为空'
+  } else {
+    const properties = (a2a.a2aConfig as NacosAgentConfig).nacosProperties ?? []
+    const serverAddr = properties.find((item) => item.key === 'serverAddr')
+    if (!serverAddr?.value?.trim()) return 'Nacos serverAddr 不能为空'
+    if (properties.some((item) => !item.key?.trim())) return 'Nacos 属性名不能为空'
+  }
+  return null
+}
+
 function useSelectorOptions(open: boolean) {
   const models = useQuery({ queryKey: ['list', 'model-config', 'selector'], queryFn: async () => (await modelConfigs.page({ page: 1, size: 200 })).data.data.records, enabled: open })
   const toolList = useQuery({ queryKey: ['list', 'tool', 'selector'], queryFn: async () => (await tools.page({ page: 1, size: 500 })).data.data.records, enabled: open })
@@ -259,6 +289,13 @@ export function AgentEditor({ open, onOpenChange, agentId, cloneFrom, onSaved }:
     if (jsonInvalid) {
       toast.error('存在不合法的 JSON 字段，请检查高级配置')
       return
+    }
+    if (form.agentType === 'A2A') {
+      const message = validateA2aConfig(a2a)
+      if (message) {
+        toast.error(message)
+        return
+      }
     }
     setBusy(true)
     try {
@@ -464,7 +501,7 @@ export function AgentEditor({ open, onOpenChange, agentId, cloneFrom, onSaved }:
                       setA2a({
                         agentDefinitionId: agentId ?? undefined,
                         a2aType: A2aType.WELLKNOWN,
-                        a2aConfig: { agentName: form.agentCode, baseUrl: '', relativeCardPath: '/.well-known/agent-card.json', authHeaders: [] } as WellKnownAgentConfig,
+                        a2aConfig: defaultWellKnown(form.agentCode ?? ''),
                       })
                     }
                   >
@@ -528,7 +565,11 @@ function A2aForm({ a2a, onChange }: { a2a: AgentA2A; onChange: (next: AgentA2A) 
     <div className="grid w-full gap-4">
       <div>
         <Label>A2A 类型</Label>
-        <Select value={a2a.a2aType} onValueChange={(value) => onChange({ ...a2a, a2aType: value as A2aType })}>
+        <Select value={a2a.a2aType} onValueChange={(value) => {
+          const a2aType = value as A2aType
+          const agentName = a2a.a2aConfig.agentName ?? ''
+          onChange({ ...a2a, a2aType, a2aConfig: a2aType === A2aType.WELLKNOWN ? defaultWellKnown(agentName) : defaultNacos(agentName) })
+        }}>
           <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value={A2aType.WELLKNOWN}>WellKnown（直连）</SelectItem>
