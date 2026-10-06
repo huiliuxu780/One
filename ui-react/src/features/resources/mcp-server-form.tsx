@@ -64,7 +64,7 @@ export function McpServerFormDialog({ open, onOpenChange, editing, onSaved }: {
 
   return <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="max-h-[90dvh] max-w-2xl overflow-y-auto">
-      <DialogHeader><DialogTitle>{editing ? '编辑 MCP Server' : '新建 MCP Server'}</DialogTitle><DialogDescription>超时时间按秒提交；敏感 Header、查询参数及环境变量的值编辑时留空表示保持原值。</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle>{editing ? '编辑 MCP Server' : '新建 MCP Server'}</DialogTitle></DialogHeader>
       <div className="grid gap-4 sm:grid-cols-2">
         {editing?.used?.length ? <div className="sm:col-span-2 text-xs text-muted-foreground">关联智能体：{editing.used.join('、')}</div> : null}
         <div><Label htmlFor="mcp-name">名称 *</Label><Input id="mcp-name" className="mt-1.5" value={values.name} onChange={(event) => set('name', event.target.value)} /></div>

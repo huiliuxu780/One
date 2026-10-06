@@ -382,7 +382,7 @@ export function AgentEditor({ open, onOpenChange, agentId, cloneFrom, onSaved }:
       <DialogContent className="max-h-[90dvh] max-w-4xl overflow-auto">
         <DialogHeader>
           <DialogTitle>{agentId ? '编辑 Agent' : cloneFrom ? '复制 Agent' : '新建 Agent'}</DialogTitle>
-          <DialogDescription>知识库与 RAG 字段不在本前端支持范围内；提交时将原样保留后端既有值。</DialogDescription>
+          
         </DialogHeader>
 
         <Tabs defaultValue="basic">
@@ -529,7 +529,7 @@ export function AgentEditor({ open, onOpenChange, agentId, cloneFrom, onSaved }:
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
           <Button onClick={() => void submit()} disabled={busy}>
-            {busy ? '保存中…' : '保存'}
+            {busy ? (agentId ? '保存中…' : '创建中…') : (agentId ? '保存' : '创建')}
           </Button>
         </DialogFooter>
       </DialogContent>

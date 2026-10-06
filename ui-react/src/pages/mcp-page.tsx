@@ -14,7 +14,8 @@ import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/sonner'
-import { EmptyState, ErrorState, TableSkeleton } from '@/components/states'
+import { EmptyState, ErrorState, NoMatchState, TableSkeleton } from '@/components/states'
+import { SearchInput } from '@/components/search-input'
 import { readableError } from '@/lib/utils'
 import { mcpServers } from '@/api/resources'
 import type { McpServerVO, McpToolVO } from '@/types'
@@ -113,7 +114,7 @@ export function McpPage() {
     <div className="px-6 py-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">MCP</h1>
+          <h1 className="font-display text-[24px] font-bold leading-tight">MCP</h1>
           <p className="mt-1 text-sm text-muted-foreground">MCP Server 管理：激活、工具同步、全局治理与真实调试。</p>
         </div>
         <Button onClick={openCreate}>
@@ -124,10 +125,7 @@ export function McpPage() {
       <Card>
         <CardContent className="pt-5">
           <div className="mb-3 flex flex-wrap gap-2">
-            <div className="relative">
-              <MagnifyingGlass size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input className="w-64 pl-8" placeholder="按名称搜索" value={search} onChange={(event) => { setSearch(event.target.value); paged.setFilter('name', event.target.value || undefined) }} />
-            </div>
+            <SearchInput value={search} onChange={(value) => { setSearch(value); paged.setFilter('name', value || undefined) }} />
             <Select value={protocolFilter || 'all'} onValueChange={(value) => { const next = value === 'all' ? '' : value; setProtocolFilter(next); paged.setFilter('protocol', next || undefined) }}>
               <SelectTrigger className="w-36" aria-label="MCP 协议"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="all">全部协议</SelectItem><SelectItem value="HTTP">HTTP</SelectItem><SelectItem value="SSE">SSE</SelectItem><SelectItem value="STDIO">STDIO</SelectItem></SelectContent>
@@ -139,7 +137,9 @@ export function McpPage() {
           ) : paged.error ? (
             <ErrorState error={paged.error} onRetry={() => void paged.refetch()} />
           ) : rows.length === 0 ? (
-            <EmptyState title="暂无 MCP Server" description="创建一个 Server 并激活后即可同步工具。" />
+            search.trim() || protocolFilter
+              ? <NoMatchState summary="没有匹配当前搜索或协议的 MCP Server。" onClear={() => { setSearch(''); setProtocolFilter(''); paged.setFilter('name', undefined); paged.setFilter('protocol', undefined) }} />
+              : <EmptyState title="暂无 MCP Server" description="创建一个 Server 并激活后即可同步工具。" />
           ) : (
             <Table>
               <TableHeader>
@@ -248,7 +248,7 @@ export function ToolsDialog({ server, onClose }: { server: McpServerVO; onClose:
           <DialogTitle>{server.name} · 工具治理</DialogTitle>
           <DialogDescription>全局启用与人工确认开关立即生效；调试直接调用真实后端并展示原始结果。</DialogDescription>
         </DialogHeader>
-        {readOnly ? <p role="alert" className="rounded-md border border-amber-300 p-3 text-sm text-amber-800">该 MCP 因运行时自动降级处于只读状态；重新连接成功前不能修改工具或调试。</p> : null}
+        {readOnly ? <p role="alert" className="rounded-md border border-warning/40 p-3 text-sm text-warning">该 MCP 因运行时自动降级处于只读状态；重新连接成功前不能修改工具或调试。</p> : null}
         <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索工具名称或描述" aria-label="搜索 MCP 工具" />
         {toolsQuery.isLoading ? (
           <TableSkeleton rows={3} />
@@ -380,7 +380,7 @@ export function DebugDialog({ tool, onClose }: { tool: McpToolVO; onClose: () =>
             })}
           </div>
         )}
-        {result ? <div><p className={result.success ? 'text-sm text-emerald-700' : 'text-sm text-destructive'}>{result.success ? '成功' : '失败'}{result.durationMs != null ? ` · ${result.durationMs} ms` : ''}</p><pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-3 font-mono text-xs">{result.text}</pre></div> : null}
+        {result ? <div><p className={result.success ? 'text-sm text-success' : 'text-sm text-destructive'}>{result.success ? '成功' : '失败'}{result.durationMs != null ? ` · ${result.durationMs} ms` : ''}</p><pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-3 font-mono text-xs">{result.text}</pre></div> : null}
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>关闭</Button>
           <Button onClick={() => void run()} disabled={busy}>{busy ? '执行中…' : '执行调试'}</Button>

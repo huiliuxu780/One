@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ClockCounterClockwise, MagnifyingGlass, Play, Plus, Square, Trash } from '@phosphor-icons/react'
+import { ArrowLeft, ClockCounterClockwise, MagnifyingGlass, Play, Plus, Square, Trash } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -15,7 +15,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { toast } from '@/components/ui/sonner'
-import { EmptyState, ErrorState, TableSkeleton } from '@/components/states'
+import { EmptyState, ErrorState, NoMatchState, TableSkeleton } from '@/components/states'
+import { SearchInput } from '@/components/search-input'
 import { readableError } from '@/lib/utils'
 import * as automationApi from '@/api/automation'
 import * as agentsApi from '@/api/agents'
@@ -94,7 +95,7 @@ export function AutomationPage() {
     <div className="px-6 py-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">自动化</h1>
+          <h1 className="font-display text-[24px] font-bold leading-tight">自动化</h1>
           <p className="mt-1 text-sm text-muted-foreground">Agent / Workflow 定时任务：创建、启停、手动触发与执行记录。</p>
         </div>
         <Button onClick={() => { setEditing(null); setEditorOpen(true) }}>
@@ -105,10 +106,7 @@ export function AutomationPage() {
       <Card>
         <CardContent className="pt-5">
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <div className="relative w-64">
-              <MagnifyingGlass size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input className="pl-8" placeholder="按任务描述搜索" value={search} onChange={(event) => { setSearch(event.target.value); paged.setFilter('keyword', event.target.value || undefined) }} />
-            </div>
+            <SearchInput placeholder="按任务描述搜索" value={search} onChange={(value) => { setSearch(value); paged.setFilter('keyword', value || undefined) }} />
             <Select value={typeFilter || 'all'} onValueChange={(value) => { const next = value === 'all' ? '' : value; setTypeFilter(next); paged.setFilter('type', next || undefined) }}>
               <SelectTrigger className="w-40" aria-label="任务类型">
                 <SelectValue placeholder="任务类型" />
@@ -126,7 +124,9 @@ export function AutomationPage() {
           ) : paged.error ? (
             <ErrorState error={paged.error} onRetry={() => void paged.refetch()} />
           ) : rows.length === 0 ? (
-            <EmptyState title="暂无自动化任务" description="创建一个 Cron 任务，按计划运行 Agent 或工作流。" />
+            search.trim() || typeFilter
+              ? <NoMatchState summary="没有匹配当前搜索或类型的自动化任务。" onClear={() => { setSearch(''); setTypeFilter(''); paged.setFilter('keyword', undefined); paged.setFilter('type', undefined) }} />
+              : <EmptyState title="暂无自动化任务" description="创建一个 Cron 任务，按计划运行 Agent 或工作流。" />
           ) : (
             <Table>
               <TableHeader>
@@ -431,7 +431,52 @@ function RecordsSheet({ job, onClose }: { job: JobInfo; onClose: () => void }) {
           <SheetTitle className="flex items-center gap-2"><ClockCounterClockwise size={16} /> 执行记录</SheetTitle>
           <SheetDescription>目标 {job.bizId} · {job.type}</SheetDescription>
         </SheetHeader>
-        {recordsQuery.isLoading ? (
+        {detail ? (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setDetail(null)}><ArrowLeft size={13} /> 返回记录列表</Button>
+              <span className="text-sm font-medium">{detail.kind === 'AGENT' ? 'Agent 对话详情' : 'Workflow 执行详情'}</span>
+              <span className="font-mono text-xs text-muted-foreground">记录 {detail.recordId}</span>
+            </div>
+            {detail.kind === 'AGENT' ? (
+              <>
+                <div className="flex justify-end">
+                  {workspaceQuery.data ? <Button asChild variant="outline" size="sm"><Link to={`/workspace?sessionId=${encodeURIComponent(detail.recordId)}`}>打开本次执行工作空间</Link></Button> : workspaceQuery.isLoading ? <span className="text-xs text-muted-foreground">正在检查工作空间…</span> : null}
+                </div>
+                {detail.messages.length === 0 ? <p className="text-sm text-muted-foreground">暂无消息。</p> : (
+                  <div className="space-y-3">
+                    {detail.messages.map((message) => (
+                      <div key={String(message.id)} className="rounded-md border p-3">
+                        <div className="mb-1 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                          <Badge variant="outline">{message.role}</Badge>
+                          <span>{message.createdAt}</span>
+                        </div>
+                        <p className="whitespace-pre-wrap text-sm">{message.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              detail.nodes.length === 0 ? <p className="text-sm text-muted-foreground">暂无节点执行记录。</p> : (
+                <div className="space-y-3">
+                  {detail.nodes.map((node) => (
+                    <div key={String(node.id)} className="rounded-md border p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">{node.nodeTitle || node.nodeId}</span>
+                        <Badge variant="outline">{node.nodeType}</Badge>
+                        <Badge variant={node.status === 'SUCCESS' ? 'success' : 'secondary'}>{node.status}</Badge>
+                      </div>
+                      {node.error && node.error.trim() && node.error.trim() !== '{}' ? <div className="mt-2"><div className="mb-1 text-xs font-medium text-destructive">错误</div><p className="whitespace-pre-wrap text-sm text-destructive">{node.error}</p></div> : null}
+                      {node.inputs ? <JsonBlock label="输入" value={node.inputs} /> : null}
+                      {node.outputs ? <JsonBlock label="输出" value={node.outputs} /> : null}
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+          </div>
+        ) : recordsQuery.isLoading ? (
           <TableSkeleton rows={4} />
         ) : recordsQuery.error ? (
           <ErrorState error={recordsQuery.error} onRetry={() => void recordsQuery.refetch()} />
@@ -459,46 +504,23 @@ function RecordsSheet({ job, onClose }: { job: JobInfo; onClose: () => void }) {
             </TableBody>
           </Table>
         )}
-        <Dialog open={Boolean(detail)} onOpenChange={(open) => !open && setDetail(null)}>
-          <DialogContent className="max-h-[80vh] max-w-3xl overflow-auto">
-            <DialogHeader>
-              <DialogTitle>{detail?.kind === 'AGENT' ? 'Agent 对话详情' : 'Workflow 节点详情'}</DialogTitle>
-              <DialogDescription>关联记录 {detail?.recordId}</DialogDescription>
-            </DialogHeader>
-            {detail?.kind === 'AGENT' ? (
-              <><div className="mb-3 flex justify-end">{workspaceQuery.data ? <Button asChild variant="outline" size="sm"><Link to={`/workspace?sessionId=${encodeURIComponent(detail.recordId)}`}>打开本次执行工作空间</Link></Button> : workspaceQuery.isLoading ? <span className="text-xs text-muted-foreground">正在检查工作空间…</span> : null}</div>{detail.messages.length === 0 ? <p className="text-sm text-muted-foreground">暂无消息。</p> : (
-                <div className="space-y-3">
-                  {detail.messages.map((message) => (
-                    <div key={String(message.id)} className="rounded-md border p-3">
-                      <div className="mb-1 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                        <Badge variant="outline">{message.role}</Badge>
-                        <span>{message.createdAt}</span>
-                      </div>
-                      <p className="whitespace-pre-wrap text-sm">{message.content}</p>
-                    </div>
-                  ))}
-                </div>
-              )}</>
-            ) : detail?.kind === 'WORKFLOW' ? (
-              detail.nodes.length === 0 ? <p className="text-sm text-muted-foreground">暂无节点执行记录。</p> : (
-                <div className="space-y-3">
-                  {detail.nodes.map((node) => (
-                    <div key={String(node.id)} className="rounded-md border p-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium">{node.nodeTitle || node.nodeId}</span>
-                        <Badge variant="outline">{node.nodeType}</Badge>
-                        <Badge variant={node.status === 'SUCCESS' ? 'default' : 'secondary'}>{node.status}</Badge>
-                      </div>
-                      {node.error ? <p className="mt-2 text-sm text-destructive">{node.error}</p> : null}
-                      {node.outputs ? <pre className="mt-2 overflow-auto rounded bg-muted p-2 text-xs">{node.outputs}</pre> : null}
-                    </div>
-                  ))}
-                </div>
-              )
-            ) : null}
-          </DialogContent>
-        </Dialog>
+        {!detail && recordsQuery.data ? <Pagination page={page} size={recordsQuery.data.size} total={recordsQuery.data.total} onPageChange={setPage} /> : null}
       </SheetContent>
     </Sheet>
+  )
+}
+
+function JsonBlock({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false)
+  let pretty = value
+  try { pretty = JSON.stringify(JSON.parse(value), null, 2) } catch { /* 非 JSON 原文展示 */ }
+  return (
+    <div className="mt-2">
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        <Button variant="ghost" size="sm" onClick={async () => { await navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 1500) }}>{copied ? '已复制' : '复制'}</Button>
+      </div>
+      <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-2 font-mono text-xs">{pretty}</pre>
+    </div>
   )
 }

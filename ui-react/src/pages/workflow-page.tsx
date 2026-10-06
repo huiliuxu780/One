@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Copy, LockKeyOpen, Lock, MagnifyingGlass, PencilSimple, Plus, Trash } from '@phosphor-icons/react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -13,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/sonner'
-import { EmptyState, ErrorState, TableSkeleton } from '@/components/states'
+import { EmptyState, ErrorState, NoMatchState, TableSkeleton } from '@/components/states'
+import { SearchInput } from '@/components/search-input'
 import { readableError } from '@/lib/utils'
 import * as workflowApi from '@/api/workflows'
 import type { Workflow } from '@/types'
@@ -131,7 +131,7 @@ export function WorkflowPage() {
     <div className="px-6 py-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">工作流</h1>
+          <h1 className="font-display text-[24px] font-bold leading-tight">工作流</h1>
           <p className="mt-1 text-sm text-muted-foreground">React Flow 画布编辑；保存协议经 round-trip 测试约束。</p>
         </div>
         <Button onClick={() => openInfo(null)} disabled={createMutation.isPending}>
@@ -142,10 +142,7 @@ export function WorkflowPage() {
       <Card>
         <CardContent className="pt-5">
           <div className="mb-3 flex flex-wrap gap-2">
-            <div className="relative">
-              <MagnifyingGlass size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input className="pl-8" placeholder="按名称搜索" value={search} onChange={(event) => { setSearch(event.target.value); paged.setFilter('name', event.target.value || undefined) }} />
-            </div>
+            <SearchInput value={search} onChange={(value) => { setSearch(value); paged.setFilter('name', value || undefined) }} />
             <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); paged.setFilter('status', value === 'all' ? undefined : value) }}>
               <SelectTrigger className="w-36" aria-label="发布状态"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="all">全部状态</SelectItem><SelectItem value="DRAFT">草稿</SelectItem><SelectItem value="PUBLISHED">已发布</SelectItem></SelectContent>
@@ -161,7 +158,9 @@ export function WorkflowPage() {
           ) : paged.error ? (
             <ErrorState error={paged.error} onRetry={() => void paged.refetch()} />
           ) : rows.length === 0 ? (
-            <EmptyState title="暂无工作流" description="新建一个工作流，从开始节点搭建流程。" />
+            search.trim() || statusFilter !== 'all' || enabledFilter !== 'all'
+              ? <NoMatchState summary="没有匹配当前搜索或筛选条件的工作流。" onClear={() => { setSearch(''); setStatusFilter('all'); setEnabledFilter('all'); paged.setFilter('name', undefined); paged.setFilter('status', undefined); paged.setFilter('enabled', undefined) }} />
+              : <EmptyState title="暂无工作流" description="新建一个工作流，从开始节点搭建流程。" />
           ) : (
             <Table>
               <TableHeader>
@@ -180,11 +179,11 @@ export function WorkflowPage() {
                       <div className="font-medium">{row.name}</div>
                       <div className="line-clamp-1 text-xs text-muted-foreground">{row.remark}</div>
                     </TableCell>
-                    <TableCell>{row.status ? <Badge variant={row.status === 'PUBLISHED' ? 'default' : 'secondary'}>{row.status}</Badge> : '—'}</TableCell>
+                    <TableCell>{row.status ? <span className={`stat ${row.status === 'PUBLISHED' ? '' : 'off'}`}><i />{row.status === 'PUBLISHED' ? '已发布' : row.status === 'DRAFT' ? '草稿' : row.status}</span> : '—'}</TableCell>
                     <TableCell className="font-mono text-xs">{row.version ?? '—'}</TableCell>
-                    <TableCell>{row.locked ? <Badge variant="outline">已锁定</Badge> : '—'}</TableCell>
+                    <TableCell>{row.locked ? <span className="stat warn"><i />已锁定</span> : '—'}</TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
+                      <div className="flex justify-end gap-3">
                         <Button variant="ghost" size="sm" onClick={() => navigate(`/workflow/${row.id}/edit`)}>
                           <PencilSimple size={13} /> 设计
                         </Button>
@@ -223,9 +222,9 @@ export function WorkflowPage() {
       </Dialog>
 
       {forceTarget ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4" onClick={() => setForceTarget(null)}>
-          <div className="w-full max-w-md rounded-xl border border-border bg-background p-6 shadow-dialog" onClick={(event) => event.stopPropagation()}>
-            <h3 className="text-lg font-semibold">仍被引用，确认强制删除？</h3>
+        <div className="fixed inset-0 z-50 grid place-items-center bg-foreground/40 p-4" onClick={() => setForceTarget(null)}>
+          <div className="w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-dialog" onClick={(event) => event.stopPropagation()}>
+            <h3 className="font-display text-lg font-semibold">仍被引用，确认强制删除？</h3>
             <p className="mt-2 text-sm text-muted-foreground">工作流 {forceTarget.name} 仍被其他配置引用。强制删除可能导致引用方运行失败，操作不可恢复。</p>
             <div className="mt-4 flex justify-end gap-2">
               <Button variant="outline" onClick={() => setForceTarget(null)}>取消</Button>

@@ -17,7 +17,8 @@ import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/sonner'
-import { EmptyState, ErrorState, TableSkeleton } from '@/components/states'
+import { EmptyState, ErrorState, NoMatchState, TableSkeleton } from '@/components/states'
+import { SearchInput } from '@/components/search-input'
 import { CodeEditor } from '@/components/editor/code-editor'
 import { readableError } from '@/lib/utils'
 import { skills, tools } from '@/api/resources'
@@ -126,7 +127,7 @@ export function SkillPage() {
     <div className="px-6 py-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">技能</h1>
+          <h1 className="font-display text-[24px] font-bold leading-tight">技能</h1>
           <p className="mt-1 text-sm text-muted-foreground">技能包管理：本地/Git/ZIP 导入、文件树编辑、工具关联与打包下载。</p>
         </div>
         <div className="flex gap-2">
@@ -143,10 +144,7 @@ export function SkillPage() {
       <Card>
         <CardContent className="pt-5">
           <div className="mb-3 flex flex-wrap gap-2">
-            <div className="relative">
-              <MagnifyingGlass size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input className="w-64 pl-8" placeholder="按名称搜索" value={search} onChange={(event) => { setSearch(event.target.value); paged.setFilter('name', event.target.value || undefined) }} />
-            </div>
+            <SearchInput value={search} onChange={(value) => { setSearch(value); paged.setFilter('name', value || undefined) }} />
             <Input className="w-44" aria-label="分类" placeholder="分类" value={category} onChange={(event) => { setCategory(event.target.value); paged.setFilter('category', event.target.value || undefined) }} />
           </div>
 
@@ -155,7 +153,9 @@ export function SkillPage() {
           ) : paged.error ? (
             <ErrorState error={paged.error} onRetry={() => void paged.refetch()} />
           ) : rows.length === 0 ? (
-            <EmptyState title="暂无技能" description="通过导入或新建创建技能包。" />
+            search.trim() || category.trim()
+              ? <NoMatchState summary="没有匹配当前搜索或分类的技能。" onClear={() => { setSearch(''); setCategory(''); paged.setFilter('name', undefined); paged.setFilter('category', undefined) }} />
+              : <EmptyState title="暂无技能" description="通过导入或新建创建技能包。" />
           ) : (
             <Table>
               <TableHeader>

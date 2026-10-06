@@ -29,11 +29,22 @@ export function EmptyState({ title, description, action }: { title: string; desc
   return (
     <div className="grid min-h-[30dvh] place-items-center px-6 text-center">
       <div className="max-w-sm space-y-2">
-        <div className="text-sm font-medium">{title}</div>
+        <div className="font-display font-display text-base font-semibold">{title}</div>
         {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
         {action ? <div className="pt-2">{action}</div> : null}
       </div>
     </div>
+  )
+}
+
+/** 搜索/筛选无匹配态：与“集合确实为空”区分，保留条件并提供一键清除。 */
+export function NoMatchState({ summary, onClear }: { summary: string; onClear: () => void }) {
+  return (
+    <EmptyState
+      title="未找到匹配结果"
+      description={summary}
+      action={<Button variant="outline" size="sm" onClick={onClear}>清除条件</Button>}
+    />
   )
 }
 

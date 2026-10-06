@@ -23,7 +23,7 @@ export function AgentDetails({ agent, onClose }: { agent: AgentDefinitionVO; onC
   return (
     <Sheet open onOpenChange={(open) => !open && onClose()}>
       <SheetContent side="right" className="w-full overflow-auto sm:max-w-4xl">
-        <SheetHeader><SheetTitle>{agent.name}</SheetTitle><SheetDescription>{agent.agentCode} · 真实后端配置、访问与运行数据</SheetDescription></SheetHeader>
+        <SheetHeader><SheetTitle>{agent.name}</SheetTitle><SheetDescription>{agent.agentCode} · 实时配置与运行数据</SheetDescription></SheetHeader>
         <Tabs defaultValue="architecture" className="p-4 pt-2">
           <TabsList className="flex-wrap">
             <TabsTrigger value="architecture">架构</TabsTrigger>
@@ -118,7 +118,7 @@ function ArchitecturePanel({ agentId }: { agentId: string }) {
           </div>
         ))}
       </div>
-      <p className="mt-4 text-xs text-muted-foreground">关系来自 Agent 详情与各资源详情接口；知识库关系按本项目范围不展示。</p>
+      
     </div>
   )
 }

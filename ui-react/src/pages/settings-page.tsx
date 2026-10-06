@@ -41,7 +41,7 @@ export function SettingsPage() {
   const tab = ['accounts', 'apikeys', 'params', 'intro'].includes(searchParams.get('tab') || '') ? searchParams.get('tab')! : 'accounts'
   return (
     <div className="px-6 py-6">
-      <h1 className="text-xl font-semibold tracking-tight">设置</h1>
+      <h1 className="font-display text-[24px] font-bold leading-tight">设置</h1>
       <p className="mb-4 mt-1 text-sm text-muted-foreground">账号管理、API Key、系统参数与系统介绍。</p>
       <Tabs value={tab} onValueChange={(value) => setSearchParams(value === 'accounts' ? {} : { tab: value }, { replace: true })}>
         <TabsList>
@@ -214,13 +214,13 @@ function AccountsTab() {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>新建账号</DialogTitle>
-              <DialogDescription>账号直接加入当前默认组织；不开放组织创建或申请入口。</DialogDescription>
+              <DialogDescription>账号直接加入当前默认组织。</DialogDescription>
             </DialogHeader>
             <div className="grid gap-3">
-              <div><Label htmlFor="account-nickname">昵称</Label><Input id="account-nickname" value={createValues.nickname} onChange={(event) => setCreateValues((value) => ({ ...value, nickname: event.target.value }))} /></div>
-              <div><Label htmlFor="account-username">账号</Label><Input id="account-username" autoComplete="off" value={createValues.username} onChange={(event) => setCreateValues((value) => ({ ...value, username: event.target.value }))} /></div>
-              <div><Label htmlFor="account-email">邮箱</Label><Input id="account-email" type="email" value={createValues.email} onChange={(event) => setCreateValues((value) => ({ ...value, email: event.target.value }))} /></div>
-              <div><Label htmlFor="account-password">初始密码</Label><Input id="account-password" type="password" autoComplete="new-password" value={createValues.password} onChange={(event) => setCreateValues((value) => ({ ...value, password: event.target.value }))} /></div>
+              <div><Label htmlFor="account-nickname">昵称 *</Label><Input id="account-nickname" value={createValues.nickname} onChange={(event) => setCreateValues((value) => ({ ...value, nickname: event.target.value }))} /></div>
+              <div><Label htmlFor="account-username">账号 *</Label><Input id="account-username" autoComplete="off" value={createValues.username} onChange={(event) => setCreateValues((value) => ({ ...value, username: event.target.value }))} /></div>
+              <div><Label htmlFor="account-email">邮箱 *</Label><Input id="account-email" type="email" value={createValues.email} onChange={(event) => setCreateValues((value) => ({ ...value, email: event.target.value }))} /></div>
+              <div><Label htmlFor="account-password">初始密码 *</Label><Input id="account-password" type="password" autoComplete="new-password" value={createValues.password} onChange={(event) => setCreateValues((value) => ({ ...value, password: event.target.value }))} /></div>
             </div>
             <DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)}>取消</Button><Button disabled={busy || !createValues.nickname.trim() || !createValues.username.trim() || !createValues.email.includes('@') || createValues.password.length < 6} onClick={() => void createAccount()}>{busy ? '创建中…' : '创建'}</Button></DialogFooter>
           </DialogContent>
@@ -248,9 +248,9 @@ function SystemIntroTab() {
   return (
     <Card>
       <CardContent className="space-y-5 pt-6">
-        <div><h2 className="text-lg font-semibold">Apboa Next</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">面向智能体创建、对话、资源管理、自动化、API 服务与工作流编排的开发平台。当前控制台采用 React、TypeScript、Vite、shadcn/ui 与 React Flow，后端继续复用 Java、Spring Boot 和 AgentScope。</p></div>
+        <div><h2 className="font-display text-lg font-semibold">Apboa Next</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">面向智能体创建、对话、资源管理、自动化、API 服务与工作流编排的开发平台。当前控制台采用 React、TypeScript、Vite、shadcn/ui 与 React Flow，后端继续复用 Java、Spring Boot 和 AgentScope。</p></div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {[['智能体与对话', '支持子 Agent、Agent-as-Tool、A2A、流式消息、工具确认与文件交互。'], ['资源管理', '统一管理模型、技能、工具、MCP、Hook、提示词、敏感词和记忆配置。'], ['编排与运行', '提供自动化任务、API 服务、看板和工作流设计、发布、运行及调试。']].map(([title, description]) => <div key={title} className="rounded-xl border border-border p-4"><div className="font-medium">{title}</div><p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p></div>)}
+          {[['智能体与对话', '支持子 Agent、Agent-as-Tool、A2A、流式消息、工具确认与文件交互。'], ['资源管理', '统一管理模型、技能、工具、MCP、Hook、提示词、敏感词和记忆配置。'], ['编排与运行', '提供自动化任务、API 服务、看板和工作流设计、发布、运行及调试。']].map(([title, description]) => <div key={title} className="rounded-lg border border-border p-4"><div className="font-medium">{title}</div><p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p></div>)}
         </div>
         <div className="rounded-lg bg-muted/50 p-4 text-sm leading-6 text-muted-foreground">当前部署固定使用默认组织，组织切换、申请、审批和组织管理入口已隐藏；知识库与本地 RAG 不在本版本范围内。后端租户上下文、权限检查和登录鉴权仍保留。</div>
       </CardContent>
