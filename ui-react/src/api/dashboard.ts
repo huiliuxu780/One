@@ -62,8 +62,12 @@ export const gatewayApis = {
   remove: (ids: string[]) => apiClient.delete<ApiResponse<boolean>>('/api/gateway/api', { data: ids }),
   online: (id: string, v: number) => apiClient.put<ApiResponse<boolean>>(`/api/gateway/api/${id}/online/${v}`),
   categories: () => apiClient.get<ApiResponse<string[]>>('/api/gateway/api/categories'),
+  /** 日志筛选用的 API 简要列表（与 Vue getBriefApis 一致） */
+  brief: () => apiClient.get<ApiResponse<GatewayApi[]>>('/api/gateway/api/brief'),
 }
 
 export const accessLogs = {
   page: (query: Record<string, unknown>) => apiClient.get<ApiResponse<GatewayPageResult<GatewayAccessLog>>>('/api/gateway/access-log/page', { params: query }),
+  /** 列表仅返回摘要列；请求/响应正文等大字段只能由详情接口取得 */
+  detail: (id: string) => apiClient.get<ApiResponse<GatewayAccessLog>>(`/api/gateway/access-log/${id}`),
 }

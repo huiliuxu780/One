@@ -33,45 +33,44 @@ interface NavigationItem {
   label: string
   icon: React.ComponentType<{ size?: number; weight?: 'duotone' | 'fill' | 'regular' }>
   to?: string
-  enabled?: boolean
   /** 能力要求；声明后不满足的角色直接隐藏入口（路由仍有 capability 守卫）。 */
   capability?: Capability
 }
 
 const primaryNavigation: NavigationItem[] = [
-  { label: '智能体', to: '/agent', icon: Robot, enabled: true },
-  { label: '对话', to: '/chat', icon: Hexagon, enabled: true, capability: 'chat:use' },
-  { label: '对话广场', to: '/chat-cluster', icon: House, enabled: true },
-  { label: '会话历史', to: '/chat-history', icon: ClockCounterClockwise, enabled: true },
-  { label: '工作流', to: '/workflow', icon: FlowArrow, enabled: true },
-  { label: '工作流资源', to: '/workflow-resources', icon: Database, enabled: true, capability: 'workflow:manage' },
-  { label: '自动化', to: '/automation', icon: ClockCounterClockwise, enabled: true },
+  { label: '智能体', to: '/agent', icon: Robot },
+  { label: '对话', to: '/chat', icon: Hexagon, capability: 'chat:use' },
+  { label: '对话广场', to: '/chat-cluster', icon: House },
+  { label: '会话历史', to: '/chat-history', icon: ClockCounterClockwise },
+  { label: '工作流', to: '/workflow', icon: FlowArrow },
+  { label: '工作流资源', to: '/workflow-resources', icon: Database, capability: 'workflow:manage' },
+  { label: '自动化', to: '/automation', icon: ClockCounterClockwise },
 ]
 
 const resourceNavigation: NavigationItem[] = [
-  { label: '模型', to: '/model', icon: PlugsConnected, enabled: true, capability: 'resource:manage' },
-  { label: '技能', to: '/skill', icon: Toolbox, enabled: true, capability: 'resource:manage' },
-  { label: '工具', to: '/tool', icon: Wrench, enabled: true, capability: 'resource:manage' },
-  { label: 'MCP', to: '/mcp', icon: Pulse, enabled: true, capability: 'resource:manage' },
-  { label: 'Hook', to: '/hook', icon: Lightning, enabled: true, capability: 'resource:manage' },
+  { label: '模型', to: '/model', icon: PlugsConnected, capability: 'resource:manage' },
+  { label: '技能', to: '/skill', icon: Toolbox, capability: 'resource:manage' },
+  { label: '工具', to: '/tool', icon: Wrench, capability: 'resource:manage' },
+  { label: 'MCP', to: '/mcp', icon: Pulse, capability: 'resource:manage' },
+  { label: 'Hook', to: '/hook', icon: Lightning, capability: 'resource:manage' },
 ]
 
 const assetNavigation: NavigationItem[] = [
-  { label: '工作空间', to: '/workspace', icon: Database, enabled: true },
-  { label: '提示词', to: '/prompt', icon: ListChecks, enabled: true, capability: 'resource:manage' },
-  { label: '敏感词', to: '/sensitive', icon: ShieldCheck, enabled: true, capability: 'resource:manage' },
-  { label: '长期记忆', to: '/memory', icon: Database, enabled: true, capability: 'resource:manage' },
-  { label: '代码执行', to: '/code-execution', icon: Monitor, enabled: true, capability: 'resource:manage' },
-  { label: 'Studio', to: '/studio', icon: Gear, enabled: true, capability: 'resource:manage' },
-  { label: '设置', to: '/settings', icon: UserCircle, enabled: true },
-  { label: '运维', to: '/ops', icon: Monitor, enabled: true, capability: 'ops:manage' },
+  { label: '工作空间', to: '/workspace', icon: Database },
+  { label: '提示词', to: '/prompt', icon: ListChecks, capability: 'resource:manage' },
+  { label: '敏感词', to: '/sensitive', icon: ShieldCheck, capability: 'resource:manage' },
+  { label: '长期记忆', to: '/memory', icon: Database, capability: 'resource:manage' },
+  { label: '代码执行', to: '/code-execution', icon: Monitor, capability: 'resource:manage' },
+  { label: 'Studio', to: '/studio', icon: Gear, capability: 'resource:manage' },
+  { label: '设置', to: '/settings', icon: UserCircle },
+  { label: '运维', to: '/ops', icon: Monitor, capability: 'ops:manage' },
 ]
 
 const integrationNavigation: NavigationItem[] = [
-  { label: '工作台', to: '/dashboard', icon: House, enabled: true },
-  { label: 'API 服务', to: '/api-service', icon: PlugsConnected, enabled: true },
-  { label: '审查', to: '/review', icon: ShieldCheck, enabled: true },
-  { label: '使用手册', to: '/docs', icon: BookOpen, enabled: true },
+  { label: '工作台', to: '/dashboard', icon: House },
+  { label: 'API 服务', to: '/api-service', icon: PlugsConnected },
+  { label: '审查', to: '/review', icon: ShieldCheck },
+  { label: '使用手册', to: '/docs', icon: BookOpen },
 ]
 
 export function AppShell() {
@@ -92,15 +91,6 @@ export function AppShell() {
         {items.map((item) => {
           const Icon = item.icon
           if (item.capability && !can(item.capability)) return null
-          if (!item.enabled) {
-            return (
-              <div key={item.label} className="flex h-10 cursor-not-allowed items-center gap-3 rounded-lg px-3 text-sm text-sidebar-muted" title="迁移中">
-                <Icon size={18} />
-                <span className={cn(collapsed && 'sr-only')}>{item.label}</span>
-                {!collapsed ? <span className="ml-auto text-[10px]">迁移中</span> : null}
-              </div>
-            )
-          }
           return (
             <NavLink
               key={item.label}

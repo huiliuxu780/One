@@ -35,3 +35,8 @@ export function checkWorkflowResource(kind: WorkflowResourceKind, entity: Workfl
 export function checkSavedWorkflowResource(kind: WorkflowResourceKind, id: string) {
   return apiClient.post<ApiResponse<boolean>>(`${endpoints[kind]}/${id}/check/connect`)
 }
+
+/** 四类资源总数与启用数汇总（Vue 工作流列表“资源维护”徽标数据源） */
+export function workflowResourcesSummary() {
+  return apiClient.get<ApiResponse<Record<string, number>>>('/api/workflow/resources/summary')
+}

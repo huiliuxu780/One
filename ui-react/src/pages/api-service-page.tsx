@@ -427,17 +427,50 @@ function ApiFormDialog({ open, onOpenChange, editing, onSaved }: {
 
 function LogsTab() {
   const [page, setPage] = useState(1)
-  const [detail, setDetail] = useState<GatewayAccessLog | null>(null)
+  const [apiFilter, setApiFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const briefQuery = useQuery({
+    queryKey: ['list', 'gateway-api', 'brief'],
+    queryFn: async () => (await gatewayApis.brief()).data.data ?? [],
+  })
   const listQuery = useQuery({
-    queryKey: ['list', 'gateway-access-log', page],
-    queryFn: async () => (await accessLogs.page({ page, size: 20 })).data.data as GatewayPageResult<GatewayAccessLog>,
+    queryKey: ['list', 'gateway-access-log', page, apiFilter, statusFilter],
+    queryFn: async () => (await accessLogs.page({ page, size: 20, apiId: apiFilter || undefined, status: statusFilter === '' ? undefined : Number(statusFilter) })).data.data as GatewayPageResult<GatewayAccessLog>,
+  })
+  const detailQuery = useQuery({
+    queryKey: ['detail', 'gateway-access-log', detailId],
+    queryFn: async () => (await accessLogs.detail(detailId!)).data.data,
+    enabled: Boolean(detailId),
   })
 
   const rows = listQuery.data?.records ?? []
+  const detail = detailQuery.data
 
   return (
     <Card>
       <CardContent className="pt-5">
+        <div className="mb-3 flex flex-wrap gap-2">
+          <Select value={apiFilter || 'all'} onValueChange={(value) => { setApiFilter(value === 'all' ? '' : value); setPage(1) }}>
+            <SelectTrigger className="w-56" aria-label="按 API 筛选">
+              <SelectValue placeholder="全部 API" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部 API</SelectItem>
+              {(briefQuery.data ?? []).map((api) => <SelectItem key={String(api.id)} value={String(api.id)}>{api.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter || 'all'} onValueChange={(value) => { setStatusFilter(value === 'all' ? '' : value); setPage(1) }}>
+            <SelectTrigger className="w-32" aria-label="按结果筛选">
+              <SelectValue placeholder="全部结果" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部结果</SelectItem>
+              <SelectItem value="1">成功</SelectItem>
+              <SelectItem value="0">失败</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         {listQuery.isLoading ? (
           <TableSkeleton rows={4} />
         ) : listQuery.error ? (
@@ -464,7 +497,7 @@ function LogsTab() {
                     <TableCell className="font-mono text-xs">{row.accessIp ?? '—'}</TableCell>
                     <TableCell><Badge variant={row.httpStatus === 200 ? 'default' : 'outline'}>{row.httpStatus ?? '—'}</Badge></TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => setDetail(row)}>查看</Button>
+                      <Button variant="ghost" size="sm" onClick={() => setDetailId(String(row.id))}>查看</Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -474,21 +507,50 @@ function LogsTab() {
           </>
         )}
 
-        <Dialog open={Boolean(detail)} onOpenChange={(open) => !open && setDetail(null)}>
-          <DialogContent className="max-w-2xl">
+        <Dialog open={Boolean(detailId)} onOpenChange={(open) => !open && setDetailId(null)}>
+          <DialogContent className="max-h-[85vh] max-w-2xl overflow-auto">
             <DialogHeader>
               <DialogTitle>访问日志详情</DialogTitle>
-              <DialogDescription>请求与响应原文，用于排查网关调用问题。</DialogDescription>
+              <DialogDescription>列表仅返回摘要；请求与响应正文由详情接口实时读取。</DialogDescription>
             </DialogHeader>
-            {detail ? (
-              <pre className="max-h-80 overflow-auto rounded-lg bg-muted p-3 font-mono text-xs">{JSON.stringify(detail, null, 2).slice(0, 10000)}</pre>
+            {detailQuery.isLoading ? (
+              <TableSkeleton rows={4} />
+            ) : detailQuery.error ? (
+              <ErrorState error={detailQuery.error} onRetry={() => void detailQuery.refetch()} />
+            ) : detail ? (
+              <div className="space-y-3 text-sm">
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div><span className="text-muted-foreground">请求：</span><span className="font-mono">{detail.method} {detail.path}</span></div>
+                  <div><span className="text-muted-foreground">来源 IP：</span><span className="font-mono">{detail.accessIp ?? '—'}</span></div>
+                  <div><span className="text-muted-foreground">状态：</span>{detail.httpStatus ?? '—'} {detail.status === 1 ? '成功' : '失败'}</div>
+                  <div><span className="text-muted-foreground">耗时：</span>{detail.startTime && detail.endTime ? `${detail.endTime - detail.startTime} ms` : '—'}</div>
+                  <div className="col-span-2"><span className="text-muted-foreground">工作流运行：</span><span className="font-mono">{detail.workflowRunId ?? '—'}</span></div>
+                </div>
+                {detail.error ? <LogBlock label="错误信息" value={detail.error} tone="error" /> : null}
+                {detail.pathParams ? <LogBlock label="Path 参数" value={detail.pathParams} /> : null}
+                {detail.queryParams ? <LogBlock label="Query 参数" value={detail.queryParams} /> : null}
+                {detail.headerParams ? <LogBlock label="Header 参数" value={detail.headerParams} /> : null}
+                {detail.requestBody ? <LogBlock label="请求体" value={detail.requestBody} /> : null}
+                {detail.responseBody ? <LogBlock label="响应体" value={detail.responseBody} /> : null}
+              </div>
             ) : null}
             <DialogFooter>
-              <Button variant="outline" onClick={() => setDetail(null)}>关闭</Button>
+              <Button variant="outline" onClick={() => setDetailId(null)}>关闭</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </CardContent>
     </Card>
+  )
+}
+
+function LogBlock({ label, value, tone }: { label: string; value: string; tone?: 'error' }) {
+  let pretty = value
+  try { pretty = JSON.stringify(JSON.parse(value), null, 2) } catch { /* 非 JSON 时原文展示 */ }
+  return (
+    <div>
+      <div className={`mb-1 text-xs font-medium ${tone === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>{label}</div>
+      <pre className={`max-h-56 overflow-auto rounded-lg p-3 font-mono text-xs ${tone === 'error' ? 'bg-destructive/5 text-destructive' : 'bg-muted'}`}>{pretty}</pre>
+    </div>
   )
 }
