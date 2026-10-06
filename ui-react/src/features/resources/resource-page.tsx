@@ -47,6 +47,10 @@ export function resourceEditFieldValue(field: FieldDef, raw: unknown): unknown {
   return raw ?? field.defaultValue ?? (field.type === 'switch' ? false : '')
 }
 
+export function requiredFieldMissing(field: FieldDef, raw: unknown) {
+  return Boolean(field.required && (raw === undefined || raw === null || (typeof raw === 'string' && !raw.trim()) || (Array.isArray(raw) && raw.length === 0)))
+}
+
 export function FormFieldRenderer({
   field,
   value,
@@ -184,6 +188,10 @@ function ResourceFormDialog<T extends { id?: string | number }>({
       const payload: Record<string, unknown> = { ...(editing as Record<string, unknown> | null), ...values }
       for (const field of def.form) {
         const raw = payload[field.name]
+        if (requiredFieldMissing(field, raw)) {
+          toast.error(`请填写${field.label}`)
+          return
+        }
         if (field.type === 'json') {
           if (typeof raw === 'string') {
             const text = raw.trim()
@@ -217,7 +225,7 @@ function ResourceFormDialog<T extends { id?: string | number }>({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-h-[90dvh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editing ? `编辑${def.title}` : `新建${def.title}`}</DialogTitle>
           <DialogDescription>{def.description}</DialogDescription>

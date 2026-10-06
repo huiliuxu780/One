@@ -116,6 +116,7 @@ function AppsTab() {
                         <Button variant="ghost" size="sm" disabled={busy} onClick={() => void toggle(row)}>{row.online ? '下线' : '上线'}</Button>
                         <Button variant="ghost" size="sm" onClick={() => setEditing(row)}>编辑</Button>
                         <Button variant="ghost" size="sm" className="text-destructive" onClick={async () => {
+                          if (!window.confirm(`确认删除网关应用“${row.name}”？其下 API 可能因此不可用。`)) return
                           try {
                             await gatewayApps.remove([String(row.id)])
                             toast.success('已删除')
@@ -307,6 +308,7 @@ function ApisTab() {
                         <Button variant="ghost" size="sm" disabled={busy} onClick={() => void toggle(row)}>{row.online ? '下线' : '上线'}</Button>
                         <Button variant="ghost" size="sm" onClick={() => setEditing(row)}>编辑</Button>
                         <Button variant="ghost" size="sm" className="text-destructive" onClick={async () => {
+                          if (!window.confirm(`确认删除 API“${row.name}”（${row.method} ${row.path}）？`)) return
                           try {
                             await gatewayApis.remove([String(row.id)])
                             toast.success('已删除')

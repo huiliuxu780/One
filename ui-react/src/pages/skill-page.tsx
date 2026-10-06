@@ -65,6 +65,7 @@ export function SkillPage() {
   const rows = paged.data?.records ?? []
 
   async function removeSkill(row: SkillPackageVO) {
+    if (!window.confirm(`确认删除技能“${row.name}”？该操作不可撤销。`)) return
     setBusy(true)
     try {
       const used = await skills.usedWithAgent([String(row.id)])
@@ -459,6 +460,7 @@ function SkillFilesDialog({ skill, onClose }: { skill: SkillPackageVO; onClose: 
   }
 
   async function deleteNode(node: SkillFileTreeNode) {
+    if (!window.confirm(`确认删除${node.directory ? '目录及其内容' : '文件'}“${node.path}”？该操作不可撤销。`)) return
     setBusy(true)
     try {
       if (node.fileId) await skills.deleteDbFile(node.fileId)

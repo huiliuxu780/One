@@ -56,6 +56,7 @@ export function WorkflowPage() {
   }
 
   async function removeWorkflow(row: Workflow) {
+    if (!window.confirm(`确认删除工作流“${row.name}”？未被引用时会立即永久删除。`)) return
     try {
       const used = await workflowApi.usedWithAgent([String(row.id)])
       if (used.data.data?.length) {

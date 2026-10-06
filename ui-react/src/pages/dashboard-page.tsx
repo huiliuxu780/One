@@ -310,6 +310,7 @@ function DatasetsTab() {
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => setEditing(row)}>编辑</Button>
                         <Button variant="ghost" size="sm" className="text-destructive" onClick={async () => {
+                          if (!window.confirm(`确认删除数据集“${row.name}”？已绑定该数据集的看板面板可能失效。`)) return
                           try {
                             await datasets.remove([String(row.id)])
                             toast.success('已删除')

@@ -161,6 +161,7 @@ export function WorkspacePage() {
   }
 
   async function removeOne(node: WorkspaceFileNode) {
+    if (!window.confirm(`确认从当前会话工作空间删除${node.directory ? '目录及其内容' : '文件'}“${node.path}”？该操作不可恢复。`)) return
     try {
       await workspaceApi.deleteFile(sessionId, node.path)
       toast.success('已删除')

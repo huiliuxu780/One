@@ -270,6 +270,7 @@ function ApiKeysTab() {
   }
 
   async function remove(key: SecretKeyVO) {
+    if (!window.confirm(`确认删除 API Key“${key.name}”？使用该密钥的客户端将立即失效。`)) return
     try {
       await secretKeys.remove([String(key.id)])
       toast.success('已删除')
@@ -402,6 +403,7 @@ function ParamsTab() {
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="sm" onClick={() => setEditing(row)}>编辑</Button>
                         <Button variant="ghost" size="sm" className="text-destructive" onClick={async () => {
+                          if (!window.confirm(`确认删除系统参数“${row.paramName}（${row.paramKey}）”？依赖该参数的功能可能立即失效。`)) return
                           try {
                             await systemParams.remove([String(row.id)])
                             toast.success('已删除')

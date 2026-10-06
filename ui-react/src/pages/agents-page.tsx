@@ -63,6 +63,8 @@ export function AgentsPage() {
   }
 
   async function handleDelete(agents: AgentDefinitionVO[]) {
+    const label = agents.length === 1 ? `智能体“${agents[0]?.name || agents[0]?.agentCode || agents[0]?.id}”` : `${agents.length} 个智能体`
+    if (!window.confirm(`确认删除${label}？该操作不可撤销。`)) return
     const ids = agents.map((agent) => String(agent.id))
     try {
       const used = await usedWithAgent(ids)

@@ -142,11 +142,14 @@ export function McpPage() {
                         <Button variant="ghost" size="sm" onClick={() => { setEditing(server); setFormOpen(true) }}>
                           编辑
                         </Button>
-                        <Button variant="ghost" size="sm" className="text-destructive" disabled={busy} onClick={() => void rowAction('删除', async () => {
+                        <Button variant="ghost" size="sm" className="text-destructive" disabled={busy} onClick={() => {
+                          if (!window.confirm(`确认删除 MCP Server“${server.name}”？该操作不可撤销。`)) return
+                          void rowAction('删除', async () => {
                           const used = await mcpServers.usedWithAgent([String(server.id)])
                           if (used.data.data?.length) throw new Error(`仍被 ${used.data.data.length} 处引用`)
                           await mcpServers.remove([String(server.id)])
-                        })}>
+                          })
+                        }}>
                           删除
                         </Button>
                       </div>

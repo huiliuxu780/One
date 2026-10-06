@@ -157,7 +157,10 @@ export function AutomationPage() {
                           切换
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => { setEditing(job); setEditorOpen(true) }}>编辑</Button>
-                        <Button variant="ghost" size="sm" className="text-destructive" disabled={busy} onClick={() => void action('删除', job, automationApi.deleteJob)}>
+                        <Button variant="ghost" size="sm" className="text-destructive" disabled={busy} onClick={() => {
+                          if (!window.confirm(`确认删除目标为“${job.bizId}”的自动化任务？执行记录不会用于恢复该任务。`)) return
+                          void action('删除', job, automationApi.deleteJob)
+                        }}>
                           <Trash size={13} />
                         </Button>
                       </div>
