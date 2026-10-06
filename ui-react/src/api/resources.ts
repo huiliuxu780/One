@@ -111,8 +111,11 @@ export const skills = {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
-  downloadFileUrl: (skillId: string, path: string) => `/api/skill/${skillId}/download?path=${encodeURIComponent(path)}`,
-  downloadZipUrl: (skillId: string) => `/api/skill/${skillId}/download-zip`,
+  allowedExtensions: () => get<string[]>('/api/skill/allowed-extensions'),
+  downloadFile: (skillId: string, path: string) =>
+    apiClient.get<Blob>(`/api/skill/${skillId}/download`, { params: { path }, responseType: 'blob' }),
+  downloadZip: (skillId: string) =>
+    apiClient.get<Blob>(`/api/skill/${skillId}/download-zip`, { responseType: 'blob' }),
   syncToFile: (skillId: string) => post<boolean>(`/api/skill/${skillId}/sync-to-file`),
 }
 

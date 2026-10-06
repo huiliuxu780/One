@@ -76,7 +76,7 @@
 | --- | --- | --- | --- | --- | --- |
 | `views/Model/` | 供应商/模型 CRUD、连通性测试、密钥留空不修改 | model API | `model-page.tsx` | 已迁移未验证 | DashScope OpenAI 兼容模式两模型曾连接成功；补齐供应商类型选择与默认 URL、模型类型枚举选择、Vue 新建默认参数及鉴权模式的条件校验。本轮再补必填数值、Vue 数值范围和 Seed 数字输入的提交前校验；保存行为待回归 |
 | `/model/:providerId/config` 深链 | 打开供应商下的模型配置 | — | `?providerId=` | 已验证 | 旧重定向误入供应商页签已修复；部署后的页面确认显示该供应商下两条真实模型，本地新建表单预选该供应商；模型保存仍属上一行未验证范围 |
-| `views/Skill/` | 新建/导入（本地/Git/ZIP）/文件树编辑/工具关联/下载/同步/分类筛选/启停 | skill API | `skill-page.tsx` | 已迁移未验证 | 本轮补齐搜索、分类筛选与引用提醒后的启停；真实后端当前技能列表为空，未形成启停回归证据 |
+| `views/Skill/` | 新建/导入（本地/Git/ZIP）/文件树编辑/工具关联/下载/同步/分类筛选/启停 | skill API | `skill-page.tsx`、`skill-hub-sheet.tsx` | 已迁移未验证 | 真实后端当前技能列表为空，未形成文件树和启停的真实操作回归。后续审计修复表单重开旧值、空名称提交、Git Token 草稿清理；文件管理增加子目录新建/上传、未保存切换与离开提示、扩展名和 500 KB 限制、鉴权下载与同步状态；SkillHub 补来源/分类/排序筛选，浏览器用真实市场数据验证分类从混合结果缩为开发编程结果。工具关联原把业务 `toolId` 提交给后端 `List<Long>`，现改为记录 `id` 并新增契约测试；真实关联保存仍待回归 |
 | `/skill/new` 深链 | 打开新建弹窗 | — | `?action=new` | 已验证 | 生产深链打开新建技能弹窗；Vue 是整页+弹窗，React 等价为弹窗 |
 | `/skill/hub` 深链 | 打开 SkillHub | — | `?hub=1` | 已验证 | 生产深链打开真实 SkillHub 列表；React 为 Sheet，搜索/导入一致 |
 | `/skill/:id/edit` 深链 | 打开指定技能编辑 | `/api/skill/{id}`、`/tree` | `?edit=ID` → 文件管理 Sheet | 已验证 | Vue 为整页文件树+Monaco；React 为文件树+CodeMirror Sheet，无效 ID 显示后端明确错误而非静默空壳 |
@@ -85,6 +85,7 @@
 | `/mcp/:serverId/tools` 深链 | 打开指定 Server 工具治理 | `/api/mcp/server/{id}`、`/tools` | `?tools=ID` | 已验证 | 生产深链已回归；无效 ID 显示后端明确错误（Vue 静默空态） |
 | `views/Hook/`、`views/Prompt/`、`views/Sensitive/` 等 | CRUD/占用检查/筛选/启停 | 对应 API | `resource-pages.tsx` | 已迁移未验证 | 已加占用二次确认和详情加载；本轮补齐 Vue 必填字段、敏感词替换文本校验和多值输入。本地浏览器确认 `alpha,beta` 成为两枚独立词项且未提交；部署后 Hook/Prompt/Sensitive 各自对未占用演示记录启停往返成功并恢复原状态，逐资源保存待回归 |
 | 长期记忆配置 | MEM0/ReMe/百炼专属字段、记忆控制模式、保存 | long-term-memory API | `memory-form.tsx` | 已迁移未验证 | 旧 React 仅提供原始 JSON，现按 Vue 协议构建 `config`；真实后端已打开现有 MEM0 编辑表单并验证密钥不回显，三个类型的字段和序列化单测通过，保存及外部连接未验证 |
+| 代码执行配置与 Studio | 配置 CRUD、占用检查及 Agent 选择 | code-execution/studio API | `resource-pages.tsx` | 已迁移未验证 | 对照 Vue 表单字段、默认值和接口路径做静态核对；React 代码执行页额外开放了 Vue 隐藏的目录/自动上传字段。真实保存、引用阻止删除及 Agent 使用未回归 |
 | `views/Mcp/`、`views/Skill/`、`views/Workflow/`、`views/Automation/` | 列表搜索、类型筛选 | 各分页 API | 对应 React 页 | 已迁移未验证 | 审计发现若搜索词未并入 `usePagedList` 查询键，请求不会触发；已修正 MCP/Skill/Workflow/Automation，工作流真实列表从四条缩至一条；其余待回归 |
 | 密钥字段 | 留空不修改语义 | — | 各表单 | 已验证 | 后端密文不回显；模型供应商新建 CONFIG 鉴权需填 API Key，编辑时可留空保留原值 |
 

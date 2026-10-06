@@ -20,9 +20,10 @@ import { toast } from '@/components/ui/sonner'
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/states'
 import { CodeEditor } from '@/components/editor/code-editor'
 import { readableError } from '@/lib/utils'
-import { skillHub, skills, tools } from '@/api/resources'
-import type { McpServerVO, SkillFileTreeNode, SkillPackageVO, SkillsHubVO, ToolVO } from '@/types'
+import { skills, tools } from '@/api/resources'
+import type { McpServerVO, SkillFileTreeNode, SkillPackageVO, ToolVO } from '@/types'
 import { usePagedList } from '@/features/data/paged'
+import { SkillHubSheet } from '@/features/skills/skill-hub-sheet'
 
 export function SkillPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -197,32 +198,6 @@ export function SkillPage() {
   )
 }
 
-function SkillHubSheet({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
-  const [keyword, setKeyword] = useState('')
-  const [searchTerm, setSearchTerm] = useState('')
-  const [page, setPage] = useState(1)
-  const [downloading, setDownloading] = useState('')
-  const query = useQuery({
-    queryKey: ['list', 'skill-hub', searchTerm, page],
-    queryFn: async () => (await skillHub.search({ keyword: searchTerm || undefined, page, sortBy: 'downloads', order: 'desc' })).data.data,
-  })
-  const rows: SkillsHubVO[] = query.data ?? []
-  async function install(item: SkillsHubVO) {
-    setDownloading(item.slug)
-    try {
-      const response = await skillHub.download(item.slug, item.category || 'SkillHub')
-      const result = response.data.data
-      toast.success(`已导入 ${result.importedCount} 个技能`)
-      onImported()
-    } catch (cause) {
-      toast.error(readableError(cause, 'SkillHub 导入失败'))
-    } finally {
-      setDownloading('')
-    }
-  }
-  return <Sheet open onOpenChange={(open) => !open && onClose()}><SheetContent side="right" className="w-full overflow-auto sm:max-w-3xl"><SheetHeader><SheetTitle>SkillHub</SheetTitle><SheetDescription>搜索 SkillHub 免费技能并通过后端安全下载、解压和导入。</SheetDescription></SheetHeader><form className="my-4 flex gap-2" onSubmit={(event) => { event.preventDefault(); setPage(1); setSearchTerm(keyword) }}><Input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索技能" /><Button type="submit">搜索</Button></form>{query.isLoading ? <TableSkeleton rows={5} /> : query.error ? <ErrorState error={query.error} onRetry={() => void query.refetch()} /> : rows.length === 0 ? <EmptyState title="没有搜索结果" description="SkillHub 可能暂时不可达，或没有匹配技能。" /> : <div className="grid gap-3 sm:grid-cols-2">{rows.map((item) => <div key={item.slug} className="rounded-xl border border-border p-4"><div className="flex items-start gap-3">{item.iconUrl ? <img src={item.iconUrl} alt="" className="size-10 rounded-lg object-cover" /> : null}<div className="min-w-0"><div className="truncate font-medium">{item.name}</div><div className="text-xs text-muted-foreground">{item.category} · v{item.version} · {item.downloads} 下载</div></div></div><p className="mt-3 line-clamp-3 text-sm text-muted-foreground">{item.description}</p><div className="mt-3 flex gap-2"><Button size="sm" onClick={() => void install(item)} disabled={Boolean(downloading)}>{downloading === item.slug ? '导入中…' : '导入'}</Button><Button asChild size="sm" variant="outline"><a href={item.homepage} target="_blank" rel="noreferrer">详情</a></Button></div></div>)}</div>}<div className="mt-4 flex justify-center gap-2"><Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>上一页</Button><Badge variant="secondary">第 {page} 页</Badge><Button variant="outline" size="sm" disabled={rows.length < 30} onClick={() => setPage((value) => value + 1)}>下一页</Button></div></SheetContent></Sheet>
-}
-
 function SkillFormDialog({ open, onOpenChange, editing, onSaved }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -238,11 +213,17 @@ function SkillFormDialog({ open, onOpenChange, editing, onSaved }: {
   })
   const [busy, setBusy] = useState(false)
 
+  useEffect(() => {
+    if (open) setValues({ name: editing?.name ?? '', alias: editing?.alias ?? '', category: editing?.category ?? '', description: editing?.description ?? '', enabled: editing?.enabled ?? true })
+  }, [open, editing])
+
   async function submit() {
+    if (!values.name.trim()) { toast.error('请填写技能包名称'); return }
     setBusy(true)
     try {
-      if (editing) await skills.update({ id: editing.id, ...values } as Partial<SkillPackageVO>)
-      else await skills.save(values as Partial<SkillPackageVO>)
+      const payload = { ...values, name: values.name.trim(), alias: values.alias.trim(), category: values.category.trim() }
+      if (editing) await skills.update({ id: editing.id, ...payload } as Partial<SkillPackageVO>)
+      else await skills.save(payload as Partial<SkillPackageVO>)
       toast.success('已保存')
       onOpenChange(false)
       onSaved()
@@ -295,7 +276,17 @@ function ImportDialog({ open, onOpenChange, onImported }: { open: boolean; onOpe
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
 
+  useEffect(() => {
+    if (!open) {
+      setMode('local')
+      setConfig({ path: '', repoUrl: '', branch: '', token: '', category: '', cover: false })
+      setFile(null)
+    }
+  }, [open])
+
   async function submit() {
+    if (mode === 'local' && !config.path.trim()) { toast.error('请填写服务器目录路径'); return }
+    if (mode === 'git' && !config.repoUrl.trim()) { toast.error('请填写仓库地址'); return }
     setBusy(true)
     try {
       let result
@@ -383,13 +374,24 @@ function ImportDialog({ open, onOpenChange, onImported }: { open: boolean; onOpe
   )
 }
 
-function SkillToolsDialog({ skill, onClose }: { skill: SkillPackageVO; onClose: () => void }) {
+export function SkillToolsDialog({ skill, onClose }: { skill: SkillPackageVO; onClose: () => void }) {
+  const detailQuery = useQuery({
+    queryKey: ['detail', 'skill', String(skill.id)],
+    queryFn: async () => (await skills.detail(String(skill.id))).data.data,
+  })
   const toolsQuery = useQuery({
     queryKey: ['list', 'tool', 'options'],
-    queryFn: async () => (await tools.page({ page: 1, size: 200 })).data.data.records,
+    queryFn: async () => (await tools.page({ page: 1, size: 1000, enabled: true })).data.data.records,
   })
-  const [selected, setSelected] = useState<string[]>(skill.tools ?? [])
+  const [selected, setSelected] = useState<string[]>((skill.tools ?? []).map(String))
   const [busy, setBusy] = useState(false)
+  const initialized = useRef(false)
+  useEffect(() => {
+    if (detailQuery.data && !initialized.current) {
+      setSelected((detailQuery.data.tools ?? []).map(String))
+      initialized.current = true
+    }
+  }, [detailQuery.data])
   const allTools: ToolVO[] = toolsQuery.data ?? []
 
   async function submit() {
@@ -412,12 +414,13 @@ function SkillToolsDialog({ skill, onClose }: { skill: SkillPackageVO; onClose: 
           <DialogTitle>{skill.name} · 关联工具</DialogTitle>
           <DialogDescription>勾选该技能包含的工具。</DialogDescription>
         </DialogHeader>
+        {toolsQuery.error || detailQuery.error ? <ErrorState error={toolsQuery.error || detailQuery.error} onRetry={() => { void toolsQuery.refetch(); void detailQuery.refetch() }} /> : null}
         <div className="max-h-72 space-y-1 overflow-auto">
           {allTools.map((tool) => (
             <label key={String(tool.id)} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted">
               <Checkbox
-                checked={selected.includes(tool.toolId)}
-                onCheckedChange={(checked) => setSelected((previous) => (checked ? [...previous, tool.toolId] : previous.filter((id) => id !== tool.toolId)))}
+                checked={selected.includes(String(tool.id))}
+                onCheckedChange={(checked) => setSelected((previous) => (checked ? [...previous, String(tool.id)] : previous.filter((id) => id !== String(tool.id))))}
               />
               <span>{tool.name}</span>
               <span className="ml-auto font-mono text-xs text-muted-foreground">{tool.toolId}</span>
@@ -426,34 +429,114 @@ function SkillToolsDialog({ skill, onClose }: { skill: SkillPackageVO; onClose: 
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button onClick={() => void submit()} disabled={busy}>{busy ? '保存中…' : '保存'}</Button>
+          <Button onClick={() => void submit()} disabled={busy || toolsQuery.isLoading || detailQuery.isLoading || Boolean(toolsQuery.error || detailQuery.error)}>{busy ? '保存中…' : '保存'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
 
-function SkillFilesDialog({ skill, onClose }: { skill: SkillPackageVO; onClose: () => void }) {
+export function SkillFilesDialog({ skill, onClose }: { skill: SkillPackageVO; onClose: () => void }) {
   const treeQuery = useQuery({
     queryKey: ['detail', 'skill-tree', String(skill.id)],
     queryFn: async () => (await skills.tree(String(skill.id))).data.data,
+  })
+  const extensionsQuery = useQuery({
+    queryKey: ['list', 'skill-allowed-extensions'],
+    queryFn: async () => (await skills.allowedExtensions()).data.data,
   })
   const [current, setCurrent] = useState<SkillFileTreeNode | null>(null)
   const [content, setContent] = useState('')
   const [dirty, setDirty] = useState(false)
   const [busy, setBusy] = useState(false)
   const [creating, setCreating] = useState<'file' | 'directory' | null>(null)
+  const [parentPath, setParentPath] = useState('')
   const [newName, setNewName] = useState('')
+  const [needsSync, setNeedsSync] = useState(false)
+  const uploadInput = useRef<HTMLInputElement>(null)
+  const uploadParentPath = useRef('')
 
   function flatten(nodes: SkillFileTreeNode[]): SkillFileTreeNode[] {
     return nodes.flatMap((node) => [node, ...(node.children ? flatten(node.children) : [])])
   }
 
   const nodes = treeQuery.data ?? []
-  const files = flatten(nodes).filter((node) => !node.directory)
+
+  function downloadBlob(blob: Blob, name: string) {
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = name.replace(/[\\/]/g, '_')
+    anchor.click()
+    window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
+  }
+
+  async function downloadFile(node: SkillFileTreeNode) {
+    try {
+      const response = await skills.downloadFile(String(skill.id), node.path)
+      downloadBlob(response.data, node.name)
+    } catch (cause) {
+      toast.error(readableError(cause, '文件下载失败'))
+    }
+  }
+
+  async function downloadZip() {
+    try {
+      const response = await skills.downloadZip(String(skill.id))
+      downloadBlob(response.data, `${skill.name || 'skill'}.zip`)
+    } catch (cause) {
+      toast.error(readableError(cause, '技能包下载失败'))
+    }
+  }
+
+  function requestClose() {
+    if (dirty && !window.confirm('当前文件有未保存的修改，确定要放弃并离开吗？')) return
+    if (!dirty && needsSync && !window.confirm('技能文件有更改尚未同步到运行节点，确定要离开吗？')) return
+    onClose()
+  }
+
+  function startCreate(kind: 'file' | 'directory', parent = '') {
+    setParentPath(parent)
+    setNewName('')
+    setCreating(kind)
+  }
+
+  function startUpload(parent = '') {
+    uploadParentPath.current = parent
+    uploadInput.current?.click()
+  }
+
+  async function uploadFile(file: File | undefined) {
+    if (!file) return
+    setBusy(true)
+    try {
+      await skills.uploadFile(String(skill.id), uploadParentPath.current, file)
+      toast.success('文件已上传')
+      setNeedsSync(true)
+      void treeQuery.refetch()
+    } catch (cause) {
+      toast.error(readableError(cause, '文件上传失败'))
+    } finally {
+      setBusy(false)
+      if (uploadInput.current) uploadInput.current.value = ''
+    }
+  }
 
   async function openFile(node: SkillFileTreeNode) {
     if (node.directory) return
+    if (current?.path === node.path) return
+    if (dirty && !window.confirm('当前文件有未保存的修改，确定要放弃并切换文件吗？')) return
+    const extension = node.extension?.toLowerCase()
+    if (extensionsQuery.isLoading) { toast.error('正在加载可编辑文件类型，请稍后重试'); return }
+    if (extensionsQuery.error) { toast.error('无法读取可编辑文件类型，请重试'); return }
+    if (extension && !extensionsQuery.data?.includes(extension)) {
+      if (window.confirm(`文件类型 .${extension} 不支持在线预览，是否下载到本地？`)) await downloadFile(node)
+      return
+    }
+    if (node.fileSize > 500 * 1024) {
+      if (window.confirm('文件超过 500 KB，不支持在线编辑，是否下载到本地？')) await downloadFile(node)
+      return
+    }
     try {
       const response = await skills.fileContent(String(skill.id), node.path)
       setCurrent(node)
@@ -472,6 +555,7 @@ function SkillFilesDialog({ skill, onClose }: { skill: SkillPackageVO; onClose: 
       else await skills.writeFile(String(skill.id), current.path, content)
       toast.success('文件已保存')
       setDirty(false)
+      setNeedsSync(true)
       void treeQuery.refetch()
     } catch (cause) {
       toast.error(readableError(cause, '保存失败'))
@@ -482,11 +566,23 @@ function SkillFilesDialog({ skill, onClose }: { skill: SkillPackageVO; onClose: 
 
   async function createNode() {
     if (!creating || !newName.trim()) return
+    if (creating === 'file') {
+      if (extensionsQuery.isLoading || extensionsQuery.error || !extensionsQuery.data) {
+        toast.error('无法读取可创建文件类型，请稍后重试')
+        return
+      }
+      const extension = newName.trim().split('.').pop()?.toLowerCase()
+      if (extension && newName.includes('.') && !extensionsQuery.data.includes(extension)) {
+        toast.error(`不允许的文件类型：.${extension}`)
+        return
+      }
+    }
     setBusy(true)
     try {
-      if (creating === 'file') await skills.createFile(String(skill.id), { parentPath: '', fileName: newName.trim(), content: '' })
-      else await skills.createDirectory(String(skill.id), { parentPath: '', dirName: newName.trim() })
+      if (creating === 'file') await skills.createFile(String(skill.id), { parentPath, fileName: newName.trim(), content: '' })
+      else await skills.createDirectory(String(skill.id), { parentPath, dirName: newName.trim() })
       toast.success('已创建')
+      setNeedsSync(true)
       setCreating(null)
       setNewName('')
       void treeQuery.refetch()
@@ -503,8 +599,13 @@ function SkillFilesDialog({ skill, onClose }: { skill: SkillPackageVO; onClose: 
     try {
       if (node.fileId) await skills.deleteDbFile(node.fileId)
       else await skills.deleteFsNode(String(skill.id), { path: node.path, directory: node.directory })
-      if (current?.path === node.path) { setCurrent(null); setContent('') }
+      if (current?.path === node.path || node.directory && current?.path.startsWith(`${node.path}/`)) {
+        setCurrent(null)
+        setContent('')
+        setDirty(false)
+      }
       toast.success('已删除')
+      setNeedsSync(true)
       void treeQuery.refetch()
     } catch (cause) {
       toast.error(readableError(cause, '删除失败'))
@@ -514,16 +615,21 @@ function SkillFilesDialog({ skill, onClose }: { skill: SkillPackageVO; onClose: 
   }
 
   async function syncTo() {
+    if (dirty) { toast.error('请先保存当前文件，再同步到运行节点'); return }
+    setBusy(true)
     try {
       await skills.syncToFile(String(skill.id))
       toast.success('已同步到文件系统')
+      setNeedsSync(false)
     } catch (cause) {
       toast.error(readableError(cause, '同步失败'))
+    } finally {
+      setBusy(false)
     }
   }
 
   return (
-    <Sheet open onOpenChange={(open) => !open && onClose()}>
+    <Sheet open onOpenChange={(open) => !open && requestClose()}>
       <SheetContent side="right" className="w-full max-w-3xl sm:max-w-3xl">
         <SheetHeader>
           <SheetTitle>{skill.name} · 文件管理</SheetTitle>
@@ -532,17 +638,24 @@ function SkillFilesDialog({ skill, onClose }: { skill: SkillPackageVO; onClose: 
         <div className="flex min-h-0 flex-1 gap-4">
           <div className="w-64 shrink-0 overflow-auto rounded-lg border border-border p-2">
             <div className="mb-2 flex gap-1">
-              <Button variant="outline" size="sm" onClick={() => setCreating('file')}><FilePlus size={13} /> 文件</Button>
-              <Button variant="outline" size="sm" onClick={() => setCreating('directory')}><FolderPlus size={13} /> 目录</Button>
+              <Button variant="outline" size="sm" onClick={() => startCreate('file')}><FilePlus size={13} /> 文件</Button>
+              <Button variant="outline" size="sm" onClick={() => startCreate('directory')}><FolderPlus size={13} /> 目录</Button>
+              <Button variant="outline" size="sm" aria-label="上传文件到根目录" onClick={() => startUpload()}><Upload size={13} /></Button>
             </div>
+            <input ref={uploadInput} className="hidden" type="file" aria-label="上传技能文件" onChange={(event) => void uploadFile(event.target.files?.[0])} />
             {creating ? (
-              <div className="mb-2 flex gap-1">
+              <div className="mb-2 space-y-1">
+                <div className="truncate text-xs text-muted-foreground">父目录：{parentPath || '(根目录)'}</div>
+                <div className="flex gap-1">
                 <Input value={newName} onChange={(event) => setNewName(event.target.value)} placeholder={creating === 'file' ? 'SKILL.md' : 'examples'} className="h-8 text-xs" />
                 <Button size="sm" disabled={busy} onClick={() => void createNode()}>建</Button>
+                </div>
               </div>
             ) : null}
             {treeQuery.isLoading ? (
               <TableSkeleton rows={3} />
+            ) : treeQuery.error ? (
+              <ErrorState error={treeQuery.error} onRetry={() => void treeQuery.refetch()} />
             ) : (
               <div className="space-y-0.5">
                 {flatten(nodes).map((node) => (
@@ -550,6 +663,11 @@ function SkillFilesDialog({ skill, onClose }: { skill: SkillPackageVO; onClose: 
                     <button className="flex-1 truncate text-left" onClick={() => void openFile(node)}>
                       {node.directory ? '📁' : '📄'} {node.name}
                     </button>
+                    {node.directory ? <>
+                      <button className="opacity-0 group-hover:opacity-100 focus:opacity-100" aria-label={`在 ${node.name} 中新建文件`} onClick={() => startCreate('file', node.path)}><FilePlus size={12} /></button>
+                      <button className="opacity-0 group-hover:opacity-100 focus:opacity-100" aria-label={`在 ${node.name} 中新建目录`} onClick={() => startCreate('directory', node.path)}><FolderPlus size={12} /></button>
+                      <button className="opacity-0 group-hover:opacity-100 focus:opacity-100" aria-label={`上传文件到 ${node.name}`} onClick={() => startUpload(node.path)}><Upload size={12} /></button>
+                    </> : null}
                     <button className="opacity-0 group-hover:opacity-100" aria-label={`删除 ${node.name}`} onClick={() => void deleteNode(node)}>
                       <Trash size={12} className="text-destructive" />
                     </button>
@@ -558,11 +676,11 @@ function SkillFilesDialog({ skill, onClose }: { skill: SkillPackageVO; onClose: 
               </div>
             )}
             <div className="mt-3 space-y-1 border-t border-border pt-3">
-              <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => window.open(skills.downloadZipUrl(String(skill.id)), '_blank')}>
+              <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => void downloadZip()}>
                 <Download size={13} /> 下载整包
               </Button>
-              <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => void syncTo()}>
-                <ArrowClockwise size={13} /> 同步到文件系统
+              <Button variant="outline" size="sm" className="w-full justify-start" disabled={busy} onClick={() => void syncTo()}>
+                <ArrowClockwise size={13} /> 同步到文件系统{needsSync ? ' · 待同步' : ''}
               </Button>
             </div>
           </div>
