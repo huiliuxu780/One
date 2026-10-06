@@ -36,7 +36,7 @@
 | Agent 编辑器页签 | 模型/提示词/工具技能MCP/Hook/敏感词/子Agent/工作流/高级 | 对应资源 API | `agent-editor.tsx` | 已验证 | 子 Agent 真实委派已通过；外部 A2A 待凭据 |
 | A2A 配置 | WellKnown/Nacos/连通性 | `/api/agentA2a` | `agent-editor.tsx` | 已迁移未验证 | 外部端点验收受凭据限制 |
 | Chat Key | 生成/刷新分享 key | `/api/agent/chat-key/{id}` | `agents-page.tsx` | 已验证 | — |
-| API 文档、统计、调度 | 页签查看 | statistics/job API | `agent-editor.tsx` | 已迁移未验证 | 本轮未重查弹窗矩阵 |
+| API 文档、统计、调度 | 页签查看 | statistics/job API | `agent-editor.tsx` | 已验证 | 真实 Agent 详情中 API/Chat Key 请求体、12 个会话/24 条消息统计、会话历史和 Quartz 调度表单均已加载；控制台 0 错误 |
 | 知识库绑定 | 表单选择 | knowledge API | 无 | 明确排除 | Spec 2.2；提交适配器不清空后端兼容字段 |
 
 ## 3. 聊天
@@ -133,9 +133,9 @@
 | `views/Ops/` 节点监控 | 执行节点/WS 节点 15s 轮询 | heartbeat API | `ops-page.tsx` | 已验证 | — |
 | `/ops/monitor`、`/ops/storage` 深链 | 打开页签 | — | `?tab=` 重定向 | 已验证 | 生产矩阵分别落执行节点与存储配置页签 |
 | 存储配置 | 新增/编辑/删除/协议配置（S3/FTP/LOCAL）/设为唯一启用 | `/api/storage/*` | `ops-page.tsx` StorageTab | 已验证 | 真实创建并启用 LOCAL 配置；目录指向共享卷后，Console 上传→Runtime 解析链路通过。默认目录改为 `.apboa/storage`，避免容器私有 `/home`。secret 留空保留后端值 |
-| `FileManager.vue` 附件 | 分页/单个下载/删除 | `/api/attach/page`、download、delete | `ops-page.tsx` FilesTab | 已迁移未验证 | Vue 下载即 revokeObjectURL；React 延迟 10s 回收更稳妥 |
-| 批量下载 | 多选打包下载 | `/api/attach/batchDownload` | `ops-page.tsx` | 已迁移未验证（React 增强） | **Vue 中该 API 无任何 UI 调用**（仅 `ui/src/api/attach.ts:92` 封装）；React 补充真实接口入口 |
-| `FileLog.vue` | 日志分页/类型过滤 | `/api/attach/log/page` | `ops-page.tsx` FileLogsTab | 已迁移未验证 | — |
+| `FileManager.vue` 附件 | 分页/单个下载/删除 | `/api/attach/page`、download、delete | `ops-page.tsx` FilesTab | 已验证 | 真实 README 列表与单文件下载成功，下载反馈与后端 DOWNLOAD 日志一致；删除日志已有真实记录。Vue 同步 revokeObjectURL，React 延迟 10s 回收更稳妥 |
+| 批量下载 | 多选打包下载 | `/api/attach/batchDownload` | `ops-page.tsx` | 已验证（React 增强） | 真实勾选 README 后按钮启用并完成请求，无错误反馈或控制台错误；**Vue 中该 API 无任何 UI 调用**，React 补充真实接口入口 |
+| `FileLog.vue` | 日志分页/类型过滤 | `/api/attach/log/page` | `ops-page.tsx` FileLogsTab | 已验证 | 真实后端展示 README 的上传、下载、删除记录及操作人/时间 |
 | 大文件分片上传 | — | chunk-upload | 无 | 死代码 | 见 §3 |
 
 ## 10. 明确排除项核对
