@@ -35,10 +35,22 @@ import { toApiClientError } from '@/api/client'
 import { useInvalidateResource, useBatchSelection, usePagedList } from '@/features/data/paged'
 import { readableError } from '@/lib/utils'
 import type { FieldDef, ResourceDef } from './types'
+import { MemoryFormDialog } from './memory-form'
+import type { LongTermMemoryConfig } from '@/types'
+import { MultiSelectField } from '@/features/agents/multi-select-field'
 
 function enumOptions(field: FieldDef) {
   if (field.enumFrom) return field.enumFrom.map((value) => ({ label: value, value }))
   return field.options ?? []
+}
+
+const providerBaseUrls: Record<string, string> = {
+  DASH_SCOPE: 'https://dashscope.aliyuncs.com',
+  OPEN_AI: 'https://api.openai.com',
+  ANTHROPIC: 'https://api.anthropic.com',
+  GEMINI: 'http://localhost:8080',
+  OLLAMA: 'http://localhost:11434',
+  ORCA_ROUTER: 'https://api.orcarouter.ai/v1',
 }
 
 export function resourceEditFieldValue(field: FieldDef, raw: unknown): unknown {
@@ -107,6 +119,7 @@ export function FormFieldRenderer({
     }
     case 'tags': {
       const tags = Array.isArray(value) ? (value as unknown[]).map(String) : []
+      if (field.options?.length) return <MultiSelectField options={field.options} value={tags} onChange={onChange} placeholder={`请选择${field.label}`} />
       return (
         <Input
           {...common}
@@ -245,7 +258,12 @@ function ResourceFormDialog<T extends { id?: string | number }>({
                 field={field}
                 invalid={false}
                 value={form.watch(field.name)}
-                onChange={(value) => form.setValue(field.name, value as never, { shouldDirty: true })}
+                onChange={(value) => {
+                  form.setValue(field.name, value as never, { shouldDirty: true })
+                  if (def.key === 'model-provider' && field.name === 'type' && !editing) {
+                    form.setValue('baseUrl', providerBaseUrls[String(value)] ?? '', { shouldDirty: true })
+                  }
+                }}
               />
               {field.description ? <p className="mt-1 text-xs text-muted-foreground">{field.description}</p> : null}
             </div>
@@ -583,7 +601,11 @@ export function ResourcePage<T extends { id?: string | number }>({ def }: { def:
         </CardContent>
       </Card>
 
-      <ResourceFormDialog def={def} form={form.form} editing={form.editing} open={form.open} onOpenChange={form.setOpen} onSaved={refresh} />
+      {def.key === 'long-term-memory' ? (
+        <MemoryFormDialog editing={form.editing as LongTermMemoryConfig | null} open={form.open} onOpenChange={form.setOpen} onSaved={refresh} />
+      ) : (
+        <ResourceFormDialog def={def} form={form.form} editing={form.editing} open={form.open} onOpenChange={form.setOpen} onSaved={refresh} />
+      )}
 
       <AlertDialog open={pendingToggle != null} onOpenChange={(open) => !open && setPendingToggle(null)}>
         <AlertDialogContent>

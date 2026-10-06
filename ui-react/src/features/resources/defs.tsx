@@ -13,7 +13,7 @@ import {
   tools,
 } from '@/api/resources'
 import type { CodeExecutionConfig, HookConfigVO, LongTermMemoryConfig, ModelConfigVO, ModelProviderVO, SensitiveWordConfigVO, StudioConfig, SystemPromptTemplateVO, ToolVO } from '@/types'
-import { AuthType, CodeLanguage, HookType, ModelType, SensitiveWordAction, ToolType } from '@/types'
+import { AuthType, CodeLanguage, HookType, ModelProviderType, ModelType, SensitiveWordAction, ToolType } from '@/types'
 import type { ColumnDef, FieldDef, ResourceDef } from './types'
 import { ToolDebugDialog } from './tool-debug-dialog'
 
@@ -157,6 +157,8 @@ export const modelProviderDef: ResourceDef<ModelProviderVO> = {
     { label: 'OpenAI', value: 'OPEN_AI' },
     { label: 'Ollama', value: 'OLLAMA' },
     { label: 'Anthropic', value: 'ANTHROPIC' },
+    { label: 'Gemini', value: 'GEMINI' },
+    { label: 'OrcaRouter', value: 'ORCA_ROUTER' },
   ] }],
   columns: [
     { header: '名称', field: 'name' },
@@ -167,12 +169,19 @@ export const modelProviderDef: ResourceDef<ModelProviderVO> = {
   ],
   form: [
     { name: 'name', label: '名称', type: 'text', required: true },
-    { name: 'type', label: '类型', type: 'text', required: true, placeholder: '如 OPENAI / DASHSCOPE / OLLAMA' },
+    { name: 'type', label: '类型', type: 'select', required: true, options: [
+      { label: 'DashScope', value: ModelProviderType.DASH_SCOPE },
+      { label: 'OpenAI', value: ModelProviderType.OPEN_AI },
+      { label: 'Anthropic', value: ModelProviderType.ANTHROPIC },
+      { label: 'Gemini', value: ModelProviderType.GEMINI },
+      { label: 'Ollama', value: ModelProviderType.OLLAMA },
+      { label: 'OrcaRouter', value: ModelProviderType.ORCA_ROUTER },
+    ] },
     { name: 'baseUrl', label: 'Base URL', type: 'text', required: true },
     { name: 'authType', label: '鉴权方式', type: 'select', enumFrom: Object.values(AuthType), defaultValue: AuthType.CONFIG },
     { name: 'apiKey', label: 'API Key', type: 'password', wide: true, secret: true },
     { name: 'envVarName', label: '环境变量名', type: 'text', placeholder: 'authType=ENV 时读取该环境变量' },
-    { name: 'description', label: '描述', type: 'textarea', wide: true },
+    { name: 'description', label: '描述', type: 'textarea', wide: true, required: true },
     { name: 'enabled', label: '启用', type: 'switch', defaultValue: true },
   ],
 }
@@ -203,7 +212,12 @@ export const modelConfigDef: ResourceDef<ModelConfigVO> = {
       options: [],
       description: '保存前请先在“供应商”页签创建供应商。',
     },
-    { name: 'modelType', label: '模型类型', type: 'tags', required: true, defaultValue: [ModelType.CHAT], placeholder: '如 CHAT（可多选）' },
+    { name: 'modelType', label: '模型类型', type: 'tags', required: true, defaultValue: [ModelType.CHAT], options: [
+      { label: '文本模型', value: ModelType.CHAT },
+      { label: '图像模型', value: ModelType.IMAGE },
+      { label: '音频模型', value: ModelType.AUDIO },
+      { label: '视频模型', value: ModelType.VIDEO },
+    ] },
     { name: 'contextWindow', label: '上下文窗口 (tokens)', type: 'number', defaultValue: 200000 },
     { name: 'maxTokens', label: '最大输出 (tokens)', type: 'number', defaultValue: 8192 },
     { name: 'temperature', label: 'Temperature', type: 'number', defaultValue: 0.7 },
@@ -214,7 +228,7 @@ export const modelConfigDef: ResourceDef<ModelConfigVO> = {
     { name: 'streaming', label: '支持流式', type: 'switch', defaultValue: true },
     { name: 'thinking', label: '支持思考模式', type: 'switch' },
     { name: 'extendConfig', label: '扩展参数 (JSON)', type: 'json', wide: true },
-    { name: 'description', label: '描述', type: 'textarea', wide: true },
+    { name: 'description', label: '描述', type: 'textarea', wide: true, required: true },
     { name: 'enabled', label: '启用', type: 'switch', defaultValue: true },
   ],
   rowActions: [{ label: '连通性', action: async (row) => {
