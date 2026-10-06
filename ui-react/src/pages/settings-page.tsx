@@ -20,6 +20,20 @@ import { readableError } from '@/lib/utils'
 import { accounts, secretKeys, systemParams } from '@/api/settings'
 import type { AccountVO, Params, SecretKeyVO } from '@/types'
 import { useAuthStore } from '@/features/auth/auth-store'
+import { roleSatisfies } from '@/features/auth/permissions'
+
+const accountRoleLabels: Record<string, string> = {
+  TENANT_OWNER: '拥有者',
+  TENANT_ADMIN: '管理员',
+  TENANT_EDITOR: '编辑者',
+  TENANT_VIEWER: '查看者',
+}
+
+export function filterAccounts(rows: AccountVO[], keyword: string): AccountVO[] {
+  const value = keyword.trim().toLowerCase()
+  if (!value) return rows
+  return rows.filter((row) => [row.nickname, row.username, row.email].some((field) => field?.toLowerCase().includes(value)))
+}
 
 export function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -46,10 +60,11 @@ export function SettingsPage() {
 
 function AccountsTab() {
   const currentUser = useAuthStore((state) => state.user)
+  const canManage = roleSatisfies(currentUser?.tenantRole, 'TENANT_ADMIN')
   const [keyword, setKeyword] = useState('')
   const listQuery = useQuery({
-    queryKey: ['list', 'account', keyword],
-    queryFn: async () => (await accounts.list({ keyword: keyword || undefined })).data.data,
+    queryKey: ['list', 'account'],
+    queryFn: async () => (await accounts.list({})).data.data,
   })
   const [resetTarget, setResetTarget] = useState<AccountVO | null>(null)
   const [newPassword, setNewPassword] = useState('')
@@ -57,8 +72,9 @@ function AccountsTab() {
   const [creating, setCreating] = useState(false)
   const [createValues, setCreateValues] = useState({ nickname: '', username: '', email: '', password: '' })
   const [removeTarget, setRemoveTarget] = useState<AccountVO | null>(null)
+  const [toggleTarget, setToggleTarget] = useState<{ account: AccountVO; enabled: boolean } | null>(null)
 
-  const rows: AccountVO[] = listQuery.data ?? []
+  const rows = filterAccounts(listQuery.data ?? [], keyword)
 
   async function toggle(row: AccountVO, enabled: boolean) {
     try {
@@ -123,7 +139,7 @@ function AccountsTab() {
             <MagnifyingGlass size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input className="pl-8" placeholder="搜索账号" value={keyword} onChange={(event) => setKeyword(event.target.value)} />
           </div>
-          <Button onClick={() => setCreating(true)}><Plus size={14} /> 新建账号</Button>
+          {canManage ? <Button onClick={() => setCreating(true)}><Plus size={14} /> 新建账号</Button> : null}
         </div>
         {listQuery.isLoading ? (
           <TableSkeleton rows={4} />
@@ -149,13 +165,13 @@ function AccountsTab() {
                   <TableCell className="font-mono text-xs">{row.username}</TableCell>
                   <TableCell>{row.nickname}</TableCell>
                   <TableCell>{row.email || '—'}</TableCell>
-                  <TableCell>{row.tenantRole ? <Badge variant="outline">{row.tenantRole}</Badge> : '—'}</TableCell>
-                  <TableCell><Switch checked={Boolean(row.enabled)} onCheckedChange={(checked) => void toggle(row, checked)} aria-label={`启用 ${row.username}`} /></TableCell>
+                  <TableCell>{row.tenantRole ? <Badge variant="outline">{accountRoleLabels[row.tenantRole] ?? row.tenantRole}</Badge> : '—'}</TableCell>
+                  <TableCell><Switch checked={Boolean(row.enabled)} disabled={!canManage || String(row.id) === String(currentUser?.id)} onCheckedChange={(checked) => setToggleTarget({ account: row, enabled: checked })} aria-label={`启用 ${row.username}`} /></TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
+                    {canManage ? <div className="flex justify-end gap-1">
                       <Button variant="ghost" size="sm" onClick={() => setResetTarget(row)}>重置密码</Button>
                       <Button variant="ghost" size="sm" className="text-destructive" disabled={String(row.id) === String(currentUser?.id)} onClick={() => setRemoveTarget(row)}><Trash size={13} /> 删除</Button>
-                    </div>
+                    </div> : '—'}
                   </TableCell>
                 </TableRow>
               ))}
@@ -192,7 +208,7 @@ function AccountsTab() {
               <div><Label htmlFor="account-email">邮箱</Label><Input id="account-email" type="email" value={createValues.email} onChange={(event) => setCreateValues((value) => ({ ...value, email: event.target.value }))} /></div>
               <div><Label htmlFor="account-password">初始密码</Label><Input id="account-password" type="password" autoComplete="new-password" value={createValues.password} onChange={(event) => setCreateValues((value) => ({ ...value, password: event.target.value }))} /></div>
             </div>
-            <DialogFooter><Button variant="outline" onClick={() => setCreating(false)}>取消</Button><Button disabled={busy || !createValues.nickname.trim() || createValues.username.trim().length < 4 || !createValues.email.includes('@') || createValues.password.length < 6} onClick={() => void createAccount()}>{busy ? '创建中…' : '创建'}</Button></DialogFooter>
+            <DialogFooter><Button variant="outline" onClick={() => setCreating(false)}>取消</Button><Button disabled={busy || !createValues.nickname.trim() || !createValues.username.trim() || !createValues.email.includes('@') || createValues.password.length < 6} onClick={() => void createAccount()}>{busy ? '创建中…' : '创建'}</Button></DialogFooter>
           </DialogContent>
         </Dialog>
 
@@ -200,6 +216,13 @@ function AccountsTab() {
           <AlertDialogContent>
             <AlertDialogHeader><AlertDialogTitle>删除账号</AlertDialogTitle><AlertDialogDescription>将永久删除“{removeTarget?.nickname || removeTarget?.username}”。管理员账号和当前登录账号受后端及前端双重保护。</AlertDialogDescription></AlertDialogHeader>
             <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={busy} onClick={() => void removeAccount()}>确认删除</AlertDialogAction></AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={Boolean(toggleTarget)} onOpenChange={(open) => !open && setToggleTarget(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader><AlertDialogTitle>确认{toggleTarget?.enabled ? '启用' : '禁用'}账号</AlertDialogTitle><AlertDialogDescription>{toggleTarget?.enabled ? '启用后该账号可重新登录默认组织。' : '禁用后该账号将无法继续登录，请确认没有正在执行的任务。'}</AlertDialogDescription></AlertDialogHeader>
+            <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction onClick={async () => { if (!toggleTarget) return; await toggle(toggleTarget.account, toggleTarget.enabled); setToggleTarget(null) }}>确认</AlertDialogAction></AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
       </CardContent>
