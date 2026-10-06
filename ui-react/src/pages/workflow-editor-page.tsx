@@ -44,6 +44,8 @@ import { MultiSelectField, type SelectOption } from '@/features/agents/multi-sel
 import { mcpInputConfigs, toolInputConfigs } from '@/features/workflow/resource-bindings'
 import { validateWorkflowConnection } from '@/features/workflow/edge-rules'
 import { layoutWorkflowNodes } from '@/features/workflow/layout'
+import { upstreamWorkflowNodes, workflowNodeOutputs } from '@/features/workflow/bindings'
+import { applyExecutionState, applyValidationState, workflowNodeSummary } from '@/features/workflow/node-presentation'
 import { buildWorkflowRunRequest, defaultRunValue, initialRunParamValues, initialRunVariables, parseWorkflowRunRequest, type WorkflowStartParam } from '@/features/workflow/run-inputs'
 import { sessionStorageAdapter } from '@/lib/storage'
 
@@ -51,13 +53,19 @@ import { sessionStorageAdapter } from '@/lib/storage'
 
 function WorkflowCanvasNode({ data, selected }: { data: Record<string, unknown>; selected?: boolean }) {
   const type = String(data.type ?? '')
+  const status = String(data.status ?? 'IDLE')
+  const summary = workflowNodeSummary(type, (data.config as Record<string, unknown> | undefined) ?? {})
+  const errors = Array.isArray(data.errors) ? data.errors.map(String) : []
+  const statusClass = status === 'INVALID' || status === 'FAIL' ? 'border-destructive' : status === 'SUCCESS' ? 'border-emerald-500' : status === 'RUNNING' ? 'border-primary animate-pulse' : 'border-border'
   return (
-    <div className={`w-44 rounded-lg border bg-card px-3 py-2 shadow-card ${selected ? 'border-primary ring-2 ring-ring' : 'border-border'}`}>
+    <div className={`w-48 rounded-lg border bg-card px-3 py-2 shadow-card ${selected ? 'border-primary ring-2 ring-ring' : statusClass}`} title={errors.join('\n') || undefined}>
       {type !== 'START' ? <Handle id="input" type="target" position={Position.Left} className="!size-2.5 !border-background !bg-primary" /> : null}
       <div className="flex items-center justify-between gap-2">
         <span className="truncate text-sm font-medium">{String(data.name ?? '节点')}</span>
         <Badge variant="outline" className="shrink-0 text-[10px]">{String(data.type ?? '')}</Badge>
       </div>
+      {summary.length ? <div className="mt-1.5 space-y-0.5 border-t border-border/70 pt-1.5">{summary.map((item) => <div key={item} className="truncate text-[10px] text-muted-foreground">{item}</div>)}</div> : null}
+      {status !== 'IDLE' ? <div className={`mt-1 text-[10px] font-medium ${status === 'INVALID' || status === 'FAIL' ? 'text-destructive' : status === 'SUCCESS' ? 'text-emerald-600' : 'text-primary'}`}>{status}{errors.length ? ` · ${errors[0]}` : ''}</div> : null}
       {type !== 'END' ? <Handle id="output" type="source" position={Position.Right} className="!size-2.5 !border-background !bg-primary" /> : null}
     </div>
   )
@@ -204,6 +212,10 @@ export function WorkflowEditorPage() {
   }, [])
 
   const selectedNode = useMemo(() => nodes.find((node) => node.id === selectedId) ?? null, [nodes, selectedId])
+  const parentUpstreamNodes = useMemo(() => {
+    const context = subWorkflowStack.at(-1)
+    return context ? upstreamWorkflowNodes(context.loopNodeId, context.parentNodes, context.parentEdges) : []
+  }, [subWorkflowStack])
   const legacyKnowledgeReadOnly = useMemo(
     () => nodes.some((node) => String(node.data.type ?? '').toUpperCase().includes('KNOWLEDGE')),
     [nodes],
@@ -496,6 +508,9 @@ export function WorkflowEditorPage() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const variableNames = workflowVariables.map((variable) => variable.name.trim())
+      if (variableNames.some((name) => !name)) throw new Error('工作流变量名不能为空')
+      if (new Set(variableNames).size !== variableNames.length || variableNames.some((name) => systemWorkflowVariables.some((system) => system.name === name))) throw new Error('工作流变量名不能重复或覆盖系统变量')
       let nodesToSave = nodes
       if (configDirty && selectedNode) {
         let parsed: unknown
@@ -522,6 +537,7 @@ export function WorkflowEditorPage() {
     },
     onSuccess: (result: WorkflowValidationResult) => {
       setValidationResult(result)
+      setNodes((existing) => applyValidationState(existing, result))
       setValidationOpen(true)
       const valid = (result as { valid?: boolean }).valid
       const errors = (result as { errors?: Array<{ message?: string }> }).errors
@@ -547,6 +563,7 @@ export function WorkflowEditorPage() {
     },
     onSuccess: (result: WorkflowRunResult) => {
       setRunResult(result)
+      setNodes((existing) => applyExecutionState(existing, result.nodeExecutions ?? []))
       setRunDialogMode(null)
       toast.success('执行完成')
     },
@@ -568,6 +585,7 @@ export function WorkflowEditorPage() {
     },
     onSuccess: (result) => {
       setNodeRunResult(result)
+      if (result.nodeId) setNodes((existing) => existing.map((node) => node.id === result.nodeId ? { ...node, data: { ...node.data, status: result.status } } : node))
       toast.success(result.status === 'SUCCESS' ? '节点调试成功' : '节点调试已返回')
     },
     onError: (cause) => toast.error(readableError(cause, '节点调试失败')),
@@ -712,7 +730,10 @@ export function WorkflowEditorPage() {
               <InputConfigEditor
                 value={(selectedNode.data.inputConfigs as WorkflowInputConfig[] | undefined) ?? []}
                 nodes={nodes}
+                edges={edges}
                 selectedNodeId={selectedNode.id}
+                variables={[...systemWorkflowVariables, ...workflowVariables]}
+                parentUpstreamNodes={parentUpstreamNodes}
                 disabled={readOnly}
                 onChange={(value) => updateNodeData('inputConfigs', value)}
               />
@@ -1062,6 +1083,18 @@ function DownstreamNodeSelect({ label, value, nodeId, nodes, edges, disabled, on
 
 type ConditionBranch = { scope?: string; inputIsNullUse?: boolean; symbol?: string; conditionExpression?: string; compareTo?: Record<string, unknown>; nextNodeId?: string }
 
+function CompareToField({ value, nodeId, nodes, edges, disabled, onChange }: { value: Record<string, unknown>; nodeId: string; nodes: Node[]; edges: Edge[]; disabled: boolean; onChange: (value: Record<string, unknown>) => void }) {
+  const type = String(value.type || 'CONSTANT')
+  const upstream = upstreamWorkflowNodes(nodeId, nodes, edges)
+  const sourceNode = upstream.find((node) => node.id === String(value.sourceNodeId || ''))
+  const outputs = (sourceNode?.data.outputConfigs as Array<{ name?: string; type?: string }> | undefined) ?? []
+  return <div className="space-y-2">
+    <Select value={type} disabled={disabled} onValueChange={(next) => onChange(next === 'VARIABLE' ? { type: next, sourceNodeId: '', value: '' } : { type: next, value: '' })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="CONSTANT">常量</SelectItem><SelectItem value="VARIABLE">节点输出</SelectItem></SelectContent></Select>
+    {type === 'VARIABLE' ? <div className="grid grid-cols-2 gap-2"><Select value={String(value.sourceNodeId || '')} disabled={disabled || !upstream.length} onValueChange={(sourceNodeId) => { const node = upstream.find((item) => item.id === sourceNodeId); const firstOutput = ((node?.data.outputConfigs as Array<{ name?: string }> | undefined) ?? []).find((item) => item.name)?.name ?? 'output'; onChange({ ...value, sourceNodeId, value: firstOutput }) }}><SelectTrigger><SelectValue placeholder="选择上游节点" /></SelectTrigger><SelectContent>{upstream.map((node) => <SelectItem key={node.id} value={node.id}>{String(node.data.name || node.id)}</SelectItem>)}</SelectContent></Select>{outputs.length ? <Select value={String(value.value || '')} disabled={disabled} onValueChange={(outputName) => onChange({ ...value, value: outputName })}><SelectTrigger><SelectValue placeholder="选择输出" /></SelectTrigger><SelectContent>{outputs.filter((item) => item.name).map((item) => <SelectItem key={item.name} value={String(item.name)}>{item.name}{item.type ? ` · ${item.type}` : ''}</SelectItem>)}</SelectContent></Select> : <Input value={String(value.value || '')} disabled={disabled || !sourceNode} placeholder="输出名，默认 output" onChange={(event) => onChange({ ...value, value: event.target.value })} />}</div> : <Input value={String(value.value ?? '')} disabled={disabled} placeholder="比较值" onChange={(event) => onChange({ ...value, value: event.target.value })} />}
+    {type === 'VARIABLE' && !upstream.length ? <p className="text-[11px] text-muted-foreground">请先连接上游节点，再选择其输出。</p> : null}
+  </div>
+}
+
 function ConditionBranchesField({ value, nodeId, nodes, edges, disabled, onChange }: { value: unknown; nodeId: string; nodes: Node[]; edges: Edge[]; disabled: boolean; onChange: (value: ConditionBranch[]) => void }) {
   const branches = Array.isArray(value) ? value as ConditionBranch[] : []
   const patch = (index: number, next: Partial<ConditionBranch>) => onChange(branches.map((branch, itemIndex) => itemIndex === index ? { ...branch, ...next } : branch))
@@ -1071,9 +1104,9 @@ function ConditionBranchesField({ value, nodeId, nodes, edges, disabled, onChang
       {branches.map((branch, index) => {
         const compareTo = branch.compareTo && typeof branch.compareTo === 'object' ? branch.compareTo : { type: 'CONSTANT', value: '' }
         return <div key={index} className="space-y-2 rounded-lg border border-border p-2">
-          <div className="flex items-center gap-2"><Badge variant="outline">{index === 0 ? 'IF' : 'ELSE IF'}</Badge>{index > 0 ? <Button type="button" variant="ghost" size="icon" className="ml-auto text-destructive" disabled={disabled} aria-label={`删除条件 ${index + 1}`} onClick={() => onChange(branches.filter((_, itemIndex) => itemIndex !== index))}><Trash size={13} /></Button> : null}</div>
-          <Select value={branch.symbol || 'EQ'} disabled={disabled} onValueChange={(symbol) => patch(index, { symbol })}><SelectTrigger aria-label={`条件 ${index + 1} 运算符`}><SelectValue /></SelectTrigger><SelectContent>{conditionSymbols.map((symbol) => <SelectItem key={symbol} value={symbol}>{symbol}</SelectItem>)}</SelectContent></Select>
-          {branch.symbol === 'EXPRESSION' ? <Textarea value={branch.conditionExpression || ''} disabled={disabled} placeholder="Groovy 条件表达式" onChange={(event) => patch(index, { conditionExpression: event.target.value })} /> : <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-2"><Select value={String(compareTo.type || 'CONSTANT')} disabled={disabled} onValueChange={(type) => patch(index, { compareTo: { ...compareTo, type } })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="CONSTANT">常量</SelectItem><SelectItem value="VARIABLE">节点输出</SelectItem></SelectContent></Select><Input value={String(compareTo.value ?? '')} disabled={disabled} placeholder={compareTo.type === 'VARIABLE' ? '输出字段名' : '比较值'} onChange={(event) => patch(index, { compareTo: { ...compareTo, value: event.target.value } })} /></div>}
+          <div className="flex items-center gap-2"><Badge variant="outline">{index === 0 ? 'IF' : 'ELSE IF'}</Badge>{index > 0 ? <div className="ml-auto flex gap-1"><Button type="button" variant="ghost" size="icon" disabled={disabled || index === 1} aria-label={`上移条件 ${index + 1}`} onClick={() => { const next = [...branches]; const [item] = next.splice(index, 1); next.splice(index - 1, 0, item!); onChange(next) }}>↑</Button><Button type="button" variant="ghost" size="icon" disabled={disabled || index === branches.length - 1} aria-label={`下移条件 ${index + 1}`} onClick={() => { const next = [...branches]; const [item] = next.splice(index, 1); next.splice(index + 1, 0, item!); onChange(next) }}>↓</Button><Button type="button" variant="ghost" size="icon" className="text-destructive" disabled={disabled} aria-label={`删除条件 ${index + 1}`} onClick={() => onChange(branches.filter((_, itemIndex) => itemIndex !== index))}><Trash size={13} /></Button></div> : null}</div>
+          <Select value={branch.symbol || 'EQ'} disabled={disabled} onValueChange={(symbol) => patch(index, { symbol })}><SelectTrigger aria-label={`条件 ${index + 1} 运算符`}><SelectValue /></SelectTrigger><SelectContent>{conditionSymbols.filter((symbol) => branch.scope !== 'LENGTH' || !['CONTAINS', 'NOT_CONTAINS', 'IS_ALL', 'STARTS_WITH', 'ENDS_WITH', 'EQUALS', 'NOT_EQUALS', 'IS_TRUE', 'IS_FALSE'].includes(symbol)).map((symbol) => <SelectItem key={symbol} value={symbol}>{symbol}</SelectItem>)}</SelectContent></Select>
+          {branch.symbol === 'EXPRESSION' ? <Textarea value={branch.conditionExpression || ''} disabled={disabled} placeholder="Groovy 条件表达式" onChange={(event) => patch(index, { conditionExpression: event.target.value })} /> : <CompareToField value={compareTo} nodeId={nodeId} nodes={nodes} edges={edges} disabled={disabled} onChange={(next) => patch(index, { compareTo: next })} />}
           <div className="grid grid-cols-2 gap-2"><Select value={branch.scope || 'SELF'} disabled={disabled} onValueChange={(scope) => patch(index, { scope })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="SELF">值本身</SelectItem><SelectItem value="LENGTH">长度</SelectItem></SelectContent></Select><label className="flex items-center gap-2 rounded-md border px-2 text-[11px]"><Switch checked={Boolean(branch.inputIsNullUse)} disabled={disabled} onCheckedChange={(inputIsNullUse) => patch(index, { inputIsNullUse })} />空值视为 True</label></div>
           <DownstreamNodeSelect label="跳转到" value={branch.nextNodeId} nodeId={nodeId} nodes={nodes} edges={edges} disabled={disabled} onChange={(nextNodeId) => patch(index, { nextNodeId })} />
         </div>
@@ -1161,14 +1194,26 @@ function McpToolSelector({ serverId, value, disabled, onChange }: { serverId: st
   )
 }
 
-function InputConfigEditor({ value, nodes, selectedNodeId, disabled, onChange }: {
+function InputConfigEditor({ value, nodes, edges, selectedNodeId, variables, parentUpstreamNodes = [], disabled, onChange }: {
   value: WorkflowInputConfig[]
   nodes: Node[]
+  edges: Edge[]
   selectedNodeId: string
+  variables: WorkflowVariable[]
+  parentUpstreamNodes?: Node[]
   disabled: boolean
   onChange: (value: WorkflowInputConfig[]) => void
 }) {
   const patch = (index: number, next: Partial<WorkflowInputConfig>) => onChange(value.map((item, itemIndex) => itemIndex === index ? { ...item, ...next } : item))
+  const localUpstream = upstreamWorkflowNodes(selectedNodeId, nodes, edges).filter((node) => String(node.data.type) !== 'MATCH_RESULT')
+  const upstream = [...localUpstream]
+  const upstreamIds = new Set(upstream.map((node) => node.id))
+  for (const node of parentUpstreamNodes) {
+    if (!upstreamIds.has(node.id) && String(node.data.type) !== 'MATCH_RESULT') {
+      upstream.push(node)
+      upstreamIds.add(node.id)
+    }
+  }
   return (
     <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
       <div className="flex items-center justify-between gap-2">
@@ -1179,12 +1224,16 @@ function InputConfigEditor({ value, nodes, selectedNodeId, disabled, onChange }:
         <div key={`${item.name}-${index}`} className="space-y-2 rounded-md bg-muted/50 p-2">
           <div className="grid grid-cols-[minmax(0,1fr)_130px_28px] gap-2">
             <Input aria-label={`输入 ${index + 1} 名称`} value={item.name} disabled={disabled} placeholder="输入名称" onChange={(event) => patch(index, { name: event.target.value })} />
-            <Select value={item.sourceType} disabled={disabled} onValueChange={(sourceType) => patch(index, { sourceType: sourceType as WorkflowInputConfig['sourceType'] })}><SelectTrigger aria-label={`输入 ${index + 1} 来源`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="CONSTANT">常量</SelectItem><SelectItem value="VARIABLE">变量</SelectItem><SelectItem value="NODE_OUTPUT">节点输出</SelectItem><SelectItem value="EXPRESSION">表达式</SelectItem></SelectContent></Select>
+            <Select value={item.sourceType} disabled={disabled} onValueChange={(sourceType) => patch(index, { sourceType: sourceType as WorkflowInputConfig['sourceType'], value: undefined, variableName: undefined, nodeId: undefined, outputName: undefined, expression: undefined })}><SelectTrigger aria-label={`输入 ${index + 1} 来源`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="CONSTANT">常量</SelectItem><SelectItem value="VARIABLE">变量</SelectItem><SelectItem value="NODE_OUTPUT">节点输出</SelectItem><SelectItem value="EXPRESSION">表达式</SelectItem></SelectContent></Select>
             <Button type="button" variant="ghost" size="icon" className="text-destructive" disabled={disabled} aria-label={`删除输入 ${index + 1}`} onClick={() => onChange(value.filter((_, itemIndex) => itemIndex !== index))}><Trash size={13} /></Button>
           </div>
           {item.sourceType === 'CONSTANT' ? <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2"><Select value={item.type ?? 'String'} disabled={disabled} onValueChange={(type) => patch(index, { type: type as WorkflowInputConfig['type'] })}><SelectTrigger aria-label={`输入 ${index + 1} 类型`}><SelectValue /></SelectTrigger><SelectContent>{['String', 'Long', 'Integer', 'Float', 'Double', 'Boolean', 'Array', 'Object'].map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}</SelectContent></Select><Input aria-label={`输入 ${index + 1} 常量值`} value={item.value == null ? '' : typeof item.value === 'string' ? item.value : JSON.stringify(item.value)} disabled={disabled} placeholder="常量值" onChange={(event) => patch(index, { value: event.target.value })} /></div> : null}
-          {item.sourceType === 'VARIABLE' ? <Input aria-label={`输入 ${index + 1} 变量名`} value={item.variableName ?? ''} disabled={disabled} placeholder="全局变量名" onChange={(event) => patch(index, { variableName: event.target.value })} /> : null}
-          {item.sourceType === 'NODE_OUTPUT' ? <div className="grid grid-cols-2 gap-2"><Select value={item.nodeId ?? ''} disabled={disabled} onValueChange={(nodeId) => patch(index, { nodeId })}><SelectTrigger aria-label={`输入 ${index + 1} 来源节点`}><SelectValue placeholder="选择上游节点" /></SelectTrigger><SelectContent>{nodes.filter((node) => node.id !== selectedNodeId).map((node) => <SelectItem key={node.id} value={node.id}>{String(node.data.name || node.id)}</SelectItem>)}</SelectContent></Select><Input aria-label={`输入 ${index + 1} 输出名`} value={item.outputName ?? 'output'} disabled={disabled} placeholder="输出名" onChange={(event) => patch(index, { outputName: event.target.value })} /></div> : null}
+          {item.sourceType === 'VARIABLE' ? <div><Select value={item.variableName ?? ''} disabled={disabled || !variables.length} onValueChange={(variableName) => patch(index, { variableName })}><SelectTrigger aria-label={`输入 ${index + 1} 变量名`}><SelectValue placeholder="选择全局变量" /></SelectTrigger><SelectContent>{variables.map((variable) => <SelectItem key={variable.id} value={variable.name}>{variable.name} · {variable.type}{variable.source === 'system' ? '（系统）' : ''}</SelectItem>)}</SelectContent></Select>{!variables.length ? <p className="mt-1 text-[11px] text-muted-foreground">请先在工作流变量中添加变量。</p> : null}</div> : null}
+          {item.sourceType === 'NODE_OUTPUT' ? (() => {
+            const selectedSource = upstream.find((node) => node.id === item.nodeId)
+            const outputs = selectedSource ? workflowNodeOutputs(selectedSource) : []
+            return <div className="space-y-1"><div className="grid grid-cols-2 gap-2"><Select value={item.nodeId ?? ''} disabled={disabled || !upstream.length} onValueChange={(nodeId) => { const sourceNode = upstream.find((node) => node.id === nodeId); const firstOutput = sourceNode ? workflowNodeOutputs(sourceNode).at(0)?.name : undefined; patch(index, { nodeId, outputName: firstOutput }) }}><SelectTrigger aria-label={`输入 ${index + 1} 来源节点`}><SelectValue placeholder="选择上游节点" /></SelectTrigger><SelectContent>{upstream.map((node) => <SelectItem key={node.id} value={node.id}>{String(node.data.name || node.id)}{parentUpstreamNodes.some((parent) => parent.id === node.id) ? '（主流程）' : ''}</SelectItem>)}</SelectContent></Select><Select value={item.outputName ?? ''} disabled={disabled || !selectedSource || !outputs.length} onValueChange={(outputName) => patch(index, { outputName })}><SelectTrigger aria-label={`输入 ${index + 1} 输出名`}><SelectValue placeholder="选择节点输出" /></SelectTrigger><SelectContent>{outputs.map((output) => <SelectItem key={output.name} value={output.name}>{output.name}{output.type ? ` · ${output.type}` : ''}</SelectItem>)}</SelectContent></Select></div>{!upstream.length ? <p className="text-[11px] text-muted-foreground">当前节点没有可引用的上游节点，请先连线。</p> : selectedSource && !outputs.length ? <p className="text-[11px] text-muted-foreground">所选上游节点没有声明输出。</p> : null}</div>
+          })() : null}
           {item.sourceType === 'EXPRESSION' ? <Textarea aria-label={`输入 ${index + 1} 表达式`} className="min-h-20 font-mono text-xs" value={item.expression ?? ''} disabled={disabled} placeholder="表达式" onChange={(event) => patch(index, { expression: event.target.value })} /> : null}
         </div>
       ))}
