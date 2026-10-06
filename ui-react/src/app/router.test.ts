@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { isValidElement } from 'react'
 import type { RouteObject } from 'react-router-dom'
 import { router } from './router'
 
@@ -12,6 +13,12 @@ function flattenRoutes(routes: RouteObject[], prefix = ''): string[] {
 /** 旧 Vue 深链兼容与诚实 auth 页面是迁移验收的硬性要求。 */
 describe('legacy route compatibility', () => {
   const paths = flattenRoutes(router.routes)
+
+  it('keeps the Vue root landing page mapped to the dashboard', () => {
+    const protectedShell = router.routes.find((route) => route.children)?.children?.find((route) => route.children)
+    const indexRoute = protectedShell?.children?.find((route) => route.index)
+    expect(isValidElement<{ to: string }>(indexRoute?.element) ? indexRoute.element.props.to : undefined).toBe('/dashboard')
+  })
 
   it('keeps the old Vue deep links reachable as redirects', () => {
     const legacy = [
@@ -27,8 +34,10 @@ describe('legacy route compatibility', () => {
       '/workflow/new',
       '/workflow/:id',
       '/chat/history/:agentId',
+      '/chat-history/:agentId',
       '/chat/:agentId',
       '/dashboard/dataset-manage',
+      '/dataset-manage',
       '/settings/account',
       '/settings/system-params',
       '/settings/system-intro',

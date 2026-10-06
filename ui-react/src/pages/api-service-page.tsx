@@ -232,7 +232,9 @@ function ApisTab() {
     const edit = searchParams.get('edit')
     if (!action && !edit) return
     deepLinkHandled.current = true
-    const clear = () => setSearchParams({}, { replace: true })
+    // 动作处理后必须保留 API 页签；清空全部 query 会让 Tabs 立即切回 apps，
+    // 导致创建弹窗随 ApisTab 卸载而消失，编辑结果也无法呈现。
+    const clear = () => setSearchParams({ tab: 'apis' }, { replace: true })
     if (action === 'new') {
       setEditing(null)
       setCreating(true)

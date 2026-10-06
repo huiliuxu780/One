@@ -214,3 +214,10 @@
 - 部署后采样：8 个容器重启计数均为 0；主机 7522 MiB 内存中已用 3417 MiB、可用 3795 MiB，无 Swap；根盘 40 GiB 已用 19 GiB（51%）。仅 SSH 22 公网监听，网页仍绑定 `127.0.0.1:80`。
 
 到此 `FRONTEND_PARITY_AUDIT.md` 中已知的两个 React 前端代码缺口均闭合。仍未闭合的是外部/运行场景证据：高级工作流节点成功矩阵、外部 A2A/第三方 MCP、非 Chromium 兼容性和并发容量；这些不能被表述为已验收。
+
+### 生产深链复核补充
+
+- 逐条对照 Vue `router/constants.ts`、`modules/biz.ts`、`modules/common.ts`，在生产环境回归 24 个认证、资源、自动化、工作流、Dashboard、API 服务、设置与运维深链；控制台错误为 0。
+- 回归发现审计表所列 `/chat-history/:agentId` 与 `/dataset-manage` 未注册（Vue 原路径分别是 `/chat/history/:agentId`、`/dashboard/dataset-manage`）。原路径一直可用，同时补上两个兼容别名，防止 React 菜单命名和交接文档产生的地址落到 404。
+- 根路径从 React 自定义的 Agent 首页改回 Vue 原有的 Dashboard 首页，恢复信息结构一致性。
+- 发现 `/api-service/new` 虽能重定向，但动作处理后清空全部 query 会切回 apps 页签并卸载创建弹窗；已改为仅清除动作参数并保留 `tab=apis`，本地真实后端复验弹窗、API 列表和表单均可见。
