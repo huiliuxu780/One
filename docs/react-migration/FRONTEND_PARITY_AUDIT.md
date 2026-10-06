@@ -18,7 +18,7 @@
 
 | Vue 入口 | 用户操作 | Vue 接口 | React 目标 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| `layout/`、`components/layout/` | 侧栏导航、用户菜单、退出 | 无/`auth` | `app-shell.tsx` | 已迁移未验证 | 左侧导航已确认可纵向滚动；账号设置菜单已在本地浏览器接入设置页；生产菜单回归未单独记录。菜单按能力隐藏，后端权限为最终边界 |
+| `layout/`、`components/layout/` | 侧栏导航、用户菜单、退出 | 无/`auth` | `app-shell.tsx` | 已迁移未验证 | 左侧导航已确认可纵向滚动；部署后的“账号设置”菜单已跳到 `/react/settings?tab=accounts`。菜单按能力隐藏，后端权限为最终边界；退出登录本轮未重测 |
 | `pages/Login.vue` | 登录、Token 刷新 | `/api/auth/login`、refresh | `login-page.tsx`、`client.ts` | 已验证 | 登录响应必须含默认租户 `tenantId=1`；401 单飞刷新有 MSW 单测 |
 | 路由守卫 | 未登录跳登录 | — | `protected-route.tsx` | 已验证 | 登录后进入应用（Vue 登录后固定跳 dashboard，不回跳深链；React 行为一致） |
 | 403/404/500 | 错误页 | — | `error-pages.tsx` | 已验证 | 404 文案已去除"尚未迁移"过时表述 |
@@ -80,10 +80,10 @@
 | `/skill/new` 深链 | 打开新建弹窗 | — | `?action=new` | 已验证 | 生产深链打开新建技能弹窗；Vue 是整页+弹窗，React 等价为弹窗 |
 | `/skill/hub` 深链 | 打开 SkillHub | — | `?hub=1` | 已验证 | 生产深链打开真实 SkillHub 列表；React 为 Sheet，搜索/导入一致 |
 | `/skill/:id/edit` 深链 | 打开指定技能编辑 | `/api/skill/{id}`、`/tree` | `?edit=ID` → 文件管理 Sheet | 已验证 | Vue 为整页文件树+Monaco；React 为文件树+CodeMirror Sheet，无效 ID 显示后端明确错误而非静默空壳 |
-| `views/Tool/` | CRUD、代码编辑、调试、分类/类型筛选、启停 | tool API | `resource-pages.tsx` | 已迁移未验证 | 调试和分类筛选已在真实 Tool 验证，本地启停往返并恢复原状态。本轮又补齐输入参数结构化编辑、排序、版本号与代码模板；真实 Tool 的编辑表单已加载 Schema，保存协议有类型/单测覆盖，新增/编辑提交尚待真实后端回归 |
+| `views/Tool/` | CRUD、代码编辑、调试、分类/类型筛选、启停 | tool API | `resource-pages.tsx` | 已迁移未验证 | 调试和分类筛选已在真实 Tool 验证，本地启停往返并恢复原状态。本轮补齐输入参数结构化编辑、排序、版本号与代码模板；部署后的真实 Tool 编辑表单已加载 Schema 和版本号，新增/编辑提交尚待真实后端回归 |
 | `views/Mcp/` | CRUD、激活、同步、工具治理、调试、协议筛选、启停 | mcp API | `mcp-page.tsx` | 已迁移未验证 | 本轮补齐分页搜索、协议筛选与引用提醒后的启停；调试展示原始错误，新增操作待真实数据回归 |
 | `/mcp/:serverId/tools` 深链 | 打开指定 Server 工具治理 | `/api/mcp/server/{id}`、`/tools` | `?tools=ID` | 已验证 | 生产深链已回归；无效 ID 显示后端明确错误（Vue 静默空态） |
-| `views/Hook/`、`views/Prompt/`、`views/Sensitive/` 等 | CRUD/占用检查/筛选/启停 | 对应 API | `resource-pages.tsx` | 已迁移未验证 | 已加占用二次确认和详情加载；本轮补齐 Vue 必填字段、敏感词替换文本校验和多值输入（原实现输入逗号会粘连词项）。本地浏览器确认 `alpha,beta` 成为两枚独立词项且未提交；提示词分类筛选已验证，逐资源保存/启停待真实回归 |
+| `views/Hook/`、`views/Prompt/`、`views/Sensitive/` 等 | CRUD/占用检查/筛选/启停 | 对应 API | `resource-pages.tsx` | 已迁移未验证 | 已加占用二次确认和详情加载；本轮补齐 Vue 必填字段、敏感词替换文本校验和多值输入。本地浏览器确认 `alpha,beta` 成为两枚独立词项且未提交；部署后 Hook/Prompt/Sensitive 各自对未占用演示记录启停往返成功并恢复原状态，逐资源保存待回归 |
 | 长期记忆配置 | MEM0/ReMe/百炼专属字段、记忆控制模式、保存 | long-term-memory API | `memory-form.tsx` | 已迁移未验证 | 旧 React 仅提供原始 JSON，现按 Vue 协议构建 `config`；真实后端已打开现有 MEM0 编辑表单并验证密钥不回显，三个类型的字段和序列化单测通过，保存及外部连接未验证 |
 | `views/Mcp/`、`views/Skill/`、`views/Workflow/`、`views/Automation/` | 列表搜索、类型筛选 | 各分页 API | 对应 React 页 | 已迁移未验证 | 审计发现若搜索词未并入 `usePagedList` 查询键，请求不会触发；已修正 MCP/Skill/Workflow/Automation，工作流真实列表从四条缩至一条；其余待回归 |
 | 密钥字段 | 留空不修改语义 | — | 各表单 | 已验证 | 后端密文不回显；模型供应商新建 CONFIG 鉴权需填 API Key，编辑时可留空保留原值 |
@@ -101,7 +101,7 @@
 
 | Vue 入口 | 用户操作 | Vue 接口 | React 目标 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| `views/Workflow/` | 列表、搜索、复制、锁定、删除、强制删除 | workflow API | `workflow-page.tsx` | 已迁移未验证 | 分页搜索在本地 Vite + 真实后端从四条缩为一条；其余写操作和生产筛选待逐项回归 |
+| `views/Workflow/` | 列表、搜索、复制、锁定、删除、强制删除 | workflow API | `workflow-page.tsx` | 已迁移未验证 | 分页搜索在部署后从四条真实记录缩为一条；复制/锁定/删除等写操作待逐项回归 |
 | `/workflow/new` 深链 | 创建进入编辑器 | workflowSave | `?create=1` → 创建一次 → `/workflow/{id}/edit` | 已迁移未验证 | Vue 打开未保存草稿画布（保存时才创建、无防重）；React 架构要求先建后编，深链严格防重复创建。行为差异已在备注声明 |
 | `/workflow/:id` 深链 | 打开编辑器 | — | 重定向 `/workflow/{id}/edit` | 已验证 | 生产深链完成重定向；不存在 ID 保持在编辑器加载/错误链路，不伪造内容 |
 | `components/workflow/` | React Flow 画布、节点配置、校验、保存、发布、版本、调试 | workflow/workflowResources API | `workflow-editor-page.tsx` | 已验证 | toBackendDefinition round-trip 单测；回声流程发布/运行通过 |
@@ -156,6 +156,13 @@
 2. 高级工作流节点成功运行矩阵、外部 A2A/第三方 MCP 集成凭据验收（REMAINING_SPEC §8）仍缺证据。
 3. 非 Chromium 浏览器兼容性与并发容量仍未形成证据，不能从单浏览器、单用户开发验收外推。
 
-## 12. 结论口径
+## 12. 本轮部署与回归记录
+
+- 2026-10-06：`603b7d5` 已推送到 `origin/codex/react-migration`；ECS `/root/ONE` 与 `/opt/apboa-next` 均快进到该提交。
+- `ui-react/dist/` 从本地构建同步，保留旧哈希资源；只重建并重启 Compose `frontend`，Console/Runtime、数据库和数据卷未重建。前端镜像 ID 为 `sha256:e36cc4c15a5e9fa27c00afc8a1e9a8640232c8b7ea1160fed1f70920cff35c9d`，更新前镜像标记为 `apboa-dev-frontend:rollback-ba9def8-pre-603b7d5`，旧静态产物保存在 `ui-react/dist.pre-603b7d5/`。
+- SSH 隧道 `/react/` 返回 HTTP 200；浏览器在部署后的页面验证 Tool 编辑表单、账号设置菜单、Workflow 搜索，以及 Hook/Prompt/Sensitive 启停往返并恢复原状态。浏览器错误日志为空。
+- 本地检查：31 个测试文件共 102 项通过；TypeScript 与生产构建通过；全部静态产物在既定体积阈值内。
+
+## 13. 结论口径
 
 **当前不能严谨地宣布全部迁移完毕。**此前“没有已知前端缺口”的结论已被 Tool 调试、供应商深链、资源筛选、启停和长期记忆配置的后续审计推翻。当前代码已修复这些已发现的问题，其中部分已用本地 Vite、ECS 真实后端及部署后的前端验证，但尚未完成全部页面操作的逐项回归。部署状态应核对运行镜像和 Git SHA，不能仅凭本文推断。高级工作流节点、外部 A2A/第三方 MCP、非 Chromium 兼容性及并发容量仍缺少完整验收证据。状态必须按上表逐项更新，不能从路由可渲染或旧文档结论外推。
