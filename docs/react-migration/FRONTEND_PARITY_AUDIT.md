@@ -126,10 +126,10 @@
 
 | Vue 入口 | 用户操作 | Vue 接口 | React 目标 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| `components/settings/` 账号 | 列表、新建、启用切换、重置密码（MD5）、删除 | `/api/account/*`、`/api/auth/admin/create-account` | `settings-page.tsx` | 已迁移未验证 | 新建加入当前默认租户（后端从 token 注入）；前端禁止删除当前账号，后端另有管理员保护 |
+| `components/settings/` 账号 | 列表、新建、启用切换、重置密码（MD5）、删除 | `/api/account/*`、`/api/auth/admin/create-account` | `settings-page.tsx` | 已迁移未验证 | 新建加入当前默认租户（后端从 token 注入）；前端禁止删除当前账号，后端另有管理员保护。审计发现重置密码、新建账号弹窗取消后保留草稿（含密码），现已在打开和关闭时清空；真实账号写入回归仍待完成 |
 | `/settings/account` 等深链 | 打开对应页签 | — | `?tab=` 重定向 | 已验证 | 生产矩阵覆盖 account/system-params/api-keys/system-intro |
 | `/settings/tenant*` 深链 | 组织管理 | — | 重定向回设置 | 明确排除 | 多租户操作页排除 |
-| API Key | 创建一次性展示完整值 | `/api/sk/*` | `settings-page.tsx` | 已验证 | — |
+| API Key | 创建（名称/过期时间/备注）、一次性展示完整值并复制、改名、删除 | `/api/sk/*` | `settings-page.tsx` | 已迁移未验证 | React 原缺少 Vue 的过期时间和备注，并将完整密钥放入短暂提示；现补齐字段及可手动关闭的一次性弹窗，创建协议有组件测试。真实密钥创建、过期校验及复制尚待回归 |
 | 系统参数 | CRUD | `/api/params/*` | `settings-page.tsx` | 已验证 | — |
 | 系统介绍 | 查看 | 静态 | `SystemIntroTab` | 已验证 | 生产深链打开；内容适配单默认租户、无知识库/本地 RAG 的真实范围 |
 | 个人资料/修改密码 | 查看/更新 | account API | `profile-page.tsx`、`change-password-page.tsx` | 已验证 | MD5 后提交与 Vue 一致 |

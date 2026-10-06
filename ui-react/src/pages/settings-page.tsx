@@ -14,6 +14,7 @@ import { Pagination } from '@/components/ui/pagination'
 import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/sonner'
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/states'
 import { readableError } from '@/lib/utils'
@@ -76,6 +77,21 @@ function AccountsTab() {
 
   const rows = filterAccounts(listQuery.data ?? [], keyword)
 
+  function openReset(row: AccountVO) {
+    setNewPassword('')
+    setResetTarget(row)
+  }
+
+  function closeReset() {
+    setResetTarget(null)
+    setNewPassword('')
+  }
+
+  function setCreateOpen(open: boolean) {
+    setCreateValues({ nickname: '', username: '', email: '', password: '' })
+    setCreating(open)
+  }
+
   async function toggle(row: AccountVO, enabled: boolean) {
     try {
       await accounts.toggleEnabled(String(row.id), enabled)
@@ -92,8 +108,7 @@ function AccountsTab() {
     try {
       await accounts.changePassword(String(resetTarget.id), md5(newPassword))
       toast.success('密码已重置')
-      setResetTarget(null)
-      setNewPassword('')
+      closeReset()
     } catch (cause) {
       toast.error(readableError(cause, '重置失败'))
     } finally {
@@ -106,8 +121,7 @@ function AccountsTab() {
     try {
       await accounts.create({ ...createValues, password: md5(createValues.password) })
       toast.success('账号已创建')
-      setCreating(false)
-      setCreateValues({ nickname: '', username: '', email: '', password: '' })
+      setCreateOpen(false)
       void listQuery.refetch()
     } catch (cause) {
       toast.error(readableError(cause, '创建失败'))
@@ -139,7 +153,7 @@ function AccountsTab() {
             <MagnifyingGlass size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input className="pl-8" placeholder="搜索账号" value={keyword} onChange={(event) => setKeyword(event.target.value)} />
           </div>
-          {canManage ? <Button onClick={() => setCreating(true)}><Plus size={14} /> 新建账号</Button> : null}
+          {canManage ? <Button onClick={() => setCreateOpen(true)}><Plus size={14} /> 新建账号</Button> : null}
         </div>
         {listQuery.isLoading ? (
           <TableSkeleton rows={4} />
@@ -169,7 +183,7 @@ function AccountsTab() {
                   <TableCell><Switch checked={Boolean(row.enabled)} disabled={!canManage || String(row.id) === String(currentUser?.id)} onCheckedChange={(checked) => setToggleTarget({ account: row, enabled: checked })} aria-label={`启用 ${row.username}`} /></TableCell>
                   <TableCell className="text-right">
                     {canManage ? <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => setResetTarget(row)}>重置密码</Button>
+                      <Button variant="ghost" size="sm" onClick={() => openReset(row)}>重置密码</Button>
                       <Button variant="ghost" size="sm" className="text-destructive" disabled={String(row.id) === String(currentUser?.id)} onClick={() => setRemoveTarget(row)}><Trash size={13} /> 删除</Button>
                     </div> : '—'}
                   </TableCell>
@@ -179,7 +193,7 @@ function AccountsTab() {
           </Table>
         )}
 
-        <Dialog open={Boolean(resetTarget)} onOpenChange={(open) => !open && setResetTarget(null)}>
+        <Dialog open={Boolean(resetTarget)} onOpenChange={(open) => !open && closeReset()}>
           <DialogContent className="max-w-sm">
             <DialogHeader>
               <DialogTitle>重置密码 · {resetTarget?.username}</DialogTitle>
@@ -190,13 +204,13 @@ function AccountsTab() {
               <Input id="reset-password" type="password" className="mt-1.5" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} />
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setResetTarget(null)}>取消</Button>
+              <Button variant="outline" onClick={closeReset}>取消</Button>
               <Button onClick={() => void resetPassword()} disabled={busy || newPassword.length < 6}>{busy ? '提交中…' : '确认重置'}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
-        <Dialog open={creating} onOpenChange={setCreating}>
+        <Dialog open={creating} onOpenChange={setCreateOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>新建账号</DialogTitle>
@@ -208,7 +222,7 @@ function AccountsTab() {
               <div><Label htmlFor="account-email">邮箱</Label><Input id="account-email" type="email" value={createValues.email} onChange={(event) => setCreateValues((value) => ({ ...value, email: event.target.value }))} /></div>
               <div><Label htmlFor="account-password">初始密码</Label><Input id="account-password" type="password" autoComplete="new-password" value={createValues.password} onChange={(event) => setCreateValues((value) => ({ ...value, password: event.target.value }))} /></div>
             </div>
-            <DialogFooter><Button variant="outline" onClick={() => setCreating(false)}>取消</Button><Button disabled={busy || !createValues.nickname.trim() || !createValues.username.trim() || !createValues.email.includes('@') || createValues.password.length < 6} onClick={() => void createAccount()}>{busy ? '创建中…' : '创建'}</Button></DialogFooter>
+            <DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)}>取消</Button><Button disabled={busy || !createValues.nickname.trim() || !createValues.username.trim() || !createValues.email.includes('@') || createValues.password.length < 6} onClick={() => void createAccount()}>{busy ? '创建中…' : '创建'}</Button></DialogFooter>
           </DialogContent>
         </Dialog>
 
@@ -244,9 +258,12 @@ function SystemIntroTab() {
   )
 }
 
-function ApiKeysTab() {
+export function ApiKeysTab() {
   const listQuery = useQuery({ queryKey: ['list', 'sk'], queryFn: async () => (await secretKeys.list()).data.data })
   const [name, setName] = useState('')
+  const [expireTime, setExpireTime] = useState('')
+  const [remark, setRemark] = useState('')
+  const [createdKey, setCreatedKey] = useState('')
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState<SecretKeyVO | null>(null)
   const [editName, setEditName] = useState('')
@@ -254,13 +271,17 @@ function ApiKeysTab() {
   const rows: SecretKeyVO[] = listQuery.data ?? []
 
   async function create() {
-    if (!name.trim()) return
+    if (!name.trim() || name.trim().length > 100 || remark.trim().length > 200) { toast.error('名称或备注不符合长度要求'); return }
+    if (expireTime && (!Number.isFinite(Date.parse(expireTime)) || Date.parse(expireTime) <= Date.now())) { toast.error('过期时间必须晚于现在'); return }
     setBusy(true)
     try {
-      const response = await secretKeys.create({ name: name.trim() })
-      toast.success('已创建', { description: '完整密钥仅本次返回，请立即保存（不会再次显示）' })
-      if (response.data.data?.value) toast.info(`密钥：${response.data.data.value}`)
+      const response = await secretKeys.create({ name: name.trim(), remark: remark.trim(), expireTime: expireTime ? `${expireTime.replace('T', ' ')}:00` : null })
+      const fullKey = response.data.data?.value
+      if (fullKey) setCreatedKey(fullKey)
+      else toast.error('密钥已创建，但服务端未返回完整值；请删除该密钥后重新创建')
       setName('')
+      setExpireTime('')
+      setRemark('')
       void listQuery.refetch()
     } catch (cause) {
       toast.error(readableError(cause, '创建失败'))
@@ -282,8 +303,9 @@ function ApiKeysTab() {
 
   async function rename() {
     if (!editing) return
+    if (!editName.trim() || editName.trim().length > 100) { toast.error('请输入不超过 100 字符的名称'); return }
     try {
-      await secretKeys.update({ id: editing.id, name: editName })
+      await secretKeys.update({ id: editing.id, name: editName.trim() })
       toast.success('已更新')
       setEditing(null)
       void listQuery.refetch()
@@ -295,14 +317,18 @@ function ApiKeysTab() {
   return (
     <Card>
       <CardContent className="pt-5">
-        <div className="mb-3 flex gap-2">
-          <Input className="w-64" placeholder="新密钥名称" value={name} onChange={(event) => setName(event.target.value)} />
+        <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+          <Input aria-label="新密钥名称" maxLength={100} placeholder="新密钥名称" value={name} onChange={(event) => setName(event.target.value)} />
+          <Input aria-label="过期时间" type="datetime-local" value={expireTime} onChange={(event) => setExpireTime(event.target.value)} />
           <Button onClick={() => void create()} disabled={busy || !name.trim()}>
             <Plus size={14} /> 创建密钥
           </Button>
+          <Textarea aria-label="密钥备注" className="sm:col-span-3" maxLength={200} placeholder="备注（可选）" value={remark} onChange={(event) => setRemark(event.target.value)} />
         </div>
         {listQuery.isLoading ? (
           <TableSkeleton rows={3} />
+        ) : listQuery.error ? (
+          <ErrorState error={listQuery.error} onRetry={() => void listQuery.refetch()} />
         ) : rows.length === 0 ? (
           <EmptyState title="暂无 API Key" description="创建一个密钥用于 API 访问。" />
         ) : (
@@ -311,6 +337,8 @@ function ApiKeysTab() {
               <TableRow>
                 <TableHead>名称</TableHead>
                 <TableHead>密钥（已脱敏）</TableHead>
+                <TableHead>过期时间</TableHead>
+                <TableHead>备注</TableHead>
                 <TableHead className="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
@@ -319,6 +347,8 @@ function ApiKeysTab() {
                 <TableRow key={String(key.id)}>
                   <TableCell>{key.name}</TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">{key.value}</TableCell>
+                  <TableCell className="text-xs">{key.expireTime || '长期有效'}</TableCell>
+                  <TableCell className="text-xs">{key.remark || '—'}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
                       <Button variant="ghost" size="sm" onClick={() => { setEditing(key); setEditName(key.name) }}>改名</Button>
@@ -343,7 +373,17 @@ function ApiKeysTab() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditing(null)}>取消</Button>
-              <Button onClick={() => void rename()}>保存</Button>
+              <Button onClick={() => void rename()} disabled={!editName.trim() || editName.trim().length > 100}>保存</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={Boolean(createdKey)} onOpenChange={(open) => { if (!open) setCreatedKey('') }}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader><DialogTitle>API Key 已创建</DialogTitle><DialogDescription>完整密钥仅显示一次。请复制并妥善保存，使用时放在 Authorization 请求头。</DialogDescription></DialogHeader>
+            <div className="break-all rounded-lg bg-muted p-3 font-mono text-sm" aria-label="完整 API Key">{createdKey}</div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCreatedKey('')}>关闭</Button>
+              <Button onClick={async () => { try { await navigator.clipboard.writeText(createdKey); toast.success('已复制') } catch { toast.error('复制失败，请手动复制') } }}>复制密钥</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
