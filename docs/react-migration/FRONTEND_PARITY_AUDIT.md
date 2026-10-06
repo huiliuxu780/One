@@ -133,9 +133,9 @@
 | 系统参数 | CRUD | `/api/params/*` | `settings-page.tsx` | 已验证 | — |
 | 系统介绍 | 查看 | 静态 | `SystemIntroTab` | 已验证 | 生产深链打开；内容适配单默认租户、无知识库/本地 RAG 的真实范围 |
 | 个人资料/修改密码 | 查看/更新 | account API | `profile-page.tsx`、`change-password-page.tsx` | 已验证 | MD5 后提交与 Vue 一致 |
-| `views/Ops/` 节点监控 | 执行节点/WS 节点 15s 轮询 | heartbeat API | `ops-page.tsx` | 已验证 | — |
+| `views/Ops/` 节点监控 | 执行节点/WS 节点 15s 轮询 | heartbeat API | `ops-page.tsx` | 已验证 | 后端限管理员；React 运维页现仅向管理员显示此页签，编辑角色落存储页签 |
 | `/ops/monitor`、`/ops/storage` 深链 | 打开页签 | — | `?tab=` 重定向 | 已验证 | 生产矩阵分别落执行节点与存储配置页签 |
-| 存储配置 | 新增/编辑/删除/协议配置（S3/FTP/LOCAL）/设为唯一启用 | `/api/storage/*` | `ops-page.tsx` StorageTab | 已验证 | 真实创建并启用 LOCAL 配置；目录指向共享卷后，Console 上传→Runtime 解析链路通过。默认目录改为 `.apboa/storage`，避免容器私有 `/home`。secret 留空保留后端值 |
+| 存储配置 | 新增/编辑/删除/详情/协议配置（S3/FTP/LOCAL）/设为唯一启用 | `/api/storage/*` | `ops-page.tsx` StorageTab | 已迁移未验证 | 先前真实创建并启用 LOCAL 配置；目录指向共享卷后，Console 上传→Runtime 解析链路通过。默认目录改为 `.apboa/storage`，避免容器私有 `/home`。本轮补 Vue 协议表单必填及 FTP 端口范围校验、详情字段与密钥遮蔽，并把运维入口向后端允许的编辑角色开放；这些新增交互有单测和构建验证，尚待真实角色及浏览器回归。secret 留空保留后端值 |
 | `FileManager.vue` 附件 | 分页/单个下载/删除 | `/api/attach/page`、download、delete | `ops-page.tsx` FilesTab | 已验证 | 真实 README 列表与单文件下载成功，下载反馈与后端 DOWNLOAD 日志一致；删除日志已有真实记录。Vue 同步 revokeObjectURL，React 延迟 10s 回收更稳妥 |
 | 批量下载 | 多选打包下载 | `/api/attach/batchDownload` | `ops-page.tsx` | 已验证（React 增强） | 真实勾选 README 后按钮启用并完成请求，无错误反馈或控制台错误；**Vue 中该 API 无任何 UI 调用**，React 补充真实接口入口 |
 | `FileLog.vue` | 日志分页/类型过滤 | `/api/attach/log/page` | `ops-page.tsx` FileLogsTab | 已验证 | 真实后端展示 README 的上传、下载、删除记录及操作人/时间 |
@@ -168,6 +168,7 @@
 - 2026-10-06：Skill 修复提交 `bae5e95` 已推送并在 ECS 两处仓库部署；只重建 `frontend`。该批次前端镜像 ID `sha256:aa46ee11a39068c45302c0e6b91fc36d4e37593b85c992758b46854f3415b236`，回滚镜像 `apboa-dev-frontend:rollback-5ad1f77-pre-bae5e95`，旧产物 `ui-react/dist.pre-bae5e95/`。SSH 隧道 `/react/` 返回 HTTP 200，部署后刷新页面可见 SkillHub 全部筛选；本地 Vite 通过真实后端验证分类筛选和新建/导入表单重开复位，未提交数据。文件树子目录创建、未保存保护及工具记录 ID 提交有组件测试，真实技能列表为空，尚无真实文件操作和关联保存回归。33 个测试文件共 109 项通过，类型检查、生产构建、体积检查通过；部署页面浏览器错误日志为空。
 - 2026-10-06：Skill 关联保护和 MCP 工具协议修复提交 `507d532` 已推送并在 ECS 两处仓库部署；只重建 `frontend`。运行镜像 ID `sha256:b11846afca6f34ed5b8dee0f9fc98becb71aac77bc2cdcb6340589b0fee9d213`，回滚镜像 `apboa-dev-frontend:rollback-bae5e95-pre-507d532`，旧产物 `ui-react/dist.pre-507d532/`。`/react/` 与新版 MCP 资源均返回 HTTP 200，Frontend/Console/Runtime 容器运行；本地 Vite `127.0.0.1:3031` 和 SSH 隧道 `127.0.0.1:18080` 在监听。34 个测试文件共 113 项通过，类型检查、生产构建和体积检查通过。浏览器自动化在本次部署后出现 CDP 超时，未取得新版 MCP 页面级回归证据；不能把 HTTP 200 写成浏览器验收。
 - 2026-10-06：工作流列表修复提交 `2a261ea` 已推送并在 ECS 两处仓库部署；只重建 `frontend`。运行镜像 ID `sha256:350aed1574b70bcc6bd8d8fbfce902aeac16c6b9ba11d4c9e92cad7dc15b3b3f`，回滚镜像 `apboa-dev-frontend:rollback-507d532-pre-2a261ea`，旧产物 `ui-react/dist.pre-2a261ea/`。`/react/` 与新版 workflow 页面 JavaScript 资源返回 HTTP 200，Frontend/Console/Runtime 容器运行。浏览器打开部署后的真实工作流列表，能看到新增的发布/启用筛选、独立“设计”和“编辑信息”入口，四条真实记录与浏览器错误日志为空；浏览器点击命令偶发 CDP 超时，尚未完成筛选和保存的真实交互回归。34 个测试文件共 114 项通过，类型检查、生产构建和体积检查通过。
+- 2026-10-06：账号草稿和 API Key 创建修复提交 `5229c92` 已推送并在 ECS 两处仓库部署；只重建 `frontend`。运行镜像 ID `sha256:b7d1bb3a30e6d4ebe88d0fae0a398f3a47cec3ca7a38fa71500a3b396579e3a4`，回滚镜像 `apboa-dev-frontend:rollback-2a261ea-pre-5229c92`，旧产物 `ui-react/dist.pre-5229c92/`。`/react/` 返回 HTTP 200，Frontend/Console/Runtime 容器运行。浏览器打开部署后的 API Key 页看到名称、过期时间和备注字段，真实列表为空，浏览器错误日志为空；未创建真实密钥，因此一次性展示和复制只由组件测试验证。35 个测试文件共 115 项通过，类型检查、生产构建和体积检查通过。
 
 ## 13. 结论口径
 

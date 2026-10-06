@@ -16,9 +16,9 @@ describe('roleSatisfies', () => {
     expect(roleSatisfies('SOMETHING_ELSE', 'TENANT_VIEWER')).toBe(false)
   })
 
-  it('管理类能力要求管理员及以上，读写能力对编辑开放', () => {
+  it('账号与节点监控要求管理员，资源和存储对编辑开放', () => {
     expect(CAPABILITY_MIN_ROLE['account:manage']).toBe('TENANT_ADMIN')
-    expect(CAPABILITY_MIN_ROLE['ops:manage']).toBe('TENANT_ADMIN')
+    expect(CAPABILITY_MIN_ROLE['ops:manage']).toBe('TENANT_EDITOR')
     expect(CAPABILITY_MIN_ROLE['agent:manage']).toBe('TENANT_EDITOR')
     expect(CAPABILITY_MIN_ROLE['chat:use']).toBe('TENANT_VIEWER')
   })
