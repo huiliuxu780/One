@@ -52,7 +52,7 @@ public class WorkflowScheduler extends QuartzJob {
 
             // 4. 执行工作流
             WorkflowRunService workflowRunService = getBean(WorkflowRunService.class);
-            WorkflowRunRequest request = buildRunRequest(wrapper.getParams());
+            WorkflowRunRequest request = buildRunRequest(wrapper.getParams(), wrapper.getVariables());
 
             log.info("Executing workflow, workflowId: {}, tenantId: {}, userId: {}",
                     wrapper.getBizId(), tenantId, userInfo.getId());
@@ -143,8 +143,9 @@ public class WorkflowScheduler extends QuartzJob {
     /**
      * 构建工作流运行请求
      */
-    private WorkflowRunRequest buildRunRequest(Map<String, Object> params) {
+    private WorkflowRunRequest buildRunRequest(Map<String, Object> params, Map<String, Object> variables) {
         WorkflowRunRequest request = new WorkflowRunRequest();
+        request.setVariables(MapUtils.isEmpty(variables) ? Collections.emptyMap() : variables);
 
         if (MapUtils.isEmpty(params)) {
             request.setParams(Collections.emptyList());

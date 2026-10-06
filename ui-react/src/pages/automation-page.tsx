@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ClockCounterClockwise, MagnifyingGlass, Play, Plus, Square, Trash } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import { toast } from '@/components/ui/sonner'
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/states'
 import { readableError } from '@/lib/utils'
@@ -20,8 +21,11 @@ import * as automationApi from '@/api/automation'
 import * as agentsApi from '@/api/agents'
 import * as chatSessionApi from '@/api/chatSession'
 import * as workflowApi from '@/api/workflows'
-import type { ChatMessageVO, JobInfo, WorkflowNodeExecution } from '@/types'
+import * as workspaceApi from '@/api/workspace'
+import type { ChatMessageVO, JobInfo, WorkflowNodeExecution, WorkflowVariable } from '@/types'
 import { usePagedList } from '@/features/data/paged'
+import type { WorkflowStartParam } from '@/features/workflow/run-inputs'
+import { buildWorkflowJobInputs, workflowJobDefaults } from '@/features/automation/workflow-job-inputs'
 
 /** 自动化任务（RM-06）：Cron 任务 CRUD、启停、手动触发与执行记录。 */
 export function AutomationPage() {
@@ -186,14 +190,15 @@ function JobFormDialog({ open, onOpenChange, editing, onSaved }: {
   editing: JobInfo | null
   onSaved: () => void
 }) {
-  const [values, setValues] = useState({ type: 'AGENT', bizId: '', cron: '0 */5 * * * ?', input: '' })
+  const [values, setValues] = useState({ type: 'AGENT', bizId: '', cron: '0 */5 * * * ?', input: '', variables: '{}' })
   const [busy, setBusy] = useState(false)
+  const initializedWorkflowRef = useRef('')
 
   useEffect(() => {
     let input = ''
     if (editing?.dataMap) {
       try {
-        const data = JSON.parse(editing.dataMap) as { userPrompt?: string; input?: string; params?: Record<string, unknown> }
+        const data = JSON.parse(editing.dataMap) as { userPrompt?: string; input?: string; params?: Record<string, unknown>; variables?: Record<string, unknown> }
         input = editing.type === 'AGENT'
           ? (data.userPrompt ?? data.input ?? '')
           : JSON.stringify(data.params ?? {}, null, 2)
@@ -206,7 +211,12 @@ function JobFormDialog({ open, onOpenChange, editing, onSaved }: {
       bizId: editing?.bizId ?? '',
       cron: editing?.cron ?? '0 */5 * * * ?',
       input,
+      variables: (() => {
+        if (!editing?.dataMap || editing.type !== 'WORKFLOW') return '{}'
+        try { return JSON.stringify((JSON.parse(editing.dataMap) as { variables?: Record<string, unknown> }).variables ?? {}, null, 2) } catch { return '{}' }
+      })(),
     })
+    initializedWorkflowRef.current = ''
   }, [editing, open])
 
   const targetsQuery = useQuery({
@@ -222,6 +232,33 @@ function JobFormDialog({ open, onOpenChange, editing, onSaved }: {
     },
   })
 
+  const workflowDetailQuery = useQuery({
+    queryKey: ['detail', 'automation-workflow-target', values.bizId],
+    enabled: open && values.type === 'WORKFLOW' && Boolean(values.bizId),
+    queryFn: async () => (await workflowApi.getWorkflow(values.bizId)).data.data,
+  })
+  const workflowDefinition = workflowDetailQuery.data?.workflow.config
+  const startParams: WorkflowStartParam[] = (() => {
+    const start = workflowDefinition?.nodes?.find((node) => node.type === 'START')
+    return Array.isArray(start?.config?.params) ? start.config.params as WorkflowStartParam[] : []
+  })()
+  const customVariables: WorkflowVariable[] = (workflowDefinition?.variables ?? []).filter((variable) => variable.source === 'custom')
+
+  useEffect(() => {
+    if (!workflowDefinition || !values.bizId || initializedWorkflowRef.current === values.bizId) return
+    let savedParams: Record<string, unknown> = {}
+    let savedVariables: Record<string, unknown> = {}
+    try { savedParams = JSON.parse(values.input || '{}') as Record<string, unknown> } catch { /* submit will show the invalid JSON */ }
+    try { savedVariables = JSON.parse(values.variables || '{}') as Record<string, unknown> } catch { /* submit will show the invalid JSON */ }
+    const defaults = workflowJobDefaults(startParams, customVariables, savedParams, savedVariables)
+    setValues((current) => ({
+      ...current,
+      input: JSON.stringify(defaults.params, null, 2),
+      variables: JSON.stringify(defaults.variables, null, 2),
+    }))
+    initializedWorkflowRef.current = values.bizId
+  }, [customVariables, startParams, values.bizId, values.input, values.variables, workflowDefinition])
+
   async function submit() {
     if (!values.bizId) {
       toast.error('请选择执行目标')
@@ -231,14 +268,15 @@ function JobFormDialog({ open, onOpenChange, editing, onSaved }: {
     try {
       const target = targetsQuery.data?.find((item) => item.id === values.bizId)
       let params: Record<string, unknown> = {}
+      let variables: Record<string, unknown> = {}
       if (values.type === 'WORKFLOW' && values.input.trim()) {
-        const parsed = JSON.parse(values.input) as unknown
-        if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error('Workflow 输入必须是 JSON 对象')
-        params = parsed as Record<string, unknown>
+        const inputs = buildWorkflowJobInputs(startParams, values.input, values.variables)
+        params = inputs.params
+        variables = inputs.variables
       }
       const wrapper = values.type === 'AGENT'
         ? { jobName: target?.name ?? values.bizId, bizName: target?.name ?? values.bizId, type: values.type, bizId: values.bizId, userPrompt: values.input }
-        : { jobName: target?.name ?? values.bizId, bizName: target?.name ?? values.bizId, type: values.type, bizId: values.bizId, params }
+        : { jobName: target?.name ?? values.bizId, bizName: target?.name ?? values.bizId, type: values.type, bizId: values.bizId, params, variables }
       const payload: JobInfo = {
         ...(editing ?? {} as JobInfo),
         type: values.type,
@@ -248,7 +286,7 @@ function JobFormDialog({ open, onOpenChange, editing, onSaved }: {
         jobClass: values.type === 'AGENT'
           ? 'com.hxh.apboa.scheduler.scheduler.AgentScheduler'
           : 'com.hxh.apboa.scheduler.scheduler.WorkflowScheduler',
-        enabled: editing?.enabled ?? false,
+        enabled: editing?.enabled ?? true,
       }
       if (editing) await automationApi.updateJob(payload)
       else await automationApi.addJob(payload)
@@ -272,7 +310,7 @@ function JobFormDialog({ open, onOpenChange, editing, onSaved }: {
         <div className="grid gap-4">
           <div>
             <Label>任务类型</Label>
-            <Select value={values.type} onValueChange={(value) => setValues((v) => ({ ...v, type: value, bizId: '', input: value === 'WORKFLOW' ? '{}' : '' }))}>
+            <Select value={values.type} onValueChange={(value) => { initializedWorkflowRef.current = ''; setValues((v) => ({ ...v, type: value, bizId: '', input: value === 'WORKFLOW' ? '{}' : '', variables: '{}' })) }}>
               <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="AGENT">Agent</SelectItem>
@@ -282,7 +320,7 @@ function JobFormDialog({ open, onOpenChange, editing, onSaved }: {
           </div>
           <div>
             <Label>执行目标</Label>
-            <Select value={values.bizId || ''} onValueChange={(bizId) => setValues((v) => ({ ...v, bizId }))}>
+            <Select value={values.bizId || ''} onValueChange={(bizId) => { initializedWorkflowRef.current = ''; setValues((v) => ({ ...v, bizId, input: v.type === 'WORKFLOW' ? '{}' : v.input, variables: '{}' })) }}>
               <SelectTrigger className="mt-1.5"><SelectValue placeholder={targetsQuery.isLoading ? '加载中…' : '选择目标'} /></SelectTrigger>
               <SelectContent>
                 {(targetsQuery.data ?? []).map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}
@@ -294,10 +332,7 @@ function JobFormDialog({ open, onOpenChange, editing, onSaved }: {
             <Input id="job-cron" className="mt-1.5 font-mono" value={values.cron} onChange={(event) => setValues((v) => ({ ...v, cron: event.target.value }))} placeholder="0 */5 * * * ?" />
             <p className="mt-1 text-xs text-muted-foreground">秒 分 时 日 月 周（Quartz）</p>
           </div>
-          <div>
-            <Label htmlFor="job-input">{values.type === 'AGENT' ? '定时发送的消息' : '工作流输入 (JSON 对象)'}</Label>
-            <Textarea id="job-input" className="mt-1.5 font-mono" value={values.input} onChange={(event) => setValues((v) => ({ ...v, input: event.target.value }))} placeholder={values.type === 'AGENT' ? '请输入给 Agent 的消息' : '{}'} />
-          </div>
+          {values.type === 'AGENT' ? <div><Label htmlFor="job-input">定时发送的消息</Label><Textarea id="job-input" className="mt-1.5" value={values.input} onChange={(event) => setValues((v) => ({ ...v, input: event.target.value }))} placeholder="请输入给 Agent 的消息" /></div> : workflowDetailQuery.isLoading ? <p className="text-sm text-muted-foreground">正在加载工作流输入定义…</p> : workflowDetailQuery.error ? <ErrorState error={workflowDetailQuery.error} onRetry={() => void workflowDetailQuery.refetch()} /> : <WorkflowAutomationInputs params={startParams} variables={customVariables} paramsText={values.input} variablesText={values.variables} onParamsText={(input) => setValues((current) => ({ ...current, input }))} onVariablesText={(variables) => setValues((current) => ({ ...current, variables }))} />}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
@@ -306,6 +341,40 @@ function JobFormDialog({ open, onOpenChange, editing, onSaved }: {
       </DialogContent>
     </Dialog>
   )
+}
+
+function parsedObject(text: string) {
+  try {
+    const value = JSON.parse(text || '{}') as unknown
+    return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+  } catch {
+    return {}
+  }
+}
+
+function WorkflowAutomationInputs({ params, variables, paramsText, variablesText, onParamsText, onVariablesText }: {
+  params: WorkflowStartParam[]
+  variables: WorkflowVariable[]
+  paramsText: string
+  variablesText: string
+  onParamsText: (value: string) => void
+  onVariablesText: (value: string) => void
+}) {
+  const paramValues = parsedObject(paramsText)
+  const variableValues = parsedObject(variablesText)
+  const setValue = (kind: 'params' | 'variables', name: string, value: unknown) => {
+    const current = kind === 'params' ? paramValues : variableValues
+    const next = JSON.stringify({ ...current, [name]: value }, null, 2)
+    if (kind === 'params') onParamsText(next)
+    else onVariablesText(next)
+  }
+  const field = (name: string, type: string, value: unknown, required: boolean, kind: 'params' | 'variables') => (
+    <div key={`${kind}-${name}`} className="space-y-1.5 rounded-lg border border-border p-3">
+      <div className="flex items-center justify-between gap-2"><Label>{name}{required ? <span className="text-destructive"> *</span> : null}</Label><Badge variant="outline">{type}</Badge></div>
+      {type === 'Boolean' ? <label className="flex items-center gap-2 text-sm"><Switch checked={Boolean(value)} onCheckedChange={(checked) => setValue(kind, name, checked)} />{value ? 'true' : 'false'}</label> : type === 'Array' || type === 'Object' ? <Textarea className="min-h-20 font-mono text-xs" value={typeof value === 'string' ? value : JSON.stringify(value ?? (type === 'Array' ? [] : {}), null, 2)} onChange={(event) => setValue(kind, name, event.target.value)} /> : <Input type={['Integer', 'Float', 'Double'].includes(type) ? 'number' : 'text'} value={value == null ? '' : String(value)} onChange={(event) => setValue(kind, name, event.target.value)} />}
+    </div>
+  )
+  return <div className="space-y-3"><div><Label className="mb-2 block">工作流开始参数</Label><div className="space-y-2">{params.filter((param) => param.name).map((param) => field(String(param.name), param.type || 'String', paramValues[String(param.name)], Boolean(param.required), 'params'))}{!params.some((param) => param.name) ? <p className="text-sm text-muted-foreground">该工作流没有声明开始参数。</p> : null}</div></div>{variables.length ? <div><Label className="mb-2 block">自定义变量</Label><div className="space-y-2">{variables.map((variable) => field(variable.name, variable.type, variableValues[variable.name], false, 'variables'))}</div></div> : null}<details className="rounded-lg border border-border p-2"><summary className="cursor-pointer text-xs font-medium text-muted-foreground">高级 JSON</summary><Label className="mb-1 mt-3 block text-xs">params</Label><Textarea className="min-h-24 font-mono text-xs" value={paramsText} onChange={(event) => onParamsText(event.target.value)} /><Label className="mb-1 mt-3 block text-xs">variables</Label><Textarea className="min-h-24 font-mono text-xs" value={variablesText} onChange={(event) => onVariablesText(event.target.value)} /></details></div>
 }
 
 interface JobRecord {
@@ -327,6 +396,11 @@ function RecordsSheet({ job, onClose }: { job: JobInfo; onClose: () => void }) {
     queryFn: async () => (await automationApi.getRecords(String(job.id), page, 20)).data.data,
   })
   const records: JobRecord[] = (recordsQuery.data?.records ?? []) as JobRecord[]
+  const workspaceQuery = useQuery({
+    queryKey: ['detail', 'automation-record-workspace', detail?.recordId],
+    enabled: detail?.kind === 'AGENT' && Boolean(detail.recordId),
+    queryFn: async () => (await workspaceApi.workspaceExists(detail!.recordId)).data.data,
+  })
 
   async function showDetail(record: JobRecord) {
     if (!record.recordId) {
@@ -392,7 +466,7 @@ function RecordsSheet({ job, onClose }: { job: JobInfo; onClose: () => void }) {
               <DialogDescription>关联记录 {detail?.recordId}</DialogDescription>
             </DialogHeader>
             {detail?.kind === 'AGENT' ? (
-              detail.messages.length === 0 ? <p className="text-sm text-muted-foreground">暂无消息。</p> : (
+              <><div className="mb-3 flex justify-end">{workspaceQuery.data ? <Button asChild variant="outline" size="sm"><Link to={`/workspace?sessionId=${encodeURIComponent(detail.recordId)}`}>打开本次执行工作空间</Link></Button> : workspaceQuery.isLoading ? <span className="text-xs text-muted-foreground">正在检查工作空间…</span> : null}</div>{detail.messages.length === 0 ? <p className="text-sm text-muted-foreground">暂无消息。</p> : (
                 <div className="space-y-3">
                   {detail.messages.map((message) => (
                     <div key={String(message.id)} className="rounded-md border p-3">
@@ -404,7 +478,7 @@ function RecordsSheet({ job, onClose }: { job: JobInfo; onClose: () => void }) {
                     </div>
                   ))}
                 </div>
-              )
+              )}</>
             ) : detail?.kind === 'WORKFLOW' ? (
               detail.nodes.length === 0 ? <p className="text-sm text-muted-foreground">暂无节点执行记录。</p> : (
                 <div className="space-y-3">

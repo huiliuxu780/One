@@ -17,12 +17,14 @@ import { pageSessions } from '@/api/chatSession'
 import type { ChatSessionVO, WorkspaceFileNode } from '@/types'
 import { useBatchSelection } from '@/features/data/paged'
 import { useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 
 /** 工作空间：按会话维度的文件管理（RM-04）。单机共享 volume 场景。 */
 export function WorkspacePage() {
   const queryClient = useQueryClient()
+  const [searchParams] = useSearchParams()
   const [search, setSearch] = useState('')
-  const [sessionId, setSessionId] = useState<string>('')
+  const [sessionId, setSessionId] = useState<string>(() => searchParams.get('sessionId') ?? '')
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<Array<{ name: string; percent: number; state: 'pending' | 'uploading' | 'done' | 'error' }>>([])
   const uploadAbortRef = useRef<AbortController | null>(null)
@@ -187,6 +189,7 @@ export function WorkspacePage() {
               <SelectValue placeholder="选择会话…" />
             </SelectTrigger>
             <SelectContent>
+              {sessionId && !sessions.some((session) => String(session.id) === sessionId) ? <SelectItem value={sessionId}>会话 {sessionId}</SelectItem> : null}
               {sessions.map((session) => (
                 <SelectItem key={String(session.id)} value={String(session.id)}>
                   {session.title || `会话 ${String(session.id).slice(-6)}`}
