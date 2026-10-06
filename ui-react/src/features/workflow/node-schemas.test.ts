@@ -25,4 +25,10 @@ describe('workflow node schema parity', () => {
     expect(cloneWorkflowNodeDefaults('CACHE_SET', 'cache').config).toMatchObject({ cacheId: '', key: '', value: '', expire: 0 })
     expect(cloneWorkflowNodeDefaults('DINGTALK_SEND', 'channel').config).toMatchObject({ channelId: '', isAtAll: false })
   })
+
+  it('keeps branch fallback routing fields required by the backend protocol', () => {
+    expect(workflowNodeSchemaMap.IF_ELSE.defaultConfig).toHaveProperty('elseNextNodeId')
+    expect(workflowNodeSchemaMap.MATCH_RESULT.defaultConfig).toHaveProperty('defaultNextNodeId')
+    expect(workflowNodeSchemaMap.INTENT_RECOGNITION.defaultConfig).toHaveProperty('defaultNextNodeId')
+  })
 })

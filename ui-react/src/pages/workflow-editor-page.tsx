@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useBlocker, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
   addEdge,
@@ -13,7 +13,9 @@ import {
   useNodesState,
   type Connection,
   type Edge,
+  type EdgeChange,
   type Node,
+  type NodeChange,
   type NodeMouseHandler,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
@@ -23,6 +25,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
@@ -73,6 +76,11 @@ export function WorkflowEditorPage() {
   const [runInputs, setRunInputs] = useState('{}')
   const [nodeRunInputs, setNodeRunInputs] = useState('{}')
   const [nodeRunResult, setNodeRunResult] = useState<WorkflowNodeRunResult | null>(null)
+  const [runDialogMode, setRunDialogMode] = useState<'debug' | 'run' | null>(null)
+  const [publishOpen, setPublishOpen] = useState(false)
+  const [publishRemark, setPublishRemark] = useState('')
+  const [dirty, setDirty] = useState(false)
+  const [subWorkflowStack, setSubWorkflowStack] = useState<Array<{ loopNodeId: string; parentNodes: Node[]; parentEdges: Edge[] }>>([])
   const [lockState, setLockState] = useState<'checking' | 'owned' | 'readonly'>('checking')
   const lockOwnedRef = useRef(false)
   const lockWorkflowIdRef = useRef('')
@@ -106,6 +114,7 @@ export function WorkflowEditorPage() {
     const { nodes: flowNodes, edges: flowEdges } = fromBackendDefinition(detail.workflow.config)
     setNodes(flowNodes)
     setEdges(flowEdges)
+    setDirty(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detailQuery.data])
 
@@ -160,6 +169,27 @@ export function WorkflowEditorPage() {
     [nodes],
   )
   const readOnly = legacyKnowledgeReadOnly || lockState !== 'owned'
+  const navigationBlocker = useBlocker(dirty && !readOnly)
+
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (!dirty || readOnly) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty, readOnly])
+
+  const handleNodesChange = useCallback((changes: NodeChange<Node>[]) => {
+    if (changes.some((change) => ['position', 'add', 'remove', 'replace'].includes(change.type))) setDirty(true)
+    onNodesChange(changes)
+  }, [onNodesChange])
+
+  const handleEdgesChange = useCallback((changes: EdgeChange<Edge>[]) => {
+    if (changes.some((change) => ['add', 'remove', 'replace'].includes(change.type))) setDirty(true)
+    onEdgesChange(changes)
+  }, [onEdgesChange])
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -169,6 +199,7 @@ export function WorkflowEditorPage() {
         toast.warning(result.reason)
         return
       }
+      setDirty(true)
       setEdges((existing) => addEdge({ ...connection, id: `e_${connection.source}_${connection.target}_${Date.now()}` }, existing))
     },
     [edges, nodes, readOnly, setEdges],
@@ -186,6 +217,7 @@ export function WorkflowEditorPage() {
       const parsed = JSON.parse(configText) as Record<string, unknown>
       setNodes((existing) => existing.map((node) => (node.id === selectedNode.id ? { ...node, data: { ...node.data, config: parsed } } : node)))
       setConfigDirty(false)
+      setDirty(true)
       toast.success('节点配置已应用到画布（尚未保存到服务端）')
     } catch {
       toast.error('配置不是合法 JSON')
@@ -207,11 +239,13 @@ export function WorkflowEditorPage() {
     }))
     setConfigText(JSON.stringify({ ...((selectedNode.data.config as Record<string, unknown>) ?? {}), ...patch }, null, 2))
     setConfigDirty(false)
+    setDirty(true)
   }
 
   function updateNodeData(key: string, value: unknown) {
     if (!selectedNode || readOnly) return
     setNodes((existing) => existing.map((node) => (node.id === selectedNode.id ? { ...node, data: { ...node.data, [key]: value } } : node)))
+    setDirty(true)
   }
 
   function removeSelectedNode() {
@@ -220,6 +254,7 @@ export function WorkflowEditorPage() {
     setEdges((existing) => existing.filter((edge) => edge.source !== selectedNode.id && edge.target !== selectedNode.id))
     setSelectedId(null)
     setConfigText('{}')
+    setDirty(true)
   }
 
   function addNode(type: string) {
@@ -237,15 +272,57 @@ export function WorkflowEditorPage() {
     setNodes((existing) => [...existing, newNode])
     setSelectedId(newNode.id)
     setConfigText(JSON.stringify(defaults.config, null, 2))
+    setDirty(true)
+  }
+
+  function enterSubWorkflow() {
+    if (!selectedNode || String(selectedNode.data.type) !== 'LOOP' || readOnly) return
+    const config = (selectedNode.data.config as Record<string, unknown>) ?? {}
+    const definition = {
+      nodes: Array.isArray(config.subNodes) ? config.subNodes : [],
+      edges: Array.isArray(config.subEdges) ? config.subEdges : [],
+    }
+    const child = fromBackendDefinition(definition as never)
+    setSubWorkflowStack((stack) => [...stack, { loopNodeId: selectedNode.id, parentNodes: nodes, parentEdges: edges }])
+    setNodes(child.nodes)
+    setEdges(child.edges)
+    setSelectedId(null)
+    setConfigText('{}')
+  }
+
+  function exitSubWorkflow() {
+    const subWorkflowContext = subWorkflowStack.at(-1)
+    if (!subWorkflowContext) return
+    const child = toBackendDefinition(nodes, edges)
+    const restored = subWorkflowContext.parentNodes.map((node) => {
+      if (node.id !== subWorkflowContext.loopNodeId) return node
+      return { ...node, data: { ...node.data, config: { ...((node.data.config as Record<string, unknown>) ?? {}), subNodes: child.nodes, subEdges: child.edges } } }
+    })
+    const loopNode = restored.find((node) => node.id === subWorkflowContext.loopNodeId) ?? null
+    setNodes(restored)
+    setEdges(subWorkflowContext.parentEdges)
+    setSelectedId(loopNode?.id ?? null)
+    setConfigText(JSON.stringify((loopNode?.data.config as Record<string, unknown>) ?? {}, null, 2))
+    setSubWorkflowStack((stack) => stack.slice(0, -1))
+    setDirty(true)
   }
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const definition = toBackendDefinition(nodes, edges, detailQuery.data?.workflow.config?.variables, detailQuery.data?.workflow.config?.viewport)
+      let nodesToSave = nodes
+      if (configDirty && selectedNode) {
+        let parsed: unknown
+        try { parsed = JSON.parse(configText) } catch { throw new Error('高级 JSON 配置格式不正确，请修正后再保存') }
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('高级 JSON 配置必须是对象')
+        nodesToSave = nodes.map((node) => node.id === selectedNode.id ? { ...node, data: { ...node.data, config: parsed as Record<string, unknown> } } : node)
+      }
+      const definition = toBackendDefinition(nodesToSave, edges, detailQuery.data?.workflow.config?.variables, detailQuery.data?.workflow.config?.viewport)
       return workflowApi.updateWorkflow({ id, name: detailQuery.data?.workflow.name, config: definition })
     },
     onSuccess: () => {
       toast.success('已保存')
+      setDirty(false)
+      setConfigDirty(false)
       void detailQuery.refetch()
     },
     onError: (cause) => toast.error(readableError(cause, '保存失败')),
@@ -266,18 +343,22 @@ export function WorkflowEditorPage() {
   })
 
   const publishMutation = useMutation({
-    mutationFn: async () => (await workflowApi.publishWorkflow(String(id), 'React 前端发布')).data.data,
-    onSuccess: () => toast.success('已发布新版本'),
+    mutationFn: async () => {
+      await saveMutation.mutateAsync()
+      return (await workflowApi.publishWorkflow(String(id), publishRemark.trim())).data.data
+    },
+    onSuccess: () => { toast.success('已发布新版本'); setPublishOpen(false); setPublishRemark('') },
     onError: (cause) => toast.error(readableError(cause, '发布失败')),
   })
 
   const runMutation = useMutation({
     mutationFn: async (mode: 'debug' | 'run') => {
-      const inputs = JSON.parse(runInputs) as Record<string, unknown>
+      const inputs = parseInputObject(runInputs)
       return mode === 'debug' ? (await workflowApi.debugRun(String(id), { inputs } as never)).data.data : (await workflowApi.formalRun(String(id), { inputs } as never)).data.data
     },
     onSuccess: (result: WorkflowRunResult) => {
       setRunResult(result)
+      setRunDialogMode(null)
       toast.success('执行完成')
     },
     onError: (cause) => {
@@ -289,7 +370,7 @@ export function WorkflowEditorPage() {
   const nodeRunMutation = useMutation({
     mutationFn: async () => {
       if (!selectedNode) throw new Error('请先选择节点')
-      const inputs = JSON.parse(nodeRunInputs) as Record<string, unknown>
+      const inputs = parseInputObject(nodeRunInputs)
       return (await workflowApi.debugNode({
         node: toBackendNode(selectedNode) as unknown as Record<string, unknown>,
         inputs,
@@ -308,28 +389,29 @@ export function WorkflowEditorPage() {
   return (
     <div className="flex h-[100dvh] flex-col">
       <header className="flex items-center gap-2 border-b border-border px-4 py-2">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/workflow')}>
-          <ArrowLeft size={14} /> 返回
+        <Button variant="ghost" size="sm" onClick={() => subWorkflowStack.length ? exitSubWorkflow() : navigate('/workflow')}>
+          <ArrowLeft size={14} /> {subWorkflowStack.length ? '返回上级流程' : '返回'}
         </Button>
         <span className="font-semibold">{detailQuery.data?.workflow.name}</span>
+        {subWorkflowStack.length ? <Badge variant="outline">循环子流程 · 第 {subWorkflowStack.length} 层</Badge> : null}
         <Badge variant="secondary" className="ml-1">{detailQuery.data?.workflow.version ?? '草稿'}</Badge>
         <div className="ml-auto flex items-center gap-1">
           <Button variant="outline" size="sm" onClick={() => setVersionsOpen(true)}>版本</Button>
           <Button variant="outline" size="sm" onClick={() => setRunsOpen(true)}><ClockCounterClockwise size={14} /> 运行记录</Button>
           {lockState === 'checking' ? <Badge variant="outline">正在取得编辑锁…</Badge> : lockState === 'readonly' ? <Badge variant="outline">只读</Badge> : null}
-          <Button variant="outline" size="sm" onClick={() => validateMutation.mutate()} disabled={readOnly || validateMutation.isPending}>
+          <Button variant="outline" size="sm" onClick={() => validateMutation.mutate()} disabled={readOnly || Boolean(subWorkflowStack.length) || validateMutation.isPending}>
             <ShieldCheck size={14} /> 校验
           </Button>
-          <Button variant="outline" size="sm" onClick={() => publishMutation.mutate()} disabled={readOnly || publishMutation.isPending}>
+          <Button variant="outline" size="sm" onClick={() => setPublishOpen(true)} disabled={readOnly || Boolean(subWorkflowStack.length) || publishMutation.isPending}>
             发布
           </Button>
-          <Button variant="outline" size="sm" onClick={() => runMutation.mutate('debug')} disabled={readOnly || runMutation.isPending}>
+          <Button variant="outline" size="sm" onClick={() => setRunDialogMode('debug')} disabled={readOnly || Boolean(subWorkflowStack.length) || runMutation.isPending}>
             <Bug size={14} /> 调试运行
           </Button>
-          <Button variant="outline" size="sm" onClick={() => runMutation.mutate('run')} disabled={readOnly || runMutation.isPending}>
+          <Button variant="outline" size="sm" onClick={() => setRunDialogMode('run')} disabled={readOnly || Boolean(subWorkflowStack.length) || runMutation.isPending}>
             <Play size={14} /> 正式运行
           </Button>
-          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={readOnly || saveMutation.isPending}>
+          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={readOnly || Boolean(subWorkflowStack.length) || saveMutation.isPending}>
             <FloppyDisk size={14} /> {saveMutation.isPending ? '保存中…' : '保存'}
           </Button>
         </div>
@@ -357,8 +439,8 @@ export function WorkflowEditorPage() {
             nodes={nodes}
             edges={edges}
             nodeTypes={nodeTypes}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
+            onNodesChange={handleNodesChange}
+            onEdgesChange={handleEdgesChange}
             onConnect={onConnect}
             onNodeClick={onNodeClick}
             nodesDraggable={!readOnly}
@@ -388,9 +470,15 @@ export function WorkflowEditorPage() {
                 onChange={(event) => {
                   const name = event.target.value
                   setNodes((existing) => existing.map((node) => (node.id === selectedNode.id ? { ...node, data: { ...node.data, name } } : node)))
+                  setDirty(true)
                 }}
               />
+              {String(selectedNode.data.type) === 'LOOP' ? <div className="mb-3 rounded-lg border border-border p-2"><p className="mb-2 text-xs text-muted-foreground">循环体使用与主流程相同的节点和连线协议，返回主流程时写回 subNodes / subEdges。</p><Button type="button" className="w-full" variant="outline" size="sm" disabled={readOnly} onClick={enterSubWorkflow}>编辑循环子流程</Button></div> : null}
               <StructuredConfigEditor
+                nodeType={String(selectedNode.data.type)}
+                nodeId={selectedNode.id}
+                nodes={nodes}
+                edges={edges}
                 config={(selectedNode.data.config as Record<string, unknown>) ?? {}}
                 defaults={workflowNodeSchemaMap[String(selectedNode.data.type)]?.defaultConfig ?? metadataByType[String(selectedNode.data.type)]?.defaultConfig ?? {}}
                 disabled={readOnly}
@@ -407,6 +495,7 @@ export function WorkflowEditorPage() {
                 onChange={updateConfigField}
                 onPatch={updateConfigPatch}
                 onInputConfigsChange={(value) => updateNodeData('inputConfigs', value)}
+                onOutputConfigsChange={(value) => updateNodeData('outputConfigs', value)}
               />
               <InputConfigEditor
                 value={(selectedNode.data.inputConfigs as WorkflowInputConfig[] | undefined) ?? []}
@@ -418,7 +507,7 @@ export function WorkflowEditorPage() {
               <OutputConfigDisplay value={(selectedNode.data.outputConfigs as Array<{ name: string; type?: string; description?: string }> | undefined) ?? []} />
               <details className="mt-3 rounded-lg border border-border p-2">
                 <summary className="cursor-pointer text-xs font-medium text-muted-foreground">高级 JSON 配置</summary>
-                <Textarea disabled={readOnly} className="mt-2 min-h-48 font-mono text-xs" value={configText} onChange={(event) => { setConfigText(event.target.value); setConfigDirty(true) }} />
+                <Textarea disabled={readOnly} className="mt-2 min-h-48 font-mono text-xs" value={configText} onChange={(event) => { setConfigText(event.target.value); setConfigDirty(true); setDirty(true) }} />
                 <Button className="mt-2 w-full" size="sm" onClick={applyConfig} disabled={readOnly || !configDirty}>应用 JSON</Button>
               </details>
               <div className="mt-4 rounded-lg border border-border p-3">
@@ -453,6 +542,29 @@ export function WorkflowEditorPage() {
           <RunHistory workflowId={String(id)} />
         </SheetContent>
       </Sheet>
+
+      <Dialog open={publishOpen} onOpenChange={setPublishOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>发布工作流</DialogTitle><DialogDescription>保存当前草稿并生成不可变版本。发布说明会随版本保留。</DialogDescription></DialogHeader>
+          <div><Label>发布说明</Label><Textarea className="mt-2" value={publishRemark} placeholder="说明本次节点或配置变化" onChange={(event) => setPublishRemark(event.target.value)} /></div>
+          <DialogFooter><Button variant="outline" onClick={() => setPublishOpen(false)}>取消</Button><Button onClick={() => publishMutation.mutate()} disabled={publishMutation.isPending}>{publishMutation.isPending ? '发布中…' : '确认发布'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(runDialogMode)} onOpenChange={(open) => !open && setRunDialogMode(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{runDialogMode === 'debug' ? '调试运行' : '正式运行'}</DialogTitle><DialogDescription>输入会原样作为后端工作流 inputs 对象提交；这里不使用模拟结果。</DialogDescription></DialogHeader>
+          <div><Label>运行输入（JSON 对象）</Label><Textarea aria-label="运行输入（JSON 对象）" className="mt-2 min-h-52 font-mono text-xs" value={runInputs} onChange={(event) => setRunInputs(event.target.value)} /></div>
+          <DialogFooter><Button variant="outline" onClick={() => setRunDialogMode(null)}>取消</Button><Button onClick={() => runDialogMode && runMutation.mutate(runDialogMode)} disabled={runMutation.isPending}>{runMutation.isPending ? '执行中…' : '开始执行'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={navigationBlocker.state === 'blocked'} onOpenChange={(open) => { if (!open) navigationBlocker.reset?.() }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>有未保存的工作流修改</DialogTitle><DialogDescription>离开后，本次节点、连线或配置变更将丢失。</DialogDescription></DialogHeader>
+          <DialogFooter><Button variant="outline" onClick={() => navigationBlocker.reset?.()}>继续编辑</Button><Button variant="destructive" onClick={() => navigationBlocker.proceed?.()}>放弃修改并离开</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {runResult ? (
         <Sheet open onOpenChange={() => setRunResult(null)}>
@@ -496,6 +608,7 @@ function VersionList({ workflowId }: { workflowId: string }) {
             size="sm"
             className="ml-auto text-destructive"
             onClick={async () => {
+              if (!window.confirm(`确认删除版本 ${version.version}？该操作不可撤销。`)) return
               try {
                 await workflowApi.removeVersion(workflowId, version.version)
                 toast.success('版本已删除')
@@ -534,8 +647,30 @@ const resourceFieldKinds: Record<string, ManagedResourceKind> = {
 }
 
 const multilineFieldPattern = /(prompt|template|code|script|sql|expression|body|content|schema|headers|mapping|condition)/i
+const stringListFields = new Set(['toRecipients', 'ccRecipients', 'mentionMobiles', 'mentionUsers', 'atMobiles', 'atUserIds', 'retryStatusCodes', 'delimiters'])
+const conditionSymbols = ['EQ', 'NE', 'GT', 'LT', 'GE', 'LE', 'CONTAINS', 'NOT_CONTAINS', 'IS_ALL', 'STARTS_WITH', 'ENDS_WITH', 'EQUALS', 'NOT_EQUALS', 'IS_TRUE', 'IS_FALSE', 'EXPRESSION']
+const commonEnumOptions: Record<string, string[]> = {
+  formatterType: ['STRING', 'JACKSON', 'VELOCITY'],
+  templateType: ['STRING', 'VELOCITY'],
+  evaluatorType: ['GROOVY'],
+  direction: ['ASC', 'DESC'],
+}
+const nodeEnumOptions: Record<string, Record<string, string[]>> = {
+  ITERATE: { language: ['JAVA'] }, CODE: { language: ['JAVA'] },
+  NON_EMPTY_SELECT: { strategy: ['FIRST', 'LAST'] },
+  MATCH_RESULT: { matchType: ['EQUALS', 'CONTAINS'] },
+  STRING_SPLIT: { mode: ['SIMPLE', 'REGEX', 'FIXED_LENGTH', 'LINE_BREAK', 'KEY_VALUE', 'MULTIPLE_DELIMITERS'], keyValueOutputFormat: ['COLON_SEPARATED', 'EQUALS_SEPARATED', 'JSON_OBJECT', 'MAP_ENTRY', 'CUSTOM'] },
+  SERIALIZE: { mode: ['COMPACT', 'PRETTY'], format: ['JSON', 'XML', 'YAML', 'BASE64', 'URL_ENCODED'] },
+  UNSERIALIZE: { format: ['JSON', 'XML', 'YAML', 'BASE64', 'URL_ENCODED'] },
+  VARIABLE_AGG: { strategy: ['ARRAY', 'MAP', 'STRING'] },
+  LIST_FILTER: { mode: ['SIMPLE', 'EXPRESSION'], simpleSymbol: conditionSymbols },
+}
 
-function StructuredConfigEditor({ config, defaults, disabled, resources, onChange, onPatch, onInputConfigsChange }: {
+function StructuredConfigEditor({ nodeType, nodeId, nodes, edges, config, defaults, disabled, resources, onChange, onPatch, onInputConfigsChange, onOutputConfigsChange }: {
+  nodeType: string
+  nodeId: string
+  nodes: Node[]
+  edges: Edge[]
   config: Record<string, unknown>
   defaults: Record<string, unknown>
   disabled: boolean
@@ -543,6 +678,7 @@ function StructuredConfigEditor({ config, defaults, disabled, resources, onChang
   onChange: (key: string, value: unknown) => void
   onPatch: (patch: Record<string, unknown>) => void
   onInputConfigsChange: (value: WorkflowInputConfig[]) => void
+  onOutputConfigsChange: (value: Array<{ name: string; fromNodeId?: string; type?: string; description?: string }>) => void
 }) {
   const keys = Array.from(new Set([...Object.keys(defaults), ...Object.keys(config)]))
   if (!keys.length) return <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">此节点没有可配置参数。</p>
@@ -551,6 +687,38 @@ function StructuredConfigEditor({ config, defaults, disabled, resources, onChang
       {keys.map((key) => {
         const value = config[key] ?? defaults[key]
         const resourceKind = resourceFieldKinds[key]
+        if (['toolName', 'mcpServerName', 'mcpToolName'].includes(key)) return null
+        if (nodeType === 'START' && key === 'params') {
+          return <StartParamsField key={key} value={value} disabled={disabled} onChange={(next) => {
+            onChange(key, next)
+            onOutputConfigsChange(next.filter((item) => item.name.trim()).map((item) => ({ name: item.name.trim(), fromNodeId: nodeId, type: item.type, description: item.description })))
+          }} />
+        }
+        if (nodeType.startsWith('DB_') && key === 'params') {
+          return <DbParamsField key={key} value={value} disabled={disabled} onChange={(next) => onChange(key, next)} />
+        }
+        if (stringListFields.has(key)) {
+          return <StringListField key={key} label={key} value={value} disabled={disabled} onChange={(next) => onChange(key, next)} />
+        }
+        const enumOptions = nodeEnumOptions[nodeType]?.[key] ?? commonEnumOptions[key]
+        if (enumOptions) {
+          return <SingleOptionSelect key={key} label={key} value={value} disabled={disabled} placeholder={`选择 ${key}`} options={enumOptions.map((item) => ({ label: item, value: item }))} onChange={(next) => onChange(key, next)} />
+        }
+        if (nodeType === 'IF_ELSE' && key === 'branches') {
+          return <ConditionBranchesField key={key} value={value} nodeId={nodeId} nodes={nodes} edges={edges} disabled={disabled} onChange={(next) => onChange(key, next)} />
+        }
+        if (nodeType === 'MATCH_RESULT' && key === 'matches') {
+          return <MatchRoutesField key={key} value={value} nodeId={nodeId} nodes={nodes} edges={edges} disabled={disabled} onChange={(next) => onChange(key, next)} />
+        }
+        if (nodeType === 'INTENT_RECOGNITION' && key === 'intents') {
+          return <IntentRoutesField key={key} value={value} nodeId={nodeId} nodes={nodes} edges={edges} disabled={disabled} onChange={(next) => onChange(key, next)} />
+        }
+        if (nodeType === 'HTTP_EXTERNAL' && key === 'request') {
+          return <HttpRequestField key={key} value={value} disabled={disabled} onChange={(next) => onChange(key, next)} />
+        }
+        if (['defaultNextNodeId', 'elseNextNodeId'].includes(key)) {
+          return <DownstreamNodeSelect key={key} label={key === 'elseNextNodeId' ? 'ELSE 路由' : '默认路由'} value={value} nodeId={nodeId} nodes={nodes} edges={edges} disabled={disabled} onChange={(next) => onChange(key, next)} />
+        }
         if (key === 'modelConfigId') {
           return <SingleOptionSelect key={key} label="模型配置" value={value} disabled={disabled} placeholder="选择模型" options={resources.model.map((model) => ({ label: `${model.name} (${model.modelId})`, value: String(model.id) }))} onChange={(next) => onChange(key, next)} />
         }
@@ -611,6 +779,104 @@ function StructuredConfigEditor({ config, defaults, disabled, resources, onChang
       })}
     </div>
   )
+}
+
+type StartParam = { position?: string; name: string; value?: string; type: string; required?: boolean; description?: string }
+const workflowValueTypes = ['String', 'Long', 'Integer', 'Float', 'Double', 'Boolean', 'Array', 'Object']
+
+function StartParamsField({ value, disabled, onChange }: { value: unknown; disabled: boolean; onChange: (value: StartParam[]) => void }) {
+  const params = Array.isArray(value) ? value as StartParam[] : []
+  const patch = (index: number, next: Partial<StartParam>) => onChange(params.map((item, itemIndex) => itemIndex === index ? { ...item, ...next } : item))
+  return <div className="space-y-2"><Label className="text-xs">请求参数</Label>{params.map((item, index) => <div key={index} className="space-y-2 rounded-lg border border-border p-2"><div className="grid grid-cols-[minmax(0,1fr)_110px_28px] gap-2"><Input aria-label={`参数 ${index + 1} 名称`} value={item.name || ''} disabled={disabled} placeholder="参数名" onChange={(event) => patch(index, { name: event.target.value })} /><Select value={item.type || 'String'} disabled={disabled} onValueChange={(type) => patch(index, { type })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{workflowValueTypes.map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}</SelectContent></Select><Button type="button" variant="ghost" size="icon" className="text-destructive" disabled={disabled} aria-label={`删除参数 ${index + 1}`} onClick={() => onChange(params.filter((_, itemIndex) => itemIndex !== index))}><Trash size={13} /></Button></div><div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2"><Input value={item.value || ''} disabled={disabled} placeholder="默认值" onChange={(event) => patch(index, { value: event.target.value })} /><label className="flex items-center gap-2 rounded-md border px-2 text-xs"><Switch checked={Boolean(item.required)} disabled={disabled} onCheckedChange={(required) => patch(index, { required })} />必填</label></div><Input value={item.description || ''} disabled={disabled} placeholder="参数说明（可选）" onChange={(event) => patch(index, { description: event.target.value })} /></div>)}<Button type="button" className="w-full" variant="outline" size="sm" disabled={disabled} onClick={() => onChange([...params, { position: 'QUERY', name: '', value: '', type: 'String', required: false, description: '' }])}><Plus size={13} /> 添加请求参数</Button></div>
+}
+
+type DbParam = { value?: string; type?: string }
+const dbParamTypes = ['STRING', 'INTEGER', 'INT', 'LONG', 'DOUBLE', 'FLOAT', 'BOOLEAN', 'BOOL']
+
+function DbParamsField({ value, disabled, onChange }: { value: unknown; disabled: boolean; onChange: (value: DbParam[]) => void }) {
+  const params = Array.isArray(value) ? value as DbParam[] : []
+  const patch = (index: number, next: Partial<DbParam>) => onChange(params.map((item, itemIndex) => itemIndex === index ? { ...item, ...next } : item))
+  return <div className="space-y-2"><Label className="text-xs">SQL 参数绑定</Label>{params.map((item, index) => <div key={index} className="grid grid-cols-[minmax(0,1fr)_110px_28px] gap-2"><Input aria-label={`SQL 参数 ${index + 1}`} value={item.value || ''} disabled={disabled} placeholder="参数值，支持 ${变量}" onChange={(event) => patch(index, { value: event.target.value })} /><Select value={item.type || 'STRING'} disabled={disabled} onValueChange={(type) => patch(index, { type })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{dbParamTypes.map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}</SelectContent></Select><Button type="button" variant="ghost" size="icon" className="text-destructive" disabled={disabled} aria-label={`删除 SQL 参数 ${index + 1}`} onClick={() => onChange(params.filter((_, itemIndex) => itemIndex !== index))}><Trash size={12} /></Button></div>)}<Button type="button" className="w-full" variant="outline" size="sm" disabled={disabled} onClick={() => onChange([...params, { value: '', type: 'STRING' }])}><Plus size={12} /> 添加 SQL 参数</Button></div>
+}
+
+function StringListField({ label, value, disabled, onChange }: { label: string; value: unknown; disabled: boolean; onChange: (value: string[]) => void }) {
+  const items = Array.isArray(value) ? value.map(String) : []
+  return <div className="space-y-2"><div className="flex items-center justify-between"><Label className="text-xs">{label}</Label><Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={() => onChange([...items, ''])}><Plus size={12} />添加</Button></div>{items.map((item, index) => <div key={index} className="grid grid-cols-[minmax(0,1fr)_28px] gap-2"><Input aria-label={`${label} ${index + 1}`} value={item} disabled={disabled} onChange={(event) => onChange(items.map((current, itemIndex) => itemIndex === index ? event.target.value : current))} /><Button type="button" variant="ghost" size="icon" className="text-destructive" disabled={disabled} aria-label={`删除 ${label} ${index + 1}`} onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}><Trash size={12} /></Button></div>)}</div>
+}
+
+function downstreamNodes(nodeId: string, nodes: Node[], edges: Edge[]) {
+  const ids = new Set(edges.filter((edge) => edge.source === nodeId).map((edge) => edge.target))
+  return nodes.filter((node) => ids.has(node.id))
+}
+
+function DownstreamNodeSelect({ label, value, nodeId, nodes, edges, disabled, onChange }: { label: string; value: unknown; nodeId: string; nodes: Node[]; edges: Edge[]; disabled: boolean; onChange: (value: string) => void }) {
+  const options = downstreamNodes(nodeId, nodes, edges)
+  return (
+    <div>
+      <Label className="mb-1.5 block text-xs">{label}</Label>
+      <Select value={value ? String(value) : 'none'} disabled={disabled} onValueChange={(next) => onChange(next === 'none' ? '' : next)}>
+        <SelectTrigger><SelectValue placeholder="选择已连接的下游节点" /></SelectTrigger>
+        <SelectContent><SelectItem value="none">未设置</SelectItem>{options.map((node) => <SelectItem key={node.id} value={node.id}>{String(node.data.name || node.id)}</SelectItem>)}</SelectContent>
+      </Select>
+      {!options.length ? <p className="mt-1 text-[11px] text-muted-foreground">请先从当前节点连接下游节点。</p> : null}
+    </div>
+  )
+}
+
+type ConditionBranch = { scope?: string; inputIsNullUse?: boolean; symbol?: string; conditionExpression?: string; compareTo?: Record<string, unknown>; nextNodeId?: string }
+
+function ConditionBranchesField({ value, nodeId, nodes, edges, disabled, onChange }: { value: unknown; nodeId: string; nodes: Node[]; edges: Edge[]; disabled: boolean; onChange: (value: ConditionBranch[]) => void }) {
+  const branches = Array.isArray(value) ? value as ConditionBranch[] : []
+  const patch = (index: number, next: Partial<ConditionBranch>) => onChange(branches.map((branch, itemIndex) => itemIndex === index ? { ...branch, ...next } : branch))
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs">条件分支</Label>
+      {branches.map((branch, index) => {
+        const compareTo = branch.compareTo && typeof branch.compareTo === 'object' ? branch.compareTo : { type: 'CONSTANT', value: '' }
+        return <div key={index} className="space-y-2 rounded-lg border border-border p-2">
+          <div className="flex items-center gap-2"><Badge variant="outline">{index === 0 ? 'IF' : 'ELSE IF'}</Badge>{index > 0 ? <Button type="button" variant="ghost" size="icon" className="ml-auto text-destructive" disabled={disabled} aria-label={`删除条件 ${index + 1}`} onClick={() => onChange(branches.filter((_, itemIndex) => itemIndex !== index))}><Trash size={13} /></Button> : null}</div>
+          <Select value={branch.symbol || 'EQ'} disabled={disabled} onValueChange={(symbol) => patch(index, { symbol })}><SelectTrigger aria-label={`条件 ${index + 1} 运算符`}><SelectValue /></SelectTrigger><SelectContent>{conditionSymbols.map((symbol) => <SelectItem key={symbol} value={symbol}>{symbol}</SelectItem>)}</SelectContent></Select>
+          {branch.symbol === 'EXPRESSION' ? <Textarea value={branch.conditionExpression || ''} disabled={disabled} placeholder="Groovy 条件表达式" onChange={(event) => patch(index, { conditionExpression: event.target.value })} /> : <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-2"><Select value={String(compareTo.type || 'CONSTANT')} disabled={disabled} onValueChange={(type) => patch(index, { compareTo: { ...compareTo, type } })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="CONSTANT">常量</SelectItem><SelectItem value="VARIABLE">节点输出</SelectItem></SelectContent></Select><Input value={String(compareTo.value ?? '')} disabled={disabled} placeholder={compareTo.type === 'VARIABLE' ? '输出字段名' : '比较值'} onChange={(event) => patch(index, { compareTo: { ...compareTo, value: event.target.value } })} /></div>}
+          <div className="grid grid-cols-2 gap-2"><Select value={branch.scope || 'SELF'} disabled={disabled} onValueChange={(scope) => patch(index, { scope })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="SELF">值本身</SelectItem><SelectItem value="LENGTH">长度</SelectItem></SelectContent></Select><label className="flex items-center gap-2 rounded-md border px-2 text-[11px]"><Switch checked={Boolean(branch.inputIsNullUse)} disabled={disabled} onCheckedChange={(inputIsNullUse) => patch(index, { inputIsNullUse })} />空值视为 True</label></div>
+          <DownstreamNodeSelect label="跳转到" value={branch.nextNodeId} nodeId={nodeId} nodes={nodes} edges={edges} disabled={disabled} onChange={(nextNodeId) => patch(index, { nextNodeId })} />
+        </div>
+      })}
+      <Button type="button" className="w-full" variant="outline" size="sm" disabled={disabled} onClick={() => onChange([...branches, { scope: 'SELF', inputIsNullUse: false, symbol: 'EQ', compareTo: { type: 'CONSTANT', value: '' }, conditionExpression: '' }])}><Plus size={13} /> 添加 ELSE IF</Button>
+    </div>
+  )
+}
+
+type MatchRoute = { matchValue: string; nextNodeId: string }
+
+function MatchRoutesField({ value, nodeId, nodes, edges, disabled, onChange }: { value: unknown; nodeId: string; nodes: Node[]; edges: Edge[]; disabled: boolean; onChange: (value: MatchRoute[]) => void }) {
+  const items = Array.isArray(value) ? value as MatchRoute[] : []
+  const patch = (index: number, next: Partial<MatchRoute>) => onChange(items.map((item, itemIndex) => itemIndex === index ? { ...item, ...next } : item))
+  return <div className="space-y-2"><Label className="text-xs">匹配路由</Label>{items.map((item, index) => <div key={index} className="space-y-2 rounded-lg border border-border p-2"><div className="flex gap-2"><Input value={item.matchValue || ''} disabled={disabled} placeholder="匹配值" onChange={(event) => patch(index, { matchValue: event.target.value })} /><Button type="button" variant="ghost" size="icon" className="text-destructive" disabled={disabled} aria-label={`删除匹配项 ${index + 1}`} onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}><Trash size={13} /></Button></div><DownstreamNodeSelect label="跳转到" value={item.nextNodeId} nodeId={nodeId} nodes={nodes} edges={edges} disabled={disabled} onChange={(nextNodeId) => patch(index, { nextNodeId })} /></div>)}<Button type="button" className="w-full" variant="outline" size="sm" disabled={disabled} onClick={() => onChange([...items, { matchValue: '', nextNodeId: '' }])}><Plus size={13} /> 添加匹配项</Button></div>
+}
+
+type IntentRoute = { name: string; description: string; nextNodeId: string }
+
+function IntentRoutesField({ value, nodeId, nodes, edges, disabled, onChange }: { value: unknown; nodeId: string; nodes: Node[]; edges: Edge[]; disabled: boolean; onChange: (value: IntentRoute[]) => void }) {
+  const stored = Array.isArray(value) ? value as IntentRoute[] : []
+  const connected = downstreamNodes(nodeId, nodes, edges)
+  const items = connected.map((node) => stored.find((item) => item.nextNodeId === node.id) ?? { name: '', description: '', nextNodeId: node.id })
+  const patch = (index: number, next: Partial<IntentRoute>) => onChange(items.map((item, itemIndex) => itemIndex === index ? { ...item, ...next } : item))
+  return <div className="space-y-2"><Label className="text-xs">意图路由</Label>{items.length ? items.map((item, index) => <div key={item.nextNodeId} className="space-y-2 rounded-lg border border-border p-2"><div className="text-xs font-medium">{String(connected[index]?.data.name || item.nextNodeId)}</div><Input value={item.name || ''} disabled={disabled} placeholder="意图名称，如：退款咨询" onChange={(event) => patch(index, { name: event.target.value })} /><Input value={item.description || ''} disabled={disabled} placeholder="意图描述" onChange={(event) => patch(index, { description: event.target.value })} /></div>) : <p className="text-xs text-muted-foreground">请先连接下游节点，再配置每条意图。</p>}</div>
+}
+
+type KeyValueItem = { key?: string; value?: string }
+
+function KeyValueList({ label, value, disabled, onChange }: { label: string; value: unknown; disabled: boolean; onChange: (value: KeyValueItem[]) => void }) {
+  const items = Array.isArray(value) ? value as KeyValueItem[] : []
+  const patch = (index: number, next: Partial<KeyValueItem>) => onChange(items.map((item, itemIndex) => itemIndex === index ? { ...item, ...next } : item))
+  return <div className="space-y-2"><div className="flex items-center justify-between"><Label className="text-xs">{label}</Label><Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={() => onChange([...items, { key: '', value: '' }])}><Plus size={12} />添加</Button></div>{items.map((item, index) => <div key={index} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_28px] gap-2"><Input aria-label={`${label} ${index + 1} 键`} value={item.key || ''} disabled={disabled} placeholder="Key" onChange={(event) => patch(index, { key: event.target.value })} /><Input aria-label={`${label} ${index + 1} 值`} value={item.value || ''} disabled={disabled} placeholder="Value" onChange={(event) => patch(index, { value: event.target.value })} /><Button type="button" variant="ghost" size="icon" className="text-destructive" disabled={disabled} aria-label={`删除 ${label} ${index + 1}`} onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}><Trash size={12} /></Button></div>)}</div>
+}
+
+function HttpRequestField({ value, disabled, onChange }: { value: unknown; disabled: boolean; onChange: (value: Record<string, unknown>) => void }) {
+  const request = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+  const patch = (next: Record<string, unknown>) => onChange({ ...request, ...next })
+  const method = String(request.method || 'GET')
+  return <div className="space-y-3 rounded-lg border border-border p-3"><Label className="text-xs">HTTP 请求</Label><div className="grid grid-cols-[100px_minmax(0,1fr)] gap-2"><Select value={method} disabled={disabled} onValueChange={(next) => patch({ method: next })}><SelectTrigger aria-label="HTTP 方法"><SelectValue /></SelectTrigger><SelectContent>{['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'].map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select><Input aria-label="请求 URL" value={String(request.url || '')} disabled={disabled} placeholder="https://api.example.com/users/${id}" onChange={(event) => patch({ url: event.target.value })} /></div><div><Label className="mb-1.5 block text-xs">Content-Type</Label><Select value={String(request.contentType || 'JSON')} disabled={disabled} onValueChange={(contentType) => patch({ contentType })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['JSON', 'FORM_URLENCODED', 'FORM_DATA', 'XML', 'TEXT_PLAIN', 'OCTET_STREAM'].map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select></div><KeyValueList label="Headers" value={request.headers} disabled={disabled} onChange={(headers) => patch({ headers })} /><KeyValueList label="Query Params" value={request.queryParams} disabled={disabled} onChange={(queryParams) => patch({ queryParams })} />{!['GET', 'HEAD'].includes(method) ? <div><Label className="mb-1.5 block text-xs">Body</Label><Textarea className="min-h-32 font-mono text-xs" value={String(request.body ?? '')} disabled={disabled} placeholder="支持 ${输入名} 模板语法" onChange={(event) => patch({ body: event.target.value })} /></div> : null}</div>
 }
 
 function SingleOptionSelect({ label, value, disabled, placeholder, options, onChange }: { label: string; value: unknown; disabled: boolean; placeholder: string; options: SelectOption[]; onChange: (value: string) => void }) {
@@ -768,4 +1034,15 @@ function formatRunTime(createdAt?: string, startTime?: number) {
   if (createdAt) return createdAt
   if (startTime) return new Date(startTime).toLocaleString()
   return '-'
+}
+
+export function parseInputObject(value: string): Record<string, unknown> {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch {
+    throw new Error('运行输入必须是合法 JSON')
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('运行输入必须是 JSON 对象')
+  return parsed as Record<string, unknown>
 }
