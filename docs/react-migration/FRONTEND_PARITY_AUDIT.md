@@ -220,3 +220,13 @@
 ### 2026-10-07 补充：Agent 详情架构图还原（beea70b）
 
 用户反馈 Agent 详情抽屉“没有还原”。核对 Vue `components/agent/architecture/`（useArchitectureData 逐 ID 拉详情）后确认差距：React 架构图原渲染原始关系 ID 且缺提示词/敏感词类别。现改为与 Vue 等价的 allSettled 详情解析，展示名称（失败回退 ID 不伪造），补齐九个类别；浏览器验证模型显示 `Qwen3.8 Flash`、子 Agent 显示名称。已部署 ECS（回滚点 `rollback-35297b7-pre-beea70b`）。Vue 画布式节点图未 1:1 复刻（React 用分组网格表达同等信息），属 UI 形态差异，已在备注声明。
+
+### 2026-10-07 补充：Agent 详情抽屉全页签还原（bdf1c24）
+
+继架构图名称解析（beea70b）后，逐页签核对 Vue `components/agent/config/` 与 React 详情抽屉：
+
+- **API 页签**：移植 Vue `AgentConfigApiDoc` 的静态端点目录（23 个 agent/workspace 端点，含参数、请求体/响应示例）为 `api-doc-data.ts` 数据模块，折叠分组渲染；Chat Key 与 AG-UI 示例保留。浏览器验证 22 个端点可展开、参数与示例显示。
+- **对话历史页签**：补 Vue `AgentConfigHistory` 的会话删除（确认文案与 Vue 一致），13 个真实会话均带删除入口。
+- **统计页签**：与 Vue 四维趋势（会话/活跃用户/消息/平均轮次）+ 天数切换信息等价；React 用 SVG sparkline 替代 ECharts 画布，属 UI 形态差异。
+- **定时任务页签**：React 提供完整 CRUD（Vue 该入口在配置面板外），覆盖等价。
+- 已部署 ECS（回滚点 `rollback-2219303-pre-bdf1c24`）。测试期间发现 Radix Tabs 需 mousedown/focus 事件序列激活，仅派发 click 不切换——属自动化通道限制，真实鼠标操作正常，非产品缺陷。
