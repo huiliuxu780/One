@@ -208,8 +208,9 @@
 - 真实后端闭环：创建并启用 LOCAL 存储配置，上传仓库 README，完成服务端文本解析、输入区预览、带附件发送、模型回复、历史消息恢复预览；随后把同一文件上传到会话工作空间，经 `@` 下拉插入标签、发送并点击标签完成预览。
 - 首次实测失败不是前端上传缺陷：LOCAL 目录 `/home` 是每个容器私有目录，Console 可写但 Runtime 无法读取。当前开发数据改到 `/app/.apboa/storage`；代码默认改为相对路径 `.apboa/storage`，在 Compose 的 `/app` 工作目录下落入各服务共享的 `app_data:/app/.apboa`。
 - 浏览器回归发现并修复 shadcn/Radix Select 从 `undefined` 切换到字符串导致的受控/非受控警告；对工作空间、工作流资源、Agent 模型、自动化目标、API 应用和 UIP 表单中的可选 Select 统一保持受控值。新开干净页面复验 warning/error 为 0。
-- 验证：Vitest 14 文件/49 测试通过，`tsc -b + vite build` 通过，`size:check` 通过（React vendor 465.8 KiB/500 KiB 门槛）；ECS 使用 Maven 3.9 + Java 21 对 `biz-resource` 及依赖完成增量编译，`BUILD SUCCESS`。
-- 部署：提交 `2366d83` 已推送并同步到 `/root/ONE`、`/opt/apboa-next`；Mac 构建产物同步到 ECS 后仅重建前端镜像。`/react/` 返回 200，入口带 `Cache-Control: no-cache, must-revalidate`，生产浏览器登录、附件预览和 workspace-file 标签预览均通过，控制台 warning/error 为 0。回滚镜像 `apboa-dev-frontend:rollback-e7d7f19-preview` 已保留。
+- 验证：Vitest 14 文件/49 测试通过，`tsc -b + vite build` 通过，`size:check` 通过（React vendor 465.8 KiB/500 KiB 门槛）；ECS 使用 Maven 3.9 + Java 21 对 `runner-console`、`runner-runtime` 及全部依赖共 33 个 Reactor 模块完成 `-DskipTests package`，全部 `SUCCESS`。这里的 `skipTests` 仅证明后端可完整打包，不能替代 Java 单元测试。
+- 部署：提交 `7bb9406` 已推送并同步到 `/root/ONE`、`/opt/apboa-next`；Mac 构建产物同步到 ECS 后重建前端镜像，随后用新打包 JAR 重建并滚动替换 Console/Runtime。MySQL、Redis 与数据卷未重启或清理。`/react/` 返回 200，入口带 `Cache-Control: no-cache, must-revalidate`；新浏览器标签页重新加载后登录态、真实会话列表、附件预览和 workspace-file 标签预览均通过，控制台 warning/error 为 0。回滚镜像 `apboa-dev-frontend:rollback-e7d7f19-preview`、`apboa-dev-console:rollback-e7d7f19-storage` 与 `apboa-dev-runtime:rollback-e7d7f19-storage` 已保留。
+- 后端发布核验：Console、Runtime 均在 Java 21 下报告 `Application Successfully Started`，Flyway 校验 6 个迁移且数据库已是最新版本；两个新容器重启计数均为 0。Runtime 在 Console 尚未启动完时出现一次短暂心跳拒绝，之后 Console 已正常提供接口；这不是持续故障。
 - 部署后采样：8 个容器重启计数均为 0；主机 7522 MiB 内存中已用 3417 MiB、可用 3795 MiB，无 Swap；根盘 40 GiB 已用 19 GiB（51%）。仅 SSH 22 公网监听，网页仍绑定 `127.0.0.1:80`。
 
 到此 `FRONTEND_PARITY_AUDIT.md` 中已知的两个 React 前端代码缺口均闭合。仍未闭合的是外部/运行场景证据：高级工作流节点成功矩阵、外部 A2A/第三方 MCP、非 Chromium 兼容性和并发容量；这些不能被表述为已验收。

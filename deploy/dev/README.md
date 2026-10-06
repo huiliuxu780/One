@@ -99,6 +99,13 @@ docker compose --env-file .env stop frontend
 `apboa-dev_backend` 网络，只替换前端容器，不携带也不删除任何数据卷。
 恢复 React 后至少检查 `/react/`、登录、Agent/Workflow/会话记录数和工作空间文件数。
 
+2026-10-06 共享 LOCAL 存储默认目录修复发布前保留了三项可执行回滚镜像：
+`apboa-dev-frontend:rollback-e7d7f19-preview`、
+`apboa-dev-console:rollback-e7d7f19-storage`、
+`apboa-dev-runtime:rollback-e7d7f19-storage`。后端回滚时只替换 Console/Runtime
+镜像，不删除或重建 `mysql_data`、`redis_data`、`app_data`；恢复后检查两项服务
+启动日志、重启计数、登录、会话列表、附件上传与工作空间文件下载。
+
 ## React 开发态服务
 
 宿主机无需安装 Node。以下服务加入 `backend` 网络，在容器内安装依赖并启动 Vite，代理目标指向 compose 服务名，可直接对真实后端联调：
