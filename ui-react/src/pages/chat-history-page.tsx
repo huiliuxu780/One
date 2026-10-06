@@ -142,7 +142,7 @@ export function ChatHistoryPage() {
               <Badge variant="outline" className="ml-auto">共 {messages.length} 条</Badge>
             </div>
             {messages.map((message) => (
-              <div key={String(message.id)} className={`rounded-xl border bg-card p-3 ${currentPath.has(String(message.id)) ? 'border-primary/45' : 'border-border opacity-80'}`} style={{ marginLeft: Math.min(message.depth ?? 0, 8) * 16 }}>
+              <div key={String(message.id)} className={`rounded-lg border bg-card p-3 ${currentPath.has(String(message.id)) ? 'border-primary/45' : 'border-border opacity-80'}`} style={{ marginLeft: Math.min(message.depth ?? 0, 8) * 16 }}>
                 <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
                   <Badge variant={message.role === 'user' ? 'default' : 'secondary'}>{message.role}</Badge>
                   <span className="font-mono">depth {message.depth}</span>
@@ -160,7 +160,7 @@ export function ChatHistoryPage() {
                       onChange={(event) => setEditText(event.target.value)}
                     />
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={() => void saveContent(message)}>保存</Button>
+                      <Button size="sm" disabled={!editText.trim() || editText === (message.content ?? '')} onClick={() => void saveContent(message)}>保存</Button>
                       <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>取消</Button>
                     </div>
                   </div>

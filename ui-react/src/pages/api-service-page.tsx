@@ -27,7 +27,7 @@ export function ApiServicePage() {
   const tab = ['apps', 'apis', 'logs'].includes(searchParams.get('tab') || '') ? searchParams.get('tab')! : 'apps'
   return (
     <div className="px-6 py-6">
-      <h1 className="text-xl font-semibold tracking-tight">API 服务</h1>
+      <h1 className="font-display text-[24px] font-bold leading-tight">API 服务</h1>
       <p className="mb-4 mt-1 text-sm text-muted-foreground">应用与 API 管理、上下线与访问日志；开发环境数据面仅在 Docker 内部网络可达。</p>
       <Tabs value={tab} onValueChange={(value) => setSearchParams(value === 'apps' ? {} : { tab: value }, { replace: true })}>
         <TabsList>
@@ -161,6 +161,10 @@ function AppFormDialog({ open, onOpenChange, editing, onSaved }: {
     port: editing?.port ?? 8080,
   })
   const [busy, setBusy] = useState(false)
+  // 常驻挂载的弹窗：打开或切换编辑目标时重置草稿，避免沿用旧值
+  useEffect(() => {
+    if (open) setValues({ name: editing?.name ?? '', remark: editing?.remark ?? '', protocol: editing?.protocol ?? 'http', port: editing?.port ?? 8080 })
+  }, [open, editing])
 
   async function submit() {
     setBusy(true)
@@ -356,6 +360,9 @@ function ApiFormDialog({ open, onOpenChange, editing, onSaved }: {
     remark: editing?.remark ?? '',
   })
   const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    if (open) setValues({ name: editing?.name ?? '', category: editing?.category ?? '', method: editing?.method ?? 'GET', path: editing?.path ?? '', appId: editing?.appId ?? '', remark: editing?.remark ?? '' })
+  }, [open, editing])
 
   async function submit() {
     setBusy(true)

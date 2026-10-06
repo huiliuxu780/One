@@ -183,6 +183,8 @@ export function AgentEditor({ open, onOpenChange, agentId, cloneFrom, onSaved }:
   const [subAgentOptions, setSubAgentOptions] = useState<SelectOption[]>([])
   const [workflowOptions, setWorkflowOptions] = useState<SelectOption[]>([])
   const [busy, setBusy] = useState(false)
+  // 未保存保护：加载/克隆/新建时记录表单快照，关闭时与当前值比对（对齐 Vue isDirty 关闭确认）
+  const [snapshot, setSnapshot] = useState(() => JSON.stringify(emptyForm()))
 
   const selectors = useSelectorOptions(open)
 
@@ -235,7 +237,9 @@ export function AgentEditor({ open, onOpenChange, agentId, cloneFrom, onSaved }:
           if (cancelled) return
           const vo = response.data.data
           setOriginal(vo)
-          setForm(formFromVo(vo))
+          const loaded = formFromVo(vo)
+          setForm(loaded)
+          setSnapshot(JSON.stringify(loaded))
           if (vo.agentType === 'A2A') {
             try {
               const a2aResponse = await getA2aConfig(agentId)
@@ -252,11 +256,15 @@ export function AgentEditor({ open, onOpenChange, agentId, cloneFrom, onSaved }:
         }
       } else if (cloneFrom) {
         setOriginal(null)
-        setForm({ ...formFromVo(cloneFrom), name: `${cloneFrom.name}-copy`, agentCode: `${cloneFrom.agentCode}-copy`, version: 'v1' })
+        const cloned = { ...formFromVo(cloneFrom), name: `${cloneFrom.name}-copy`, agentCode: `${cloneFrom.agentCode}-copy`, version: 'v1' }
+        setForm(cloned)
+        setSnapshot(JSON.stringify(cloned))
         setA2a(null)
       } else {
         setOriginal(null)
-        setForm(emptyForm())
+        const blank = emptyForm()
+        setForm(blank)
+        setSnapshot(JSON.stringify(blank))
         setA2a(null)
       }
     }
@@ -367,7 +375,10 @@ export function AgentEditor({ open, onOpenChange, agentId, cloneFrom, onSaved }:
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => {
+      if (!next && !busy && JSON.stringify(form) !== snapshot && !window.confirm('有未保存的修改，确认放弃并关闭？')) return
+      onOpenChange(next)
+    }}>
       <DialogContent className="max-h-[90dvh] max-w-4xl overflow-auto">
         <DialogHeader>
           <DialogTitle>{agentId ? '编辑 Agent' : cloneFrom ? '复制 Agent' : '新建 Agent'}</DialogTitle>
