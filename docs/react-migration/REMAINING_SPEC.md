@@ -1,6 +1,6 @@
 # Apboa Next React 剩余迁移任务 Spec
 
-状态：React 前端迁移主体已部署，逐页功能审计与真实后端验收仍在进行；不得宣布全部完成
+状态：React 为唯一前端（Vue 已于 2026-10-06 下线，固化 tag react-1.0.0）；凭据依赖与场景依赖验收仍在进行；不得宣布全部完成
 
 更新日期：2026-10-06
 
@@ -273,7 +273,7 @@ Vue 参考：`views/Workflow/`、`components/workflow/`、`config/workflow/`。
 - 搜索 React 源码，确认不存在 knowledge、RAG、tenant switch/join/approval/admin 的可访问入口或表单字段。
 - 运行完整类型检查、测试、构建、依赖审计和 bundle 分析。
 - 建立不可变版本镜像和镜像清单，记录 Git SHA、镜像 digest、数据库迁移版本。
-- 在切换前构建并验证旧 Vue 回滚镜像，或保留上一个可运行不可变镜像。仅保留 Vue 源码不算可执行回滚。
+- 回滚能力由旧版本 React 不可变镜像提供（每次部署前打 rollback-<sha>-pre tag）。Vue 回滚镜像按稳定期保留至 2026-10-20，仅作为镜像存在、不作为 compose 服务；Vue 源码已下线，不再作为回滚手段。
 - 新旧前端并行真实回归；通过后将根路径切到 React，保留限定时间的回滚入口。
 - 记录空闲、聊天、工具调用、自动化和工作流典型负载下的 CPU、内存、磁盘和响应时间。
 - 配置域名与 TLS 后才开放公网登录；安全组仅开放 22 和 HTTPS 所需端口，SSH 限制可信来源。
@@ -350,6 +350,6 @@ Vue 参考：`views/Workflow/`、`components/workflow/`、`config/workflow/`。
 - Agent 聊天、停止、重连、HITL、子 Agent、工具、文件、自动化和工作流均执行过真实成功与失败用例。
 - React Flow 保存协议经 round-trip 和真实运行验证。
 - ECS 容量报告来自实际负载；公网入口具备 TLS；内部端口未暴露。
-- 已完成可执行回滚演练并记录恢复步骤和数据完整性结果。
+- 已完成可执行回滚演练（React→旧 React 基线→React）并记录恢复步骤和数据完整性结果。
 
 当前不能宣布“迁移完成”：可执行回滚、内部 Gateway、两类自动化成功路径、停止、刷新重连、HITL 双分支和子 Agent 真实调用已通过；逐页审计仍发现并修复表单和操作缺口，资源 CRUD 全闭环尚未验收。还缺自动化失败审计 schema、高级工作流节点成功矩阵、外部 A2A/第三方集成凭据、强制网络故障注入以及公网域名/TLS。逐项证据见 `FRONTEND_PARITY_AUDIT.md`。

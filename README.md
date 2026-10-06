@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/Java-21-007396?logo=openjdk&logoColor=white" alt="Java 21"/>
   <img src="https://img.shields.io/badge/Spring%20Boot-3.4-6DB33F?logo=springboot&logoColor=white" alt="Spring Boot 3.4"/>
   <img src="https://img.shields.io/badge/AgentScope-1.0-FF6B35" alt="AgentScope 1.0"/>
-  <img src="https://img.shields.io/badge/Vue-3.5-4FC08D?logo=vuedotjs&logoColor=white" alt="Vue 3.5"/>
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" alt="React 19"/>
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white" alt="Docker Ready"/>
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License"/>
 </p>
@@ -164,7 +164,7 @@ Apboa Workflow 是平台的核心能力之一，提供企业级可视化工作�
 | 特性 | 说明 |
 |------|------|
 | **30+ 节点类型** | 基础（START/END）、逻辑（IF_ELSE/LOOP/ITERATE/MATCH）、数据（DB CRUD）、缓存（Cache CRUD）、消息（MQ）、集成（AGENT/TOOL/MCP/HTTP/CODE）、转换（String/Split/Template/Serialize）、列表（Filter/Sort）、变量（Agg） |
-| **可视化编排** | 基于 Vue Flow 的画布引擎，拖拽节点、自动连线、对齐辅助线、小地图导航 |
+| **可视化编排** | 基于 React Flow 的画布引擎，拖拽节点、自动连线、对齐辅助线、小地图导航 |
 | **灵活数据绑定** | 四种输入来源：常量、变量、节点输出、Groovy 表达式，BFS 算法自动发现上游节点 |
 | **实时调试** | 执行轨迹可视化、节点级耗时统计、失败节点自动高亮、错误即时定位 |
 | **模板引擎** | 支持 String / Velocity / JSON 三种模板格式化器 |
@@ -177,7 +177,7 @@ Apboa Workflow 是平台的核心能力之一，提供企业级可视化工作�
 - **数据处理**：数据源 → 查询 → 迭代处理 → 格式化 → 缓存 → 消息通知
 - **多系统集成**：事件触发 → API 调用 → AI 决策 → MCP 执行 → 数据更新
 
-> 详细技术文档请参考：[Apboa Workflow 技术文章](ui/src/views/Workflow/apboa-workflow-技术文章.md)
+> 详细技术文档请参考：[React 迁移基线与验收记录](docs/react-migration/MIGRATION.md)
 
 ### ⏰ 自动化定时任务
 
@@ -240,7 +240,7 @@ Apboa 工作台是面向终端用户的可视化数据门户。通过拖拽面�
 | **租户隔离强制注入** | 平台自动为数据集 SQL 追加租户过滤，敏感系统表黑名单 + 可查询白名单 + 越权防护 + 审计日志 |
 | **面板私有筛选器** | 日期 / 月份 / 年份 / 下拉 / 文本，可拖拽排序、四角停靠，同一数据集各面板各看切面 |
 | **可视化设计器** | 48 列细粒度栅格、防碰撞开关、skyline 自动排版、撤销重做、历史版本回滚、未保存离开拦截 |
-| **动态占位与自定义组件** | 文本 / Markdown 支持 `{{ 字段 }}` 占位；portal 目录 Vue 组件自动扫描、props 自动识别，零胶水扩展 |
+| **动态占位与自定义组件** | 文本 / Markdown 支持 `{{ 字段 }}` 占位 |
 | **样式覆盖与定时刷新** | 每面板可覆盖背景 / 边框 / 圆角 / 内边距 / 文字样式（含透明度）；定时静默刷新不闪屏 |
 
 **典型应用场景：**
@@ -336,10 +336,10 @@ PgVector / Milvus / Elasticsearch / Qdrant / Weaviate——修改 `VECTOR_STORE_
 ## 技术栈
 
 - **后端** — Java 21 · Spring Boot 3.4.9 · AgentScope 1.0.12 · MyBatis-Plus 3.5.7
-- **前端** — Vue 3.5 · Ant Design Vue 4 · Vite 7 · Pinia 3 · Vue Router 5
+- **前端** — React 19 · TypeScript · Vite · shadcn/ui · React Router 7 · TanStack Query 5（Vue 前端已于 2026-10-06 下线，源码见 git 历史）
 - **编辑器** — CodeMirror 6（JS / TS / Java / Python / HTML / CSS / JSON / XML / Markdown）
-- **可视化** — ECharts 6 · Mermaid 11 · Vue Flow · KaTeX
-- **工作流** — Vue Flow 画布引擎 · Groovy 表达式 · Velocity 模板 · 30+ 节点类型
+- **可视化** — ECharts 6 · Mermaid 11 · React Flow · KaTeX
+- **工作流** — React Flow 画布引擎 · Groovy 表达式 · Velocity 模板 · 30+ 节点类型
 - **数据库** — MySQL 8.0 · Redis 7 · pgvector (PG 16)
 - **消息通信** — WebSocket + Redis Pub/Sub 集群
 - **任务调度** — Quartz + Redis 分布式锁
@@ -450,7 +450,7 @@ apboa-next/
 ├── runner-proxy/         # 应用：Shell 沙箱
 ├── runner-file/          # 应用：文件同步
 ├── runner-websocket/     # 应用：WebSocket 推送
-├── ui/                   # 前端：Vue 3 管理界面
+├── ui-react/             # 前端：React 管理控制台（唯一前端）
 ├── docker/               # 部署：Docker Compose + Nginx
 └── sql/                  # 数据库初始化脚本
 ```
