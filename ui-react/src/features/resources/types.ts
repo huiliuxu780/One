@@ -10,6 +10,7 @@ export interface ResourceQuery extends Record<string, unknown> {
 export interface ResourceApi<T> {
   page?: (query: ResourceQuery) => Promise<AxiosResponse<ApiResponse<PageResult<T>>>>
   list?: () => Promise<AxiosResponse<ApiResponse<T[]>>>
+  detail?: (id: string) => Promise<AxiosResponse<ApiResponse<T>>>
   save: (entity: Partial<T>) => Promise<AxiosResponse<ApiResponse<unknown>>>
   update: (entity: Partial<T>) => Promise<AxiosResponse<ApiResponse<unknown>>>
   remove: (ids: string[]) => Promise<AxiosResponse<ApiResponse<unknown>>>
@@ -39,6 +40,7 @@ export interface FieldDef {
 
 export interface ColumnDef<T> {
   header: string
+  kind?: 'enabled'
   /** 行取值路径，如 'name'；render 优先 */
   field?: keyof T & string
   render?: (row: T) => React.ReactNode
@@ -58,6 +60,8 @@ export interface ResourceDef<T extends { id?: string | number }> {
   form: FieldDef[]
   /** 列表筛选字段（按 FieldDef 渲染，值并入查询参数） */
   filters?: FieldDef[]
+  /** 从深链或父页面注入的初始筛选；分页请求必须把它并入查询键和接口参数。 */
+  initialFilters?: Record<string, string | number | boolean | undefined>
   searchPlaceholder?: string
   /** 行级额外动作 */
   rowActions?: {

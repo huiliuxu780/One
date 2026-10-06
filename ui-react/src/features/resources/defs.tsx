@@ -1,5 +1,4 @@
 import { Badge } from '@/components/ui/badge'
-import { Switch } from '@/components/ui/switch'
 import { toast } from '@/components/ui/sonner'
 import { readableError } from '@/lib/utils'
 import {
@@ -18,15 +17,10 @@ import { AuthType, CodeLanguage, HookType, ModelType, SensitiveWordAction, ToolT
 import type { ColumnDef, FieldDef, ResourceDef } from './types'
 import { ToolDebugDialog } from './tool-debug-dialog'
 
-function enabledColumn<T extends { enabled?: boolean }>(onChange?: (row: T, enabled: boolean) => void): ColumnDef<T> {
+function enabledColumn<T extends { enabled?: boolean }>(): ColumnDef<T> {
   return {
     header: '启用',
-    render: (row) =>
-      onChange ? (
-        <Switch checked={Boolean(row.enabled)} onCheckedChange={(checked) => onChange(row, checked)} aria-label="启用开关" />
-      ) : (
-        <Badge variant={row.enabled ? 'default' : 'secondary'}>{row.enabled ? '启用' : '停用'}</Badge>
-      ),
+    kind: 'enabled',
   }
 }
 
@@ -56,7 +50,10 @@ export const toolDef: ResourceDef<ToolVO> = {
     usedColumn<ToolVO>(),
     enabledColumn<ToolVO>(),
   ],
-  filters: [{ name: 'category', label: '分类', type: 'text' }],
+  filters: [
+    { name: 'toolType', label: '工具类型', type: 'select', enumFrom: Object.values(ToolType) },
+    { name: 'category', label: '分类', type: 'text' },
+  ],
   form: [
     { name: 'name', label: '名称', type: 'text', required: true },
     { name: 'toolId', label: '工具 ID', type: 'text', required: true, placeholder: '调用时使用的唯一标识' },
@@ -155,6 +152,12 @@ export const modelProviderDef: ResourceDef<ModelProviderVO> = {
   title: '模型供应商',
   description: '供应商连接信息；API Key 只在提交时传输，不回显。',
   api: { ...modelProviders, usedWith: modelProviders.usedWithModel },
+  filters: [{ name: 'type', label: '供应商类型', type: 'select', options: [
+    { label: 'DashScope', value: 'DASH_SCOPE' },
+    { label: 'OpenAI', value: 'OPEN_AI' },
+    { label: 'Ollama', value: 'OLLAMA' },
+    { label: 'Anthropic', value: 'ANTHROPIC' },
+  ] }],
   columns: [
     { header: '名称', field: 'name' },
     { header: '类型', field: 'type' },
@@ -200,13 +203,13 @@ export const modelConfigDef: ResourceDef<ModelConfigVO> = {
       options: [],
       description: '保存前请先在“供应商”页签创建供应商。',
     },
-    { name: 'modelType', label: '模型类型', type: 'tags', required: true, placeholder: '如 CHAT（可多选）' },
-    { name: 'contextWindow', label: '上下文窗口 (tokens)', type: 'number', defaultValue: 8192 },
-    { name: 'maxTokens', label: '最大输出 (tokens)', type: 'number', defaultValue: 2048 },
-    { name: 'temperature', label: 'Temperature', type: 'number' },
-    { name: 'topP', label: 'Top P', type: 'number' },
-    { name: 'topK', label: 'Top K', type: 'number' },
-    { name: 'repeatPenalty', label: '重复惩罚', type: 'number' },
+    { name: 'modelType', label: '模型类型', type: 'tags', required: true, defaultValue: [ModelType.CHAT], placeholder: '如 CHAT（可多选）' },
+    { name: 'contextWindow', label: '上下文窗口 (tokens)', type: 'number', defaultValue: 200000 },
+    { name: 'maxTokens', label: '最大输出 (tokens)', type: 'number', defaultValue: 8192 },
+    { name: 'temperature', label: 'Temperature', type: 'number', defaultValue: 0.7 },
+    { name: 'topP', label: 'Top P', type: 'number', defaultValue: 0.9 },
+    { name: 'topK', label: 'Top K', type: 'number', defaultValue: 50 },
+    { name: 'repeatPenalty', label: '重复惩罚', type: 'number', defaultValue: 1 },
     { name: 'seed', label: 'Seed', type: 'text' },
     { name: 'streaming', label: '支持流式', type: 'switch', defaultValue: true },
     { name: 'thinking', label: '支持思考模式', type: 'switch' },
@@ -217,7 +220,9 @@ export const modelConfigDef: ResourceDef<ModelConfigVO> = {
   rowActions: [{ label: '连通性', action: async (row) => {
     try {
       const response = await modelConfigs.check(String(row.id))
-      toast.success(response.data.data?.message || '模型连通性检查完成')
+      const result = response.data.data
+      if (result?.success) toast.success(result.message || '模型连接成功')
+      else toast.error(result?.message || '模型连接失败')
     } catch (cause) {
       toast.error(readableError(cause, '模型连通性检查失败'))
     }
@@ -302,9 +307,18 @@ export async function providerOptions() {
   }
 }
 
-export function withProviderOptions(def: ResourceDef<ModelConfigVO>, options: { label: string; value: string }[]): ResourceDef<ModelConfigVO> {
+export function withProviderOptions(
+  def: ResourceDef<ModelConfigVO>,
+  options: { label: string; value: string }[],
+  providerId?: string | null,
+): ResourceDef<ModelConfigVO> {
   return {
     ...def,
     form: def.form.map((field) => (field.name === 'providerId' ? { ...field, options } : field)),
+    filters: [
+      ...(def.filters ?? []).filter((field) => field.name !== 'providerId'),
+      { name: 'providerId', label: '供应商', type: 'select', options },
+    ],
+    initialFilters: providerId ? { providerId } : undefined,
   }
 }

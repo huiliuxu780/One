@@ -151,7 +151,7 @@ export function AppShell() {
               <DropdownMenu.Content side="right" align="end" sideOffset={8} className="z-50 min-w-48 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-dialog">
                 <DropdownMenu.Item onSelect={() => navigate('/settings/profile')} className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm outline-none hover:bg-muted focus:bg-muted"><UserCircle size={16} />个人资料</DropdownMenu.Item>
                 <DropdownMenu.Item onSelect={() => navigate('/settings/password')} className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm outline-none hover:bg-muted focus:bg-muted"><LockKey size={16} />修改密码</DropdownMenu.Item>
-                <DropdownMenu.Item disabled className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground outline-none"><Gear size={16} />账号设置</DropdownMenu.Item>
+                <DropdownMenu.Item onSelect={() => navigate('/settings?tab=accounts')} className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm outline-none hover:bg-muted focus:bg-muted"><Gear size={16} />账号设置</DropdownMenu.Item>
                 <DropdownMenu.Separator className="my-1 h-px bg-border" />
                 <DropdownMenu.Item onSelect={handleLogout} className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive outline-none hover:bg-muted focus:bg-muted"><SignOut size={16} />退出登录</DropdownMenu.Item>
               </DropdownMenu.Content>

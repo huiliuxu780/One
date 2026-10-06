@@ -97,7 +97,7 @@ export const router = createBrowserRouter(
             { path: '/workflow/new', element: <Navigate to="/workflow?create=1" replace /> },
             { path: '/workflow-resources', element: withCapability(<WorkflowResourcesPage />, 'workflow:manage') },
             { path: '/model', element: withCapability(<ModelPage />, 'resource:manage') },
-            { path: '/model/:providerId/config', element: <LegacyParamRedirect build={(params) => `/model?tab=provider&providerId=${encodeURIComponent(params.providerId || '')}`} /> },
+            { path: '/model/:providerId/config', element: <LegacyParamRedirect build={(params) => `/model?providerId=${encodeURIComponent(params.providerId || '')}`} /> },
             { path: '/skill', element: withCapability(<SkillPage />, 'resource:manage') },
             { path: '/skill/new', element: <Navigate to="/skill?action=new" replace /> },
             { path: '/skill/hub', element: <Navigate to="/skill?hub=1" replace /> },

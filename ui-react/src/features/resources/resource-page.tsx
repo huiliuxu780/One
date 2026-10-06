@@ -145,6 +145,9 @@ function useResourceForm<T extends { id?: string | number }>(def: ResourceDef<T>
   function openCreate() {
     const defaults: Record<string, unknown> = {}
     for (const field of def.form) defaults[field.name] = field.defaultValue ?? (field.type === 'switch' ? false : '')
+    for (const field of def.form) {
+      if (def.initialFilters?.[field.name] !== undefined) defaults[field.name] = def.initialFilters[field.name]
+    }
     setEditing(null)
     form.reset(defaults)
     setOpen(true)
@@ -305,9 +308,12 @@ const deleteDialog = (
 )
 
 export function ResourcePage<T extends { id?: string | number }>({ def }: { def: ResourceDef<T> }) {
-  const [search, setSearch] = useState('')
-  const [filterValues, setFilterValues] = useState<Record<string, unknown>>({})
+  const [search, setSearch] = useState(String(def.initialFilters?.name ?? ''))
+  const [filterValues, setFilterValues] = useState<Record<string, unknown>>(def.initialFilters ?? {})
   const [activeAction, setActiveAction] = useState<{ row: T; index: number } | null>(null)
+  const [pendingToggle, setPendingToggle] = useState<{ row: T; enabled: boolean; usageCount: number } | null>(null)
+  const [toggleBusy, setToggleBusy] = useState(false)
+  const [editBusyId, setEditBusyId] = useState<string | null>(null)
   const invalidate = useInvalidateResource()
 
   const listQuery = useQuery({
@@ -319,9 +325,10 @@ export function ResourcePage<T extends { id?: string | number }>({ def }: { def:
   const paged = usePagedList<T>({
     resource: def.key,
     fetcher: async (params) => {
-      const response = await def.api.page!({ ...params, name: search || undefined, ...filterValues })
+      const response = await def.api.page!(params)
       return response.data.data
     },
+    initialFilters: def.initialFilters,
     enabled: !def.nonPaged,
   })
 
@@ -334,13 +341,70 @@ export function ResourcePage<T extends { id?: string | number }>({ def }: { def:
     def.nonPaged ? (listQuery.data ?? []).map((row) => String(row.id)) : paged.data?.records.map((row) => String(row.id)),
   )
 
-  const rows: T[] = def.nonPaged ? listQuery.data ?? [] : paged.data?.records ?? []
+  const rows: T[] = def.nonPaged
+    ? (listQuery.data ?? []).filter((row) => {
+        const record = row as Record<string, unknown>
+        const displayName = String(record.name ?? record.configName ?? record.url ?? '')
+        if (search && !displayName.toLocaleLowerCase().includes(search.toLocaleLowerCase())) return false
+        return (def.filters ?? []).every((filter) => {
+          const expected = filterValues[filter.name]
+          return expected === undefined || expected === '' || String(record[filter.name] ?? '') === String(expected)
+        })
+      })
+    : paged.data?.records ?? []
   const loading = def.nonPaged ? listQuery.isLoading : paged.isLoading
   const error = def.nonPaged ? listQuery.error : paged.error
 
   function refresh() {
     invalidate(def.key)
     if (def.nonPaged) void listQuery.refetch()
+  }
+
+  async function openEdit(row: T) {
+    const id = String(row.id)
+    setEditBusyId(id)
+    try {
+      const complete = def.api.detail ? (await def.api.detail(id)).data.data : row
+      form.openEdit(complete)
+    } catch (cause) {
+      toast.error(readableError(cause, `加载${def.title}详情失败`))
+    } finally {
+      setEditBusyId(null)
+    }
+  }
+
+  async function applyToggle(row: T, enabled: boolean) {
+    setToggleBusy(true)
+    try {
+      const id = String(row.id)
+      const needsFullEntity = ['hook', 'model-config', 'long-term-memory', 'code-execution'].includes(def.key)
+      const complete = needsFullEntity && def.api.detail ? (await def.api.detail(id)).data.data : row
+      const payload = needsFullEntity ? { ...complete, enabled } : { id: row.id, enabled }
+      await def.api.update(payload as Partial<T>)
+      toast.success(enabled ? '已启用' : '已停用')
+      setPendingToggle(null)
+      refresh()
+    } catch (cause) {
+      toast.error(readableError(cause, enabled ? '启用失败' : '停用失败'))
+    } finally {
+      setToggleBusy(false)
+    }
+  }
+
+  async function requestToggle(row: T, enabled: boolean) {
+    if (!enabled && def.api.usedWith) {
+      try {
+        const usage = (await def.api.usedWith([String(row.id)])).data.data
+        if (Array.isArray(usage) && usage.length > 0) {
+          setPendingToggle({ row, enabled, usageCount: usage.length })
+          return
+        }
+      } catch (cause) {
+        toast.error(readableError(cause, '无法检查资源占用'))
+        return
+      }
+    }
+    await applyToggle(row, enabled)
   }
 
   async function deleteSelected() {
@@ -377,15 +441,24 @@ export function ResourcePage<T extends { id?: string | number }>({ def }: { def:
                 className="pl-8"
                 placeholder={def.searchPlaceholder ?? '按名称搜索'}
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  const value = event.target.value
+                  setSearch(value)
+                  if (!def.nonPaged) paged.setFilter('name', value || undefined)
+                }}
               />
             </div>
-            {(def.filters ?? []).map((filter) =>
-              filter.type === 'select' ? (
+            {(def.filters ?? []).map((filter) => {
+              const value = filterValues[filter.name]
+              if (filter.type === 'select') return (
                 <Select
                   key={filter.name}
-                  value={String(filterValues[filter.name] ?? 'all')}
-                  onValueChange={(value) => setFilterValues((previous) => ({ ...previous, [filter.name]: value === 'all' ? undefined : value }))}
+                  value={String(value ?? 'all')}
+                  onValueChange={(next) => {
+                    const normalized = next === 'all' ? undefined : next
+                    setFilterValues((previous) => ({ ...previous, [filter.name]: normalized }))
+                    if (!def.nonPaged) paged.setFilter(filter.name, normalized)
+                  }}
                 >
                   <SelectTrigger className="w-36" aria-label={filter.label}>
                     <SelectValue placeholder={filter.label} />
@@ -399,8 +472,22 @@ export function ResourcePage<T extends { id?: string | number }>({ def }: { def:
                     ))}
                   </SelectContent>
                 </Select>
-              ) : null,
-            )}
+              )
+              return (
+                <Input
+                  key={filter.name}
+                  className="w-44"
+                  aria-label={filter.label}
+                  placeholder={filter.placeholder ?? filter.label}
+                  value={value == null ? '' : String(value)}
+                  onChange={(event) => {
+                    const next = event.target.value
+                    setFilterValues((previous) => ({ ...previous, [filter.name]: next || undefined }))
+                    if (!def.nonPaged) paged.setFilter(filter.name, next || undefined)
+                  }}
+                />
+              )
+            })}
           </div>
 
           {loading ? (
@@ -444,7 +531,14 @@ export function ResourcePage<T extends { id?: string | number }>({ def }: { def:
                       </TableCell>
                       {def.columns.map((column) => (
                         <TableCell key={column.header} className={column.className}>
-                          {column.render ? column.render(row) : column.field ? String((row as Record<string, unknown>)[column.field] ?? '—') : '—'}
+                          {column.kind === 'enabled' ? (
+                            <Switch
+                              checked={Boolean((row as Record<string, unknown>).enabled)}
+                              disabled={toggleBusy}
+                              onCheckedChange={(enabled) => void requestToggle(row, enabled)}
+                              aria-label={`${String((row as Record<string, unknown>).name ?? (row as Record<string, unknown>).configName ?? row.id)}启用开关`}
+                            />
+                          ) : column.render ? column.render(row) : column.field ? String((row as Record<string, unknown>)[column.field] ?? '—') : '—'}
                         </TableCell>
                       ))}
                       <TableCell className="text-right">
@@ -462,8 +556,8 @@ export function ResourcePage<T extends { id?: string | number }>({ def }: { def:
                               {action.label}
                             </Button>
                           ))}
-                          <Button variant="ghost" size="sm" onClick={() => form.openEdit(row)}>
-                            编辑
+                          <Button variant="ghost" size="sm" disabled={editBusyId === rowId} onClick={() => void openEdit(row)}>
+                            {editBusyId === rowId ? '加载中…' : '编辑'}
                           </Button>
                           <Button variant="ghost" size="sm" className="text-destructive" onClick={() => deletion.setPending([row])}>
                             删除
@@ -490,6 +584,21 @@ export function ResourcePage<T extends { id?: string | number }>({ def }: { def:
       </Card>
 
       <ResourceFormDialog def={def} form={form.form} editing={form.editing} open={form.open} onOpenChange={form.setOpen} onSaved={refresh} />
+
+      <AlertDialog open={pendingToggle != null} onOpenChange={(open) => !open && setPendingToggle(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认停用{def.title}</AlertDialogTitle>
+            <AlertDialogDescription>该资源仍被 {pendingToggle?.usageCount} 处引用，停用后相关功能可能无法正常运行。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction disabled={toggleBusy} onClick={() => pendingToggle && void applyToggle(pendingToggle.row, pendingToggle.enabled)}>
+              {toggleBusy ? '处理中…' : '确认停用'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {activeAction
         ? def.rowActions?.[activeAction.index]?.renderDialog?.(activeAction.row, () => setActiveAction(null))
