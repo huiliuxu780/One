@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Copy, LockKeyOpen, Lock, MagnifyingGlass, PencilSimple, Plus, Trash } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,7 @@ import type { Workflow } from '@/types'
 import { usePagedList } from '@/features/data/paged'
 
 export function WorkflowPage() {
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const paged = usePagedList<Workflow>({
     resource: 'workflow',
@@ -32,8 +33,11 @@ export function WorkflowPage() {
     onSuccess: (created) => {
       toast.success('已创建')
       refresh()
-      if (created?.id) window.location.hash = ''
-      window.location.assign(`/workflow/${created?.id}/edit`)
+      if (!created?.id) {
+        toast.error('创建成功，但服务端未返回工作流 ID')
+        return
+      }
+      navigate(`/workflow/${created.id}/edit`)
     },
     onError: (cause) => toast.error(readableError(cause, '创建失败')),
   })
@@ -132,7 +136,7 @@ export function WorkflowPage() {
                     <TableCell>{row.locked ? <Badge variant="outline">已锁定</Badge> : '—'}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => window.location.assign(`/workflow/${row.id}/edit`)}>
+                        <Button variant="ghost" size="sm" onClick={() => navigate(`/workflow/${row.id}/edit`)}>
                           <PencilSimple size={13} /> 编辑
                         </Button>
                         <Button variant="ghost" size="sm" disabled={busy} onClick={() => void action('复制', () => workflowApi.copyWorkflow(String(row.id)))}>
