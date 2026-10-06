@@ -171,6 +171,7 @@
 - 2026-10-06：账号草稿和 API Key 创建修复提交 `5229c92` 已推送并在 ECS 两处仓库部署；只重建 `frontend`。运行镜像 ID `sha256:b7d1bb3a30e6d4ebe88d0fae0a398f3a47cec3ca7a38fa71500a3b396579e3a4`，回滚镜像 `apboa-dev-frontend:rollback-2a261ea-pre-5229c92`，旧产物 `ui-react/dist.pre-5229c92/`。`/react/` 返回 HTTP 200，Frontend/Console/Runtime 容器运行。浏览器打开部署后的 API Key 页看到名称、过期时间和备注字段，真实列表为空，浏览器错误日志为空；未创建真实密钥，因此一次性展示和复制只由组件测试验证。35 个测试文件共 115 项通过，类型检查、生产构建和体积检查通过。
 - 2026-10-06：存储协议校验与运维角色修复提交 `adf7322` 已推送并在 ECS 两处仓库部署；只重建 `frontend`。运行镜像 ID `sha256:a359b605574fabc033f301f4f43f4777d54c5b729c6063985b1ddfe14e86c09e`，回滚镜像 `apboa-dev-frontend:rollback-5229c92-pre-adf7322`，旧产物 `ui-react/dist.pre-adf7322/`。`/react/` 返回 HTTP 200，所有 Compose 服务运行。浏览器在部署后的真实 LOCAL 存储记录上看到“详情”入口与管理员节点页签，错误日志为空；浏览器点击通道超时，未取得详情弹窗或编辑角色的真实交互证据。36 个测试文件共 117 项通过，类型检查、生产构建和体积检查通过。
 - 2026-10-06：设置页编辑角色入口修复提交 `5a1b333` 已推送并在 ECS 两处仓库部署；只重建 `frontend`。运行镜像 ID `sha256:8c4f4a980a0a91db12e09c8c9e2bdb56037af8874f252a2a8e6ef33bc0579216`，回滚镜像 `apboa-dev-frontend:rollback-adf7322-pre-5a1b333`，旧产物 `ui-react/dist.pre-5a1b333/`。`/react/` 返回 HTTP 200，所有 Compose 服务运行；编辑角色尚无真实账号登录回归，角色映射由单测和后端 `@RoleNeed` 静态核对，类型检查、生产构建和体积检查通过。
+- 2026-10-06：运维分页协议修复提交 `8a4e2d7` 已推送并在 ECS 两处仓库部署；只重建 `frontend`。运行镜像 ID `sha256:ba0452d2464a259596e4d3f635c47fa5f5af307d67c5f644b2068aed97e59685`，回滚镜像 `apboa-dev-frontend:rollback-5a1b333-pre-8a4e2d7`，旧产物 `ui-react/dist.pre-8a4e2d7/`。`/react/` 返回 HTTP 200，所有 Compose 服务运行；浏览器读取已部署运维页真实 LOCAL 配置，错误日志为空。翻页请求 `page: 2` 有组件测试；真实列表不足 20 条，无法取得第二页回显证据。37 个测试文件共 119 项通过，类型检查、生产构建和体积检查通过。
 
 ## 13. 结论口径
 
