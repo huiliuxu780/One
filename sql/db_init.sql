@@ -564,7 +564,7 @@ DROP TABLE IF EXISTS `secret_key`;
 CREATE TABLE `secret_key` (
   `id` bigint NOT NULL COMMENT '主键ID',
   `name` varchar(100) NOT NULL COMMENT '秘钥名称（业务可读）',
-  `value` varchar(500) DEFAULT NULL COMMENT '密钥',
+  `value` varchar(1000) DEFAULT NULL COMMENT '密钥',
   `enabled` tinyint DEFAULT 1 COMMENT '状态 1-启用 0-禁用',
   `expire_time` datetime DEFAULT NULL COMMENT '过期时间（为空表示不过期）',
   `created_by` bigint NOT NULL COMMENT '创建人',
