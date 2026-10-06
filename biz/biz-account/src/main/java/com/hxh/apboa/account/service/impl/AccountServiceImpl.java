@@ -178,6 +178,21 @@ public class AccountServiceImpl extends ServiceImpl<AccountMapper, Account> impl
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean register(RegisterRequest request) {
+        return register(request, false);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean registerByAdmin(RegisterRequest request, Long tenantId) {
+        if (tenantId == null) {
+            throw new RuntimeException("当前组织上下文不能为空");
+        }
+        request.setCreateTenant(false);
+        request.setJoinTenantId(tenantId);
+        return register(request, true);
+    }
+
+    private boolean register(RegisterRequest request, boolean adminDirectJoin) {
         // 参数校验
         validateRegisterRequest(request);
 
@@ -219,7 +234,7 @@ public class AccountServiceImpl extends ServiceImpl<AccountMapper, Account> impl
             if (targetTenant == null) {
                 throw new RuntimeException("目标组织不存在");
             }
-            if (!Boolean.TRUE.equals(targetTenant.getJoinable())) {
+            if (!adminDirectJoin && !Boolean.TRUE.equals(targetTenant.getJoinable())) {
                 throw new RuntimeException("该组织不允许主动加入");
             }
         }
@@ -273,7 +288,7 @@ public class AccountServiceImpl extends ServiceImpl<AccountMapper, Account> impl
             Tenant targetTenant = tenantMapper.selectById(request.getJoinTenantId());
             boolean needApproval = Boolean.TRUE.equals(targetTenant.getJoinApprovalRequired());
 
-            if (!needApproval) {
+            if (adminDirectJoin || !needApproval) {
                 // 无需审批，直接加入
                 AccountTenant membership = new AccountTenant();
                 membership.setId(IdWorker.getId());

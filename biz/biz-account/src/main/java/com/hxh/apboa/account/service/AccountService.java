@@ -28,6 +28,11 @@ public interface AccountService extends IService<Account> {
     boolean register(RegisterRequest request);
 
     /**
+     * 管理员在当前租户内创建账号并直接加入，不经过公开加入申请流程。
+     */
+    boolean registerByAdmin(RegisterRequest request, Long tenantId);
+
+    /**
      * 刷新Token
      *
      * @param request 刷新请求

@@ -6,6 +6,7 @@ import com.hxh.apboa.common.config.auth.RoleNeed;
 import com.hxh.apboa.common.dto.*;
 import com.hxh.apboa.common.enums.TenantRole;
 import com.hxh.apboa.common.r.R;
+import com.hxh.apboa.common.util.UserUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -87,7 +88,7 @@ public class AuthController {
     @RoleNeed({TenantRole.TENANT_ADMIN})
     @PostMapping("/admin/create-account")
     public R<Boolean> adminCreateAccount(@RequestBody RegisterRequest request) {
-        return R.data(accountService.register(request));
+        return R.data(accountService.registerByAdmin(request, UserUtils.getTenantId()));
     }
 
     /**
