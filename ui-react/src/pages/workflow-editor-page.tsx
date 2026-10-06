@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
@@ -38,18 +38,21 @@ import { fromBackendDefinition, toBackendDefinition, toBackendNode } from '@/fea
 import { cloneWorkflowNodeDefaults, workflowNodeSchemaMap, workflowNodeSchemas } from '@/features/workflow/node-schemas'
 import { MultiSelectField, type SelectOption } from '@/features/agents/multi-select-field'
 import { mcpInputConfigs, toolInputConfigs } from '@/features/workflow/resource-bindings'
+import { validateWorkflowConnection } from '@/features/workflow/edge-rules'
+import { sessionStorageAdapter } from '@/lib/storage'
 
 // 知识库节点不在节点库中（明确排除）；旧含 KNOWLEDGE 节点的流程加载后只读提示。
 
 function WorkflowCanvasNode({ data, selected }: { data: Record<string, unknown>; selected?: boolean }) {
+  const type = String(data.type ?? '')
   return (
     <div className={`w-44 rounded-lg border bg-card px-3 py-2 shadow-card ${selected ? 'border-primary ring-2 ring-ring' : 'border-border'}`}>
-      <Handle type="target" position={Position.Left} className="!size-2.5 !border-background !bg-primary" />
+      {type !== 'START' ? <Handle id="input" type="target" position={Position.Left} className="!size-2.5 !border-background !bg-primary" /> : null}
       <div className="flex items-center justify-between gap-2">
         <span className="truncate text-sm font-medium">{String(data.name ?? '节点')}</span>
         <Badge variant="outline" className="shrink-0 text-[10px]">{String(data.type ?? '')}</Badge>
       </div>
-      <Handle type="source" position={Position.Right} className="!size-2.5 !border-background !bg-primary" />
+      {type !== 'END' ? <Handle id="output" type="source" position={Position.Right} className="!size-2.5 !border-background !bg-primary" /> : null}
     </div>
   )
 }
@@ -70,6 +73,9 @@ export function WorkflowEditorPage() {
   const [runInputs, setRunInputs] = useState('{}')
   const [nodeRunInputs, setNodeRunInputs] = useState('{}')
   const [nodeRunResult, setNodeRunResult] = useState<WorkflowNodeRunResult | null>(null)
+  const [lockState, setLockState] = useState<'checking' | 'owned' | 'readonly'>('checking')
+  const lockOwnedRef = useRef(false)
+  const lockWorkflowIdRef = useRef('')
 
   const detailQuery = useQuery({
     queryKey: ['detail', 'workflow', String(id)],
@@ -103,18 +109,69 @@ export function WorkflowEditorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detailQuery.data])
 
+  useEffect(() => {
+    const workflowId = String(id ?? '')
+    if (!workflowId || !detailQuery.data) return
+    if (lockWorkflowIdRef.current && lockWorkflowIdRef.current !== workflowId && lockOwnedRef.current) {
+      void workflowApi.setWorkflowLock(lockWorkflowIdRef.current, 0).catch(() => undefined)
+      lockOwnedRef.current = false
+    }
+    lockWorkflowIdRef.current = workflowId
+    let disposed = false
+    setLockState('checking')
+    workflowApi.setWorkflowLock(workflowId, 1).then((response) => {
+      const owned = Boolean(response.data.data)
+      if (lockWorkflowIdRef.current !== workflowId) return
+      lockOwnedRef.current = owned
+      if (disposed) return
+      setLockState(owned ? 'owned' : 'readonly')
+      if (!owned) toast.warning('该工作流正由其他账号编辑，当前以只读模式打开。')
+    }).catch((cause) => {
+      if (!disposed) {
+        setLockState('readonly')
+        toast.error(readableError(cause, '无法取得工作流编辑锁，已进入只读模式'))
+      }
+    })
+    return () => { disposed = true }
+  }, [Boolean(detailQuery.data), id])
+
+  useEffect(() => {
+    const release = () => {
+      const workflowId = lockWorkflowIdRef.current
+      if (!workflowId || !lockOwnedRef.current) return
+      lockOwnedRef.current = false
+      const token = sessionStorageAdapter.getAccessToken()
+      void fetch(`/api/workflow/${encodeURIComponent(workflowId)}/lock/0`, {
+        method: 'PUT',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        keepalive: true,
+      }).catch(() => undefined)
+    }
+    window.addEventListener('pagehide', release)
+    return () => {
+      window.removeEventListener('pagehide', release)
+      release()
+    }
+  }, [])
+
   const selectedNode = useMemo(() => nodes.find((node) => node.id === selectedId) ?? null, [nodes, selectedId])
-  const legacyReadOnly = useMemo(
+  const legacyKnowledgeReadOnly = useMemo(
     () => nodes.some((node) => String(node.data.type ?? '').toUpperCase().includes('KNOWLEDGE')),
     [nodes],
   )
+  const readOnly = legacyKnowledgeReadOnly || lockState !== 'owned'
 
   const onConnect = useCallback(
     (connection: Connection) => {
-      if (legacyReadOnly) return
+      if (readOnly) return
+      const result = validateWorkflowConnection(connection, nodes, edges)
+      if (!result.ok) {
+        toast.warning(result.reason)
+        return
+      }
       setEdges((existing) => addEdge({ ...connection, id: `e_${connection.source}_${connection.target}_${Date.now()}` }, existing))
     },
-    [legacyReadOnly, setEdges],
+    [edges, nodes, readOnly, setEdges],
   )
 
   const onNodeClick: NodeMouseHandler = useCallback((_event, node) => {
@@ -124,7 +181,7 @@ export function WorkflowEditorPage() {
   }, [])
 
   function applyConfig() {
-    if (!selectedNode || legacyReadOnly) return
+    if (!selectedNode || readOnly) return
     try {
       const parsed = JSON.parse(configText) as Record<string, unknown>
       setNodes((existing) => existing.map((node) => (node.id === selectedNode.id ? { ...node, data: { ...node.data, config: parsed } } : node)))
@@ -140,7 +197,7 @@ export function WorkflowEditorPage() {
   }
 
   function updateConfigPatch(patch: Record<string, unknown>) {
-    if (!selectedNode || legacyReadOnly) return
+    if (!selectedNode || readOnly) return
     const nodeId = selectedNode.id
     let nextConfig: Record<string, unknown> = {}
     setNodes((existing) => existing.map((node) => {
@@ -153,12 +210,12 @@ export function WorkflowEditorPage() {
   }
 
   function updateNodeData(key: string, value: unknown) {
-    if (!selectedNode || legacyReadOnly) return
+    if (!selectedNode || readOnly) return
     setNodes((existing) => existing.map((node) => (node.id === selectedNode.id ? { ...node, data: { ...node.data, [key]: value } } : node)))
   }
 
   function removeSelectedNode() {
-    if (!selectedNode || legacyReadOnly) return
+    if (!selectedNode || readOnly) return
     setNodes((existing) => existing.filter((node) => node.id !== selectedNode.id))
     setEdges((existing) => existing.filter((edge) => edge.source !== selectedNode.id && edge.target !== selectedNode.id))
     setSelectedId(null)
@@ -166,7 +223,7 @@ export function WorkflowEditorPage() {
   }
 
   function addNode(type: string) {
-    if (legacyReadOnly || type.toUpperCase().includes('KNOWLEDGE')) return
+    if (readOnly || type.toUpperCase().includes('KNOWLEDGE')) return
     const schema = workflowNodeSchemaMap[type]
     const meta = metadataByType[type]
     const nodeId = `node_${type.toLowerCase()}_${Date.now()}`
@@ -259,19 +316,20 @@ export function WorkflowEditorPage() {
         <div className="ml-auto flex items-center gap-1">
           <Button variant="outline" size="sm" onClick={() => setVersionsOpen(true)}>版本</Button>
           <Button variant="outline" size="sm" onClick={() => setRunsOpen(true)}><ClockCounterClockwise size={14} /> 运行记录</Button>
-          <Button variant="outline" size="sm" onClick={() => validateMutation.mutate()} disabled={legacyReadOnly || validateMutation.isPending}>
+          {lockState === 'checking' ? <Badge variant="outline">正在取得编辑锁…</Badge> : lockState === 'readonly' ? <Badge variant="outline">只读</Badge> : null}
+          <Button variant="outline" size="sm" onClick={() => validateMutation.mutate()} disabled={readOnly || validateMutation.isPending}>
             <ShieldCheck size={14} /> 校验
           </Button>
-          <Button variant="outline" size="sm" onClick={() => publishMutation.mutate()} disabled={legacyReadOnly || publishMutation.isPending}>
+          <Button variant="outline" size="sm" onClick={() => publishMutation.mutate()} disabled={readOnly || publishMutation.isPending}>
             发布
           </Button>
-          <Button variant="outline" size="sm" onClick={() => runMutation.mutate('debug')} disabled={legacyReadOnly || runMutation.isPending}>
+          <Button variant="outline" size="sm" onClick={() => runMutation.mutate('debug')} disabled={readOnly || runMutation.isPending}>
             <Bug size={14} /> 调试运行
           </Button>
-          <Button variant="outline" size="sm" onClick={() => runMutation.mutate('run')} disabled={legacyReadOnly || runMutation.isPending}>
+          <Button variant="outline" size="sm" onClick={() => runMutation.mutate('run')} disabled={readOnly || runMutation.isPending}>
             <Play size={14} /> 正式运行
           </Button>
-          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={legacyReadOnly || saveMutation.isPending}>
+          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={readOnly || saveMutation.isPending}>
             <FloppyDisk size={14} /> {saveMutation.isPending ? '保存中…' : '保存'}
           </Button>
         </div>
@@ -280,7 +338,7 @@ export function WorkflowEditorPage() {
       <div className="flex min-h-0 flex-1">
         {/* 节点库 */}
         <aside className="w-48 shrink-0 overflow-auto border-r border-border p-2">
-          <div className="mb-1 px-1 text-[11px] font-medium text-muted-foreground">节点库（后端 metadata）</div>
+          <div className="mb-1 px-1 text-[11px] font-medium text-muted-foreground">完整节点库</div>
           {workflowNodeSchemas.map((item) => (
             <button
               key={item.type}
@@ -303,9 +361,9 @@ export function WorkflowEditorPage() {
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onNodeClick={onNodeClick}
-            nodesDraggable={!legacyReadOnly}
-            nodesConnectable={!legacyReadOnly}
-            edgesReconnectable={!legacyReadOnly}
+            nodesDraggable={!readOnly}
+            nodesConnectable={!readOnly}
+            edgesReconnectable={!readOnly}
             fitView
           >
             <Background />
@@ -323,7 +381,7 @@ export function WorkflowEditorPage() {
                 {configDirty ? <Badge variant="outline">未应用</Badge> : null}
               </div>
               <Input
-                disabled={legacyReadOnly}
+                disabled={readOnly}
                 className="mb-2"
                 value={String(selectedNode.data.name ?? '')}
                 placeholder="节点名称"
@@ -335,7 +393,7 @@ export function WorkflowEditorPage() {
               <StructuredConfigEditor
                 config={(selectedNode.data.config as Record<string, unknown>) ?? {}}
                 defaults={workflowNodeSchemaMap[String(selectedNode.data.type)]?.defaultConfig ?? metadataByType[String(selectedNode.data.type)]?.defaultConfig ?? {}}
-                disabled={legacyReadOnly}
+                disabled={readOnly}
                 resources={{
                   datasource: resourceQueries.datasource.data ?? [],
                   cache: resourceQueries.cache.data ?? [],
@@ -354,21 +412,21 @@ export function WorkflowEditorPage() {
                 value={(selectedNode.data.inputConfigs as WorkflowInputConfig[] | undefined) ?? []}
                 nodes={nodes}
                 selectedNodeId={selectedNode.id}
-                disabled={legacyReadOnly}
+                disabled={readOnly}
                 onChange={(value) => updateNodeData('inputConfigs', value)}
               />
               <OutputConfigDisplay value={(selectedNode.data.outputConfigs as Array<{ name: string; type?: string; description?: string }> | undefined) ?? []} />
               <details className="mt-3 rounded-lg border border-border p-2">
                 <summary className="cursor-pointer text-xs font-medium text-muted-foreground">高级 JSON 配置</summary>
-                <Textarea disabled={legacyReadOnly} className="mt-2 min-h-48 font-mono text-xs" value={configText} onChange={(event) => { setConfigText(event.target.value); setConfigDirty(true) }} />
-                <Button className="mt-2 w-full" size="sm" onClick={applyConfig} disabled={legacyReadOnly || !configDirty}>应用 JSON</Button>
+                <Textarea disabled={readOnly} className="mt-2 min-h-48 font-mono text-xs" value={configText} onChange={(event) => { setConfigText(event.target.value); setConfigDirty(true) }} />
+                <Button className="mt-2 w-full" size="sm" onClick={applyConfig} disabled={readOnly || !configDirty}>应用 JSON</Button>
               </details>
               <div className="mt-4 rounded-lg border border-border p-3">
                 <Label className="text-xs">单节点调试输入（JSON）</Label>
                 <Textarea className="mt-2 min-h-24 font-mono text-xs" value={nodeRunInputs} onChange={(event) => setNodeRunInputs(event.target.value)} />
-                <Button className="mt-2 w-full" variant="outline" size="sm" onClick={() => nodeRunMutation.mutate()} disabled={legacyReadOnly || nodeRunMutation.isPending}><Bug size={14} /> {nodeRunMutation.isPending ? '调试中…' : '调试当前节点'}</Button>
+                <Button className="mt-2 w-full" variant="outline" size="sm" onClick={() => nodeRunMutation.mutate()} disabled={readOnly || nodeRunMutation.isPending}><Bug size={14} /> {nodeRunMutation.isPending ? '调试中…' : '调试当前节点'}</Button>
               </div>
-              <Button className="mt-3 w-full text-destructive" variant="ghost" size="sm" onClick={removeSelectedNode} disabled={legacyReadOnly}><Trash size={14} /> 删除节点</Button>
+              <Button className="mt-3 w-full text-destructive" variant="ghost" size="sm" onClick={removeSelectedNode} disabled={readOnly}><Trash size={14} /> 删除节点</Button>
             </>
           ) : (
             <p className="text-sm text-muted-foreground">点击画布中的节点编辑配置；从节点库添加新节点。</p>
